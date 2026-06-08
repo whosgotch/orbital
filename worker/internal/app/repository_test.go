@@ -1,0 +1,53 @@
+package app
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/whosgotch/orbital/worker/internal/store"
+)
+
+func TestOpenRepositorySavesRepository(t *testing.T) {
+	repoDir := t.TempDir()
+	stateDir := t.TempDir()
+
+	svc := NewService(store.NewJSONStore(stateDir))
+
+	repository, err := svc.OpenRepository(repoDir)
+	if err != nil {
+		t.Fatalf("OpenRepository() error = %v", err)
+	}
+
+	if repository.Path != repoDir {
+		t.Fatalf("repository path = %q, want %q", repository.Path, repoDir)
+	}
+
+	if repository.Name != filepath.Base(repoDir) {
+		t.Fatalf("repository name = %q, want %q", repository.Name, filepath.Base(repoDir))
+	}
+
+	state, err := store.NewJSONStore(stateDir).Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if len(state.Repositories) != 1 {
+		t.Fatalf("expected 1 repository, got %d", len(state.Repositories))
+	}
+}
+
+func TestOpenRepositoryRejectsFilePath(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "not-a-repo.txt")
+
+	if err := os.WriteFile(filePath, []byte("test"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	svc := NewService(store.NewJSONStore(t.TempDir()))
+
+	if _, err := svc.OpenRepository(filePath); err == nil {
+		t.Fatal("expected error for file path, got nil")
+	}
+}
