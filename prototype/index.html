@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orbital Mock</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark" aria-hidden="true"></div>
+          <div>
+            <h1>Orbital</h1>
+            <p>Local mission control</p>
+          </div>
+        </div>
+
+        <section class="repo-panel" aria-label="Repository">
+          <div class="section-label">Repository</div>
+          <button class="repo-button" type="button">
+            <span class="repo-icon" aria-hidden="true"></span>
+            <span>/Users/akomov/dev/demo-cli</span>
+          </button>
+          <dl class="repo-stats">
+            <div>
+              <dt>Areas</dt>
+              <dd>4</dd>
+            </div>
+            <div>
+              <dt>Tests</dt>
+              <dd>18</dd>
+            </div>
+            <div>
+              <dt>Branch</dt>
+              <dd>main</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="mission-form" aria-label="Mission">
+          <div class="section-label">Mission</div>
+          <label for="missionText">Intent</label>
+          <textarea id="missionText">add a version command</textarea>
+          <button id="startMission" class="primary" type="button">Start mission</button>
+        </section>
+      </aside>
+
+      <section class="workspace" aria-label="Mission workspace">
+        <header class="topbar">
+          <div>
+            <div class="section-label">Active mission</div>
+            <h2 id="missionTitle">add a version command</h2>
+          </div>
+          <div id="statusBadge" class="status-badge idle">Draft</div>
+        </header>
+
+        <section class="graph-zone" aria-label="Mission graph">
+          <div class="graph-row repo-row">
+            <article class="node repo-node active">
+              <span class="node-kicker">Repo</span>
+              <strong>demo-cli</strong>
+              <small>TypeScript CLI</small>
+            </article>
+          </div>
+
+          <div class="tree-stem" aria-hidden="true"></div>
+
+          <div class="graph-row mission-row">
+            <article class="node mission-node pending">
+              <span class="node-kicker">Mission</span>
+              <strong id="graphMission">version command</strong>
+              <small id="missionNodeText">waiting</small>
+            </article>
+          </div>
+
+          <div class="tree-split action-split" aria-hidden="true"></div>
+
+          <div class="graph-row action-row">
+            <article class="node run-node pending">
+              <span class="node-kicker">Action</span>
+              <strong>agent run</strong>
+              <small id="runNodeText">not started</small>
+            </article>
+
+            <article class="node file-node pending">
+              <span class="node-kicker">Action</span>
+              <strong>package.json</strong>
+              <small>read metadata</small>
+            </article>
+
+            <article class="node file-node pending">
+              <span class="node-kicker">Action</span>
+              <strong>src/cli.ts</strong>
+              <small>read routing</small>
+            </article>
+          </div>
+
+          <div class="tree-split result-split" aria-hidden="true"></div>
+
+          <div class="graph-row result-row">
+            <article class="node patch-node pending">
+              <span class="node-kicker">Result</span>
+              <strong>2 files changed</strong>
+              <small id="patchNodeText">queued</small>
+            </article>
+
+            <article class="node verify-node pending">
+              <span class="node-kicker">Result</span>
+              <strong>npm test</strong>
+              <small id="verifyNodeText">blocked</small>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <aside class="details">
+        <section class="activity" aria-label="Agent activity">
+          <div class="panel-head">
+            <div>
+              <div class="section-label">Agent</div>
+              <h3>Run log</h3>
+            </div>
+            <button id="advanceStep" class="secondary" type="button">Advance</button>
+          </div>
+          <ol id="activityList" class="activity-list"></ol>
+        </section>
+
+        <section class="patch-panel" aria-label="Patch">
+          <div class="panel-head">
+            <div>
+              <div class="section-label">Patch</div>
+              <h3>Proposed diff</h3>
+            </div>
+            <div id="patchState" class="mini-state">Pending</div>
+          </div>
+          <pre class="diff"><code id="diffText"></code></pre>
+          <div class="actions">
+            <button id="rejectPatch" class="secondary" type="button" disabled>Reject</button>
+            <button id="approvePatch" class="primary" type="button" disabled>Approve patch</button>
+          </div>
+        </section>
+
+        <section class="verify-panel" aria-label="Verification">
+          <div class="panel-head">
+            <div>
+              <div class="section-label">Verification</div>
+              <h3>Command</h3>
+            </div>
+            <button id="runTests" class="secondary" type="button" disabled>Run</button>
+          </div>
+          <div class="command-line">npm test</div>
+          <pre id="testOutput" class="test-output">Waiting for approved patch.</pre>
+        </section>
+      </aside>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
