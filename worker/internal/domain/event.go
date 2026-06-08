@@ -12,6 +12,7 @@ const (
 	WorkflowEventPatchProposed   WorkflowEventType = "patch_proposed"
 	WorkflowEventRunCompleted    WorkflowEventType = "run_completed"
 	WorkflowEventRunFailed       WorkflowEventType = "run_failed"
+	WorkflowEventRunCancelled    WorkflowEventType = "run_cancelled"
 )
 
 type WorkflowEvent struct {
