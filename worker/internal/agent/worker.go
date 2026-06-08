@@ -1,0 +1,32 @@
+package agent
+
+import (
+	"context"
+
+	"github.com/whosgotch/orbital/worker/internal/domain"
+)
+
+type WorkerInfo struct {
+	Name      string `json:"name"`
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+type RunRequest struct {
+	RunID       string `json:"run_id"`
+	MissionID   string `json:"mission_id"`
+	RepoPath    string `json:"repo_path"`
+	MissionText string `json:"mission_text"`
+}
+
+type RunEvent struct {
+	WorkflowEvent *domain.WorkflowEvent `json:"workflow_event,omitempty"`
+	PatchProposal *domain.PatchProposal `json:"patch_proposal,omitempty"`
+}
+
+type Worker interface {
+	Name() string
+	CheckAvailable(ctx context.Context) (*WorkerInfo, error)
+	StartRun(ctx context.Context, request RunRequest) (<-chan RunEvent, error)
+	CancelRun(ctx context.Context, runID string) error
+}
