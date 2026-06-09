@@ -64,7 +64,7 @@ func runMission(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 	fmt.Fprintf(stdout, "agent run: %s (%s)\n", run.ID, run.Status)
 
-	patchID, err := firstPatchForRun(jsonStore, run.ID)
+	patchID, err := firstPatchForRun(service, run.ID)
 	if err != nil {
 		return err
 	}
@@ -124,19 +124,17 @@ func createDemoFixture(args []string, stdout io.Writer) error {
 	return nil
 }
 
-func firstPatchForRun(jsonStore *store.JSONStore, runID string) (string, error) {
-	state, err := jsonStore.Load()
+func firstPatchForRun(service *app.Service, runID string) (string, error) {
+	patches, err := service.ListPatchesByRun(runID)
 	if err != nil {
 		return "", err
 	}
 
-	for _, patch := range state.PatchProposals {
-		if patch.RunID == runID {
-			return patch.ID, nil
-		}
+	if len(patches) == 0 {
+		return "", fmt.Errorf("no patch proposal found for run: %s", runID)
 	}
 
-	return "", fmt.Errorf("no patch proposal found for run: %s", runID)
+	return patches[0].ID, nil
 }
 
 func usageError() error {
