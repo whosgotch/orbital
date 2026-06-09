@@ -70,6 +70,12 @@ func TestStartAgentRunWithMockWorkerSavesRunEventsAndPatch(t *testing.T) {
 		t.Fatalf("expected 6 workflow events, got %d", len(got.WorkflowEvents))
 	}
 
+	for _, event := range got.WorkflowEvents {
+		if event.MissionID != "mission_1" {
+			t.Fatalf("event mission ID = %q, want %q", event.MissionID, "mission_1")
+		}
+	}
+
 	if len(got.PatchProposals) != 1 {
 		t.Fatalf("expected 1 patch proposal, got %d", len(got.PatchProposals))
 	}

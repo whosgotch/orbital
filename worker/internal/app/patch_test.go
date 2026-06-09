@@ -40,6 +40,8 @@ func TestApprovePatchUpdatesPatchAndMission(t *testing.T) {
 	if got.Missions[0].Status != domain.MissionStatusApproved {
 		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusApproved)
 	}
+
+	assertLastWorkflowEvent(t, got.WorkflowEvents, domain.WorkflowEventPatchApproved, "mission_1", "run_1")
 }
 
 func TestRejectPatchUpdatesPatchAndMission(t *testing.T) {
@@ -68,6 +70,8 @@ func TestRejectPatchUpdatesPatchAndMission(t *testing.T) {
 	if got.Missions[0].Status != domain.MissionStatusRejected {
 		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusRejected)
 	}
+
+	assertLastWorkflowEvent(t, got.WorkflowEvents, domain.WorkflowEventPatchRejected, "mission_1", "run_1")
 }
 
 func TestPatchDecisionRejectsUnknownPatch(t *testing.T) {
@@ -111,6 +115,8 @@ func TestApplyPatchAppliesApprovedPatchAndMarksApplied(t *testing.T) {
 		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusApplied)
 	}
 
+	assertLastWorkflowEvent(t, got.WorkflowEvents, domain.WorkflowEventPatchApplied, "mission_1", "run_1")
+
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
@@ -141,6 +147,27 @@ func TestApplyPatchRejectsUnknownPatch(t *testing.T) {
 
 	if _, err := svc.ApplyPatch("missing_patch"); err == nil {
 		t.Fatal("expected error for unknown patch, got nil")
+	}
+}
+
+func assertLastWorkflowEvent(t *testing.T, events []domain.WorkflowEvent, wantType domain.WorkflowEventType, wantMissionID string, wantRunID string) {
+	t.Helper()
+
+	if len(events) == 0 {
+		t.Fatal("expected workflow event, got none")
+	}
+
+	event := events[len(events)-1]
+	if event.Type != wantType {
+		t.Fatalf("event type = %q, want %q", event.Type, wantType)
+	}
+
+	if event.MissionID != wantMissionID {
+		t.Fatalf("event mission ID = %q, want %q", event.MissionID, wantMissionID)
+	}
+
+	if event.RunID != wantRunID {
+		t.Fatalf("event run ID = %q, want %q", event.RunID, wantRunID)
 	}
 }
 

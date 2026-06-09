@@ -40,6 +40,14 @@ func (s *Service) RunVerification(ctx context.Context, repoID string, missionID 
 		Status:       domain.VerificationStatusRunning,
 		StartedAt:    startedAt,
 	}
+	state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+		missionID,
+		"",
+		domain.WorkflowEventVerificationRun,
+		"Verification started.",
+		command,
+		startedAt,
+	))
 
 	shell, shellFlag := verificationShell()
 	cmd := exec.CommandContext(ctx, shell, shellFlag, command)
@@ -60,9 +68,25 @@ func (s *Service) RunVerification(ctx context.Context, repoID string, missionID 
 	if err == nil {
 		verification.Status = domain.VerificationStatusPassed
 		state.Missions[missionIndex].Status = domain.MissionStatusVerified
+		state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+			missionID,
+			"",
+			domain.WorkflowEventVerificationPassed,
+			"Verification passed.",
+			command,
+			completedAt,
+		))
 	} else {
 		verification.Status = domain.VerificationStatusFailed
 		state.Missions[missionIndex].Status = domain.MissionStatusFailed
+		state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+			missionID,
+			"",
+			domain.WorkflowEventVerificationFailed,
+			"Verification failed.",
+			command,
+			completedAt,
+		))
 	}
 	state.Missions[missionIndex].UpdatedAt = completedAt
 

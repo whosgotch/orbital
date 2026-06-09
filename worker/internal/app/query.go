@@ -50,6 +50,22 @@ func (s *Service) ListEventsByRun(runID string) ([]domain.WorkflowEvent, error) 
 	return events, nil
 }
 
+func (s *Service) ListEventsByMission(missionID string) ([]domain.WorkflowEvent, error) {
+	state, err := s.store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]domain.WorkflowEvent, 0)
+	for _, event := range state.WorkflowEvents {
+		if event.MissionID == missionID {
+			events = append(events, event)
+		}
+	}
+
+	return events, nil
+}
+
 func (s *Service) ListPatchesByRun(runID string) ([]domain.PatchProposal, error) {
 	state, err := s.store.Load()
 	if err != nil {

@@ -21,8 +21,8 @@ func TestScopedQueriesReturnMatchingRecords(t *testing.T) {
 			{ID: "run_2", MissionID: "mission_2"},
 		},
 		WorkflowEvents: []domain.WorkflowEvent{
-			{ID: "event_1", RunID: "run_1"},
-			{ID: "event_2", RunID: "run_2"},
+			{ID: "event_1", MissionID: "mission_1", RunID: "run_1"},
+			{ID: "event_2", MissionID: "mission_2", RunID: "run_2"},
 		},
 		PatchProposals: []domain.PatchProposal{
 			{ID: "patch_1", RunID: "run_1"},
@@ -58,6 +58,14 @@ func TestScopedQueriesReturnMatchingRecords(t *testing.T) {
 	}
 	if len(events) != 1 || events[0].ID != "event_1" {
 		t.Fatalf("events = %+v, want only event_1", events)
+	}
+
+	missionEvents, err := svc.ListEventsByMission("mission_1")
+	if err != nil {
+		t.Fatalf("ListEventsByMission() error = %v", err)
+	}
+	if len(missionEvents) != 1 || missionEvents[0].ID != "event_1" {
+		t.Fatalf("mission events = %+v, want only event_1", missionEvents)
 	}
 
 	patches, err := svc.ListPatchesByRun("run_1")

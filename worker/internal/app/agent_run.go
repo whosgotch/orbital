@@ -68,6 +68,7 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 
 	for event := range events {
 		if event.WorkflowEvent != nil {
+			event.WorkflowEvent.MissionID = missionID
 			state.WorkflowEvents = append(state.WorkflowEvents, *event.WorkflowEvent)
 		}
 

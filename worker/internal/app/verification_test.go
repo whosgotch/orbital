@@ -47,6 +47,8 @@ func TestRunVerificationPassesAndMarksMissionVerified(t *testing.T) {
 	if got.Missions[0].Status != domain.MissionStatusVerified {
 		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusVerified)
 	}
+
+	assertVerificationEvents(t, got.WorkflowEvents, domain.WorkflowEventVerificationPassed)
 }
 
 func TestRunVerificationFailureMarksMissionFailed(t *testing.T) {
@@ -82,6 +84,30 @@ func TestRunVerificationFailureMarksMissionFailed(t *testing.T) {
 
 	if got.Missions[0].Status != domain.MissionStatusFailed {
 		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusFailed)
+	}
+
+	assertVerificationEvents(t, got.WorkflowEvents, domain.WorkflowEventVerificationFailed)
+}
+
+func assertVerificationEvents(t *testing.T, events []domain.WorkflowEvent, wantFinalType domain.WorkflowEventType) {
+	t.Helper()
+
+	if len(events) != 2 {
+		t.Fatalf("expected 2 verification events, got %d", len(events))
+	}
+
+	if events[0].Type != domain.WorkflowEventVerificationRun {
+		t.Fatalf("first event type = %q, want %q", events[0].Type, domain.WorkflowEventVerificationRun)
+	}
+
+	if events[1].Type != wantFinalType {
+		t.Fatalf("second event type = %q, want %q", events[1].Type, wantFinalType)
+	}
+
+	for _, event := range events {
+		if event.MissionID != "mission_1" {
+			t.Fatalf("event mission ID = %q, want %q", event.MissionID, "mission_1")
+		}
 	}
 }
 

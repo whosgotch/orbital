@@ -10,11 +10,23 @@ import (
 )
 
 func (s *Service) ApprovePatch(patchID string) (*domain.PatchProposal, error) {
-	return s.updatePatchDecision(patchID, domain.PatchStatusApproved, domain.MissionStatusApproved)
+	return s.updatePatchDecision(
+		patchID,
+		domain.PatchStatusApproved,
+		domain.MissionStatusApproved,
+		domain.WorkflowEventPatchApproved,
+		"Patch approved.",
+	)
 }
 
 func (s *Service) RejectPatch(patchID string) (*domain.PatchProposal, error) {
-	return s.updatePatchDecision(patchID, domain.PatchStatusRejected, domain.MissionStatusRejected)
+	return s.updatePatchDecision(
+		patchID,
+		domain.PatchStatusRejected,
+		domain.MissionStatusRejected,
+		domain.WorkflowEventPatchRejected,
+		"Patch rejected.",
+	)
 }
 
 func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
@@ -62,6 +74,14 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 	state.PatchProposals[patchIndex].UpdatedAt = now
 	state.Missions[missionIndex].Status = domain.MissionStatusApplied
 	state.Missions[missionIndex].UpdatedAt = now
+	state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+		state.Missions[missionIndex].ID,
+		patch.RunID,
+		domain.WorkflowEventPatchApplied,
+		"Patch applied.",
+		"",
+		now,
+	))
 
 	if err := s.store.Save(state); err != nil {
 		return nil, err
@@ -70,7 +90,7 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 	return &state.PatchProposals[patchIndex], nil
 }
 
-func (s *Service) updatePatchDecision(patchID string, patchStatus domain.PatchStatus, missionStatus domain.MissionStatus) (*domain.PatchProposal, error) {
+func (s *Service) updatePatchDecision(patchID string, patchStatus domain.PatchStatus, missionStatus domain.MissionStatus, eventType domain.WorkflowEventType, message string) (*domain.PatchProposal, error) {
 	state, err := s.store.Load()
 	if err != nil {
 		return nil, err
@@ -96,6 +116,14 @@ func (s *Service) updatePatchDecision(patchID string, patchStatus domain.PatchSt
 	state.PatchProposals[patchIndex].UpdatedAt = now
 	state.Missions[missionIndex].Status = missionStatus
 	state.Missions[missionIndex].UpdatedAt = now
+	state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+		state.Missions[missionIndex].ID,
+		state.AgentRuns[runIndex].ID,
+		eventType,
+		message,
+		"",
+		now,
+	))
 
 	if err := s.store.Save(state); err != nil {
 		return nil, err
