@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/whosgotch/orbital/worker/internal/app"
+	"github.com/whosgotch/orbital/worker/internal/domain"
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
@@ -94,6 +95,12 @@ func runMission(ctx context.Context, args []string, stdout io.Writer) error {
 		fmt.Fprintf(stdout, "output:\n%s\n", verification.Output)
 	}
 
+	events, err := service.ListEventsByMission(mission.ID)
+	if err != nil {
+		return err
+	}
+	printTimeline(stdout, events)
+
 	return nil
 }
 
@@ -135,6 +142,17 @@ func firstPatchForRun(service *app.Service, runID string) (string, error) {
 	}
 
 	return patches[0].ID, nil
+}
+
+func printTimeline(stdout io.Writer, events []domain.WorkflowEvent) {
+	if len(events) == 0 {
+		return
+	}
+
+	fmt.Fprintln(stdout, "timeline:")
+	for _, event := range events {
+		fmt.Fprintf(stdout, "- %s: %s\n", event.Type, event.Message)
+	}
 }
 
 func usageError() error {

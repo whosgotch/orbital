@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/whosgotch/orbital/worker/internal/domain"
 )
 
 func TestCreateDemoFixtureResetsFilesAndState(t *testing.T) {
@@ -59,5 +61,25 @@ func TestCreateDemoFixtureResetsFilesAndState(t *testing.T) {
 func TestRunRejectsUnknownCommand(t *testing.T) {
 	if err := run(context.Background(), []string{"orbital", "unknown"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected usage error, got nil")
+	}
+}
+
+func TestPrintTimeline(t *testing.T) {
+	var output bytes.Buffer
+
+	printTimeline(&output, []domain.WorkflowEvent{
+		{
+			Type:    domain.WorkflowEventRunStarted,
+			Message: "Mock worker started.",
+		},
+		{
+			Type:    domain.WorkflowEventPatchApplied,
+			Message: "Patch applied.",
+		},
+	})
+
+	want := "timeline:\n- run_started: Mock worker started.\n- patch_applied: Patch applied.\n"
+	if output.String() != want {
+		t.Fatalf("timeline output = %q, want %q", output.String(), want)
 	}
 }
