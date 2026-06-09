@@ -27,6 +27,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	switch args[1] {
 	case "run":
 		return runMission(ctx, args, stdout)
+	case "status":
+		return showStatus(args, stdout)
 	case "demo-fixture":
 		return createDemoFixture(args, stdout)
 	default:
@@ -104,6 +106,74 @@ func runMission(ctx context.Context, args []string, stdout io.Writer) error {
 	return nil
 }
 
+func showStatus(args []string, stdout io.Writer) error {
+	if len(args) != 3 {
+		return usageError()
+	}
+
+	repoPath := args[2]
+	jsonStore := store.NewJSONStore(filepath.Join(repoPath, ".orbital"))
+	service := app.NewService(jsonStore)
+
+	repositories, err := service.ListRepositories()
+	if err != nil {
+		return err
+	}
+
+	for _, repository := range repositories {
+		fmt.Fprintf(stdout, "repository: %s (%s)\n", repository.ID, repository.Path)
+
+		missions, err := service.ListMissionsByRepository(repository.ID)
+		if err != nil {
+			return err
+		}
+
+		for _, mission := range missions {
+			if err := printMissionStatus(stdout, service, mission); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func printMissionStatus(stdout io.Writer, service *app.Service, mission domain.Mission) error {
+	fmt.Fprintf(stdout, "mission: %s (%s)\n", mission.ID, mission.Status)
+
+	runs, err := service.ListRunsByMission(mission.ID)
+	if err != nil {
+		return err
+	}
+	for _, run := range runs {
+		fmt.Fprintf(stdout, "  run: %s (%s)\n", run.ID, run.Status)
+
+		patches, err := service.ListPatchesByRun(run.ID)
+		if err != nil {
+			return err
+		}
+		for _, patch := range patches {
+			fmt.Fprintf(stdout, "    patch: %s (%s)\n", patch.ID, patch.Status)
+		}
+	}
+
+	verifications, err := service.ListVerificationsByMission(mission.ID)
+	if err != nil {
+		return err
+	}
+	for _, verification := range verifications {
+		fmt.Fprintf(stdout, "  verification: %s (%s)\n", verification.ID, verification.Status)
+	}
+
+	events, err := service.ListEventsByMission(mission.ID)
+	if err != nil {
+		return err
+	}
+	printTimeline(stdout, events)
+
+	return nil
+}
+
 func createDemoFixture(args []string, stdout io.Writer) error {
 	if len(args) != 3 {
 		return usageError()
@@ -156,7 +226,7 @@ func printTimeline(stdout io.Writer, events []domain.WorkflowEvent) {
 }
 
 func usageError() error {
-	return fmt.Errorf("usage: orbital run <repo-path> <mission-text> <verification-command>\n       orbital demo-fixture <repo-path>")
+	return fmt.Errorf("usage: orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital demo-fixture <repo-path>")
 }
 
 const demoPackageJSON = `{

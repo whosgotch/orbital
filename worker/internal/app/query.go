@@ -2,6 +2,15 @@ package app
 
 import "github.com/whosgotch/orbital/worker/internal/domain"
 
+func (s *Service) ListRepositories() ([]domain.Repository, error) {
+	state, err := s.store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	return append([]domain.Repository(nil), state.Repositories...), nil
+}
+
 func (s *Service) ListMissionsByRepository(repoID string) ([]domain.Mission, error) {
 	state, err := s.store.Load()
 	if err != nil {

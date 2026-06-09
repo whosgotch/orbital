@@ -12,6 +12,10 @@ func TestScopedQueriesReturnMatchingRecords(t *testing.T) {
 	svc := NewService(jsonStore)
 
 	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{
+			{ID: "repo_1", Name: "demo"},
+			{ID: "repo_2", Name: "other"},
+		},
 		Missions: []domain.Mission{
 			{ID: "mission_1", RepositoryID: "repo_1"},
 			{ID: "mission_2", RepositoryID: "repo_2"},
@@ -34,6 +38,14 @@ func TestScopedQueriesReturnMatchingRecords(t *testing.T) {
 		},
 	}); err != nil {
 		t.Fatalf("Save() error = %v", err)
+	}
+
+	repositories, err := svc.ListRepositories()
+	if err != nil {
+		t.Fatalf("ListRepositories() error = %v", err)
+	}
+	if len(repositories) != 2 || repositories[0].ID != "repo_1" || repositories[1].ID != "repo_2" {
+		t.Fatalf("repositories = %+v, want repo_1 and repo_2", repositories)
 	}
 
 	missions, err := svc.ListMissionsByRepository("repo_1")

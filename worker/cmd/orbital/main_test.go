@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
+	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
 func TestCreateDemoFixtureResetsFilesAndState(t *testing.T) {
@@ -61,6 +62,55 @@ func TestCreateDemoFixtureResetsFilesAndState(t *testing.T) {
 func TestRunRejectsUnknownCommand(t *testing.T) {
 	if err := run(context.Background(), []string{"orbital", "unknown"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected usage error, got nil")
+	}
+}
+
+func TestStatusPrintsSavedWorkflowState(t *testing.T) {
+	repoDir := t.TempDir()
+	jsonStore := store.NewJSONStore(filepath.Join(repoDir, ".orbital"))
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{
+			{ID: "repo_1", Path: repoDir, Name: "demo"},
+		},
+		Missions: []domain.Mission{
+			{ID: "mission_1", RepositoryID: "repo_1", Status: domain.MissionStatusVerified},
+		},
+		AgentRuns: []domain.AgentRun{
+			{ID: "run_1", MissionID: "mission_1", Status: domain.AgentRunStatusCompleted},
+		},
+		PatchProposals: []domain.PatchProposal{
+			{ID: "patch_1", RunID: "run_1", Status: domain.PatchStatusApplied},
+		},
+		VerificationRuns: []domain.VerificationRun{
+			{ID: "verification_1", MissionID: "mission_1", Status: domain.VerificationStatusPassed},
+		},
+		WorkflowEvents: []domain.WorkflowEvent{
+			{
+				ID:        "event_1",
+				MissionID: "mission_1",
+				Type:      domain.WorkflowEventVerificationPassed,
+				Message:   "Verification passed.",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	var output bytes.Buffer
+	err := run(context.Background(), []string{"orbital", "status", repoDir}, &output)
+	if err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+
+	want := "repository: repo_1 (" + repoDir + ")\n" +
+		"mission: mission_1 (verified)\n" +
+		"  run: run_1 (completed)\n" +
+		"    patch: patch_1 (applied)\n" +
+		"  verification: verification_1 (passed)\n" +
+		"timeline:\n" +
+		"- verification_passed: Verification passed.\n"
+	if output.String() != want {
+		t.Fatalf("status output = %q, want %q", output.String(), want)
 	}
 }
 
