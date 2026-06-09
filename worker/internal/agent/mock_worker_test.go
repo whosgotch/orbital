@@ -2,6 +2,10 @@ package agent
 
 import (
 	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
@@ -76,3 +80,48 @@ func TestMockWorkerStartRunEmitsEventsAndPatch(t *testing.T) {
 		}
 	}
 }
+
+func TestMockWorkerPatchAppliesWithGitApply(t *testing.T) {
+	repoDir := t.TempDir()
+	srcDir := filepath.Join(repoDir, "src")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(repoDir, "package.json"), []byte(mockPackageJSON), 0644); err != nil {
+		t.Fatalf("WriteFile(package.json) error = %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(srcDir, "cli.ts"), []byte(mockCLI), 0644); err != nil {
+		t.Fatalf("WriteFile(cli.ts) error = %v", err)
+	}
+
+	cmd := exec.Command("git", "apply")
+	cmd.Dir = repoDir
+	cmd.Stdin = strings.NewReader(mockVersionCommandDiff)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git apply error = %v, output = %s", err, string(output))
+	}
+}
+
+const mockPackageJSON = `{
+  "name": "demo",
+  "type": "module",
+  "bin": {
+    "demo": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  }
+}
+`
+
+const mockCLI = `import pkg from "../package.json";
+
+const command = process.argv[2];
+
+console.log("Usage: demo <command>");
+`

@@ -125,7 +125,7 @@ diff --git a/src/cli.ts b/src/cli.ts
 index 8b891fa..7f1c0db 100644
 --- a/src/cli.ts
 +++ b/src/cli.ts
-@@ -1,6 +1,11 @@
+@@ -1,5 +1,10 @@
  import pkg from "../package.json";
 
  const command = process.argv[2];
@@ -135,4 +135,5 @@ index 8b891fa..7f1c0db 100644
 +  process.exit(0);
 +}
 +
- console.log("Usage: demo <command>");`
+ console.log("Usage: demo <command>");
+`
