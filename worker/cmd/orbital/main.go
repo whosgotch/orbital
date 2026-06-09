@@ -19,13 +19,28 @@ func main() {
 }
 
 func run(ctx context.Context, args []string, stdout io.Writer) error {
-	if len(args) != 4 {
-		return fmt.Errorf("usage: orbital <repo-path> <mission-text> <verification-command>")
+	if len(args) < 2 {
+		return usageError()
 	}
 
-	repoPath := args[1]
-	missionText := args[2]
-	verificationCommand := args[3]
+	switch args[1] {
+	case "run":
+		return runMission(ctx, args, stdout)
+	case "demo-fixture":
+		return createDemoFixture(args, stdout)
+	default:
+		return usageError()
+	}
+}
+
+func runMission(ctx context.Context, args []string, stdout io.Writer) error {
+	if len(args) != 5 {
+		return usageError()
+	}
+
+	repoPath := args[2]
+	missionText := args[3]
+	verificationCommand := args[4]
 	stateDir := filepath.Join(repoPath, ".orbital")
 
 	jsonStore := store.NewJSONStore(stateDir)
@@ -82,6 +97,33 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	return nil
 }
 
+func createDemoFixture(args []string, stdout io.Writer) error {
+	if len(args) != 3 {
+		return usageError()
+	}
+
+	repoPath := args[2]
+	srcDir := filepath.Join(repoPath, "src")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(filepath.Join(repoPath, "package.json"), []byte(demoPackageJSON), 0644); err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(filepath.Join(srcDir, "cli.ts"), []byte(demoCLI), 0644); err != nil {
+		return err
+	}
+
+	if err := os.RemoveAll(filepath.Join(repoPath, ".orbital")); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(stdout, "demo fixture ready: %s\n", repoPath)
+	return nil
+}
+
 func firstPatchForRun(jsonStore *store.JSONStore, runID string) (string, error) {
 	state, err := jsonStore.Load()
 	if err != nil {
@@ -96,3 +138,27 @@ func firstPatchForRun(jsonStore *store.JSONStore, runID string) (string, error) 
 
 	return "", fmt.Errorf("no patch proposal found for run: %s", runID)
 }
+
+func usageError() error {
+	return fmt.Errorf("usage: orbital run <repo-path> <mission-text> <verification-command>\n       orbital demo-fixture <repo-path>")
+}
+
+const demoPackageJSON = `{
+  "name": "demo",
+  "type": "module",
+  "bin": {
+    "demo": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  }
+}
+`
+
+const demoCLI = `import pkg from "../package.json";
+
+const command = process.argv[2];
+
+console.log("Usage: demo <command>");
+`
