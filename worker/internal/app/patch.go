@@ -60,6 +60,8 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 	now := time.Now().UTC()
 	state.PatchProposals[patchIndex].Status = domain.PatchStatusApplied
 	state.PatchProposals[patchIndex].UpdatedAt = now
+	state.Missions[missionIndex].Status = domain.MissionStatusApplied
+	state.Missions[missionIndex].UpdatedAt = now
 
 	if err := s.store.Save(state); err != nil {
 		return nil, err

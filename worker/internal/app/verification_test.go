@@ -131,7 +131,7 @@ func verificationState(repoPath string) *store.State {
 				ID:           "mission_1",
 				RepositoryID: "repo_1",
 				Text:         "add a version command",
-				Status:       domain.MissionStatusApproved,
+				Status:       domain.MissionStatusApplied,
 				CreatedAt:    now,
 				UpdatedAt:    now,
 			},

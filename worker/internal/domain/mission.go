@@ -9,6 +9,7 @@ const (
 	MissionStatusRunning         MissionStatus = "running"
 	MissionStatusWaitingApproval MissionStatus = "waiting_approval"
 	MissionStatusApproved        MissionStatus = "approved"
+	MissionStatusApplied         MissionStatus = "applied"
 	MissionStatusRejected        MissionStatus = "rejected"
 	MissionStatusVerified        MissionStatus = "verified"
 	MissionStatusFailed          MissionStatus = "failed"

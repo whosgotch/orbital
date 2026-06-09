@@ -102,6 +102,15 @@ func TestApplyPatchAppliesApprovedPatchAndMarksApplied(t *testing.T) {
 		t.Fatalf("patch status = %q, want %q", patch.Status, domain.PatchStatusApplied)
 	}
 
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got.Missions[0].Status != domain.MissionStatusApplied {
+		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusApplied)
+	}
+
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
