@@ -82,6 +82,54 @@ func TestPatchDecisionRejectsUnknownPatch(t *testing.T) {
 	}
 }
 
+func TestApprovePatchRejectsAlreadyApprovedPatch(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+	createdAt := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
+	state := patchDecisionState(createdAt)
+	state.Missions[0].Status = domain.MissionStatusApproved
+	state.PatchProposals[0].Status = domain.PatchStatusApproved
+
+	if err := jsonStore.Save(state); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	if _, err := svc.ApprovePatch("patch_1"); err == nil {
+		t.Fatal("expected error for already approved patch, got nil")
+	}
+
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	assertPatchAndMissionStatus(t, got, domain.PatchStatusApproved, domain.MissionStatusApproved)
+}
+
+func TestRejectPatchRejectsAppliedPatch(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+	createdAt := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
+	state := patchDecisionState(createdAt)
+	state.Missions[0].Status = domain.MissionStatusApplied
+	state.PatchProposals[0].Status = domain.PatchStatusApplied
+
+	if err := jsonStore.Save(state); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	if _, err := svc.RejectPatch("patch_1"); err == nil {
+		t.Fatal("expected error for applied patch, got nil")
+	}
+
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	assertPatchAndMissionStatus(t, got, domain.PatchStatusApplied, domain.MissionStatusApplied)
+}
+
 func TestApplyPatchAppliesApprovedPatchAndMarksApplied(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
 	svc := NewService(jsonStore)
@@ -147,6 +195,18 @@ func TestApplyPatchRejectsUnknownPatch(t *testing.T) {
 
 	if _, err := svc.ApplyPatch("missing_patch"); err == nil {
 		t.Fatal("expected error for unknown patch, got nil")
+	}
+}
+
+func assertPatchAndMissionStatus(t *testing.T, state *store.State, wantPatchStatus domain.PatchStatus, wantMissionStatus domain.MissionStatus) {
+	t.Helper()
+
+	if state.PatchProposals[0].Status != wantPatchStatus {
+		t.Fatalf("patch status = %q, want %q", state.PatchProposals[0].Status, wantPatchStatus)
+	}
+
+	if state.Missions[0].Status != wantMissionStatus {
+		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, wantMissionStatus)
 	}
 }
 

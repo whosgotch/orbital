@@ -101,6 +101,10 @@ func (s *Service) updatePatchDecision(patchID string, patchStatus domain.PatchSt
 		return nil, fmt.Errorf("patch proposal not found: %s", patchID)
 	}
 
+	if state.PatchProposals[patchIndex].Status != domain.PatchStatusPending {
+		return nil, fmt.Errorf("patch proposal must be pending before decision: %s", patchID)
+	}
+
 	runIndex := findRunIndex(state.AgentRuns, state.PatchProposals[patchIndex].RunID)
 	if runIndex == -1 {
 		return nil, fmt.Errorf("agent run not found: %s", state.PatchProposals[patchIndex].RunID)
