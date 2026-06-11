@@ -1,1 +1,4 @@
 .orbital/
+node_modules/
+dist/
+*.tsbuildinfo
