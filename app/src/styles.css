@@ -376,6 +376,11 @@ dd {
   background:
     linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.024) 1px, transparent 1px),
+    linear-gradient(90deg, transparent 15%, rgba(117, 217, 196, 0.045) 15%, rgba(117, 217, 196, 0.045) 16%, transparent 16%),
+    linear-gradient(90deg, transparent 31%, rgba(117, 217, 196, 0.035) 31%, rgba(117, 217, 196, 0.035) 32%, transparent 32%),
+    linear-gradient(90deg, transparent 49%, rgba(117, 217, 196, 0.035) 49%, rgba(117, 217, 196, 0.035) 50%, transparent 50%),
+    linear-gradient(90deg, transparent 67%, rgba(117, 217, 196, 0.035) 67%, rgba(117, 217, 196, 0.035) 68%, transparent 68%),
+    linear-gradient(90deg, transparent 84%, rgba(117, 217, 196, 0.045) 84%, rgba(117, 217, 196, 0.045) 85%, transparent 85%),
     rgba(4, 7, 9, 0.76);
   background-size: 34px 34px;
 }
@@ -407,6 +412,27 @@ dd {
   animation: scan 7s linear infinite;
 }
 
+.factory-lanes {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  top: 18px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.factory-lanes span {
+  color: rgba(142, 160, 156, 0.72);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
 .graph-edges {
   position: absolute;
   inset: 0;
@@ -417,9 +443,15 @@ dd {
 }
 
 .graph-edge {
-  stroke: rgba(143, 161, 173, 0.28);
-  stroke-width: 0.18;
+  fill: none;
+  stroke: rgba(143, 161, 173, 0.34);
+  stroke-width: 0.22;
   vector-effect: non-scaling-stroke;
+  marker-end: url("#edge-arrow");
+}
+
+#edge-arrow path {
+  fill: rgba(143, 161, 173, 0.5);
 }
 
 .graph-edge.runs {
@@ -447,15 +479,15 @@ dd {
   display: grid;
   place-items: center;
   gap: 3px;
-  width: 92px;
-  min-height: 74px;
-  padding: 10px 8px;
+  width: 118px;
+  min-height: 72px;
+  padding: 10px 12px;
   color: var(--text);
   background:
     radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.1), transparent 52%),
     rgba(13, 18, 21, 0.88);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 8px;
   text-align: center;
   box-shadow:
     0 18px 48px rgba(0, 0, 0, 0.26),
@@ -472,9 +504,9 @@ dd {
 .graph-node::before {
   content: "";
   position: absolute;
-  inset: -8px;
+  inset: -6px;
   border: 1px solid rgba(117, 217, 196, 0.12);
-  border-radius: 50%;
+  border-radius: 12px;
   pointer-events: none;
 }
 
@@ -516,12 +548,12 @@ dd {
 
 .graph-node.repo {
   width: 126px;
-  min-height: 126px;
+  min-height: 84px;
   border-color: rgba(127, 178, 255, 0.38);
 }
 
 .graph-node.repo::before {
-  inset: -16px;
+  inset: -10px;
   border-color: rgba(127, 178, 255, 0.18);
 }
 
@@ -530,8 +562,8 @@ dd {
 }
 
 .graph-node.mission {
-  width: 108px;
-  min-height: 92px;
+  width: 128px;
+  min-height: 78px;
 }
 
 .graph-node.file,
@@ -539,7 +571,7 @@ dd {
 .graph-node.patch,
 .graph-node.verification,
 .graph-node.test {
-  width: 86px;
+  width: 118px;
   min-height: 70px;
 }
 

@@ -17,7 +17,20 @@ export function GraphMap({ nodes, selectedMissionId, onSelectMission }: GraphMap
     <section className="space-map" aria-label="Workspace graph map">
       <div className="starfield" aria-hidden="true" />
       <div className="scanline" aria-hidden="true" />
+      <div className="factory-lanes" aria-hidden="true">
+        <span>Source</span>
+        <span>Mission</span>
+        <span>Context</span>
+        <span>Worker</span>
+        <span>Patch</span>
+        <span>Verify</span>
+      </div>
       <svg className="graph-edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <marker id="edge-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M 0 0 L 8 4 L 0 8 z" />
+          </marker>
+        </defs>
         {mockGraphEdges.map((edge) => (
           <GraphEdge key={edge.id} edge={edge} nodes={nodes} selectedMissionId={selectedMissionId} />
         ))}
@@ -51,15 +64,10 @@ function GraphEdge({
 
   const selected = from.mission_id === selectedMissionId || to.mission_id === selectedMissionId;
 
-  return (
-    <line
-      className={`graph-edge ${edge.kind} ${selected ? "selected" : ""}`}
-      x1={from.x}
-      y1={from.y}
-      x2={to.x}
-      y2={to.y}
-    />
-  );
+  const midX = (from.x + to.x) / 2;
+  const path = `M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`;
+
+  return <path className={`graph-edge ${edge.kind} ${selected ? "selected" : ""}`} d={path} markerEnd="url(#edge-arrow)" />;
 }
 
 function GraphNodeButton({
