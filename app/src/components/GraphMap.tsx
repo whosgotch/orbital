@@ -56,18 +56,35 @@ function GraphEdge({
   nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>;
   selectedMissionId: string;
 }) {
-  const from = nodes.find((node) => node.id === edge.from);
-  const to = nodes.find((node) => node.id === edge.to);
-  if (!from || !to) {
+  const path = edgePath(edge, nodes);
+  if (!path) {
     return null;
   }
 
-  const selected = from.mission_id === selectedMissionId || to.mission_id === selectedMissionId;
-
-  const midX = (from.x + to.x) / 2;
-  const path = `M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`;
+  const selected = edgeTouchesMission(edge, nodes, selectedMissionId);
 
   return <path className={`graph-edge ${edge.kind} ${selected ? "selected" : ""}`} d={path} markerEnd="url(#edge-arrow)" />;
+}
+
+function edgePath(edge: (typeof mockGraphEdges)[number], nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>) {
+  const from = nodes.find((node) => node.id === edge.from);
+  const to = nodes.find((node) => node.id === edge.to);
+  if (!from || !to) {
+    return "";
+  }
+
+  const midX = (from.x + to.x) / 2;
+  return `M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`;
+}
+
+function edgeTouchesMission(
+  edge: (typeof mockGraphEdges)[number],
+  nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>,
+  selectedMissionId: string,
+) {
+  const from = nodes.find((node) => node.id === edge.from);
+  const to = nodes.find((node) => node.id === edge.to);
+  return from?.mission_id === selectedMissionId || to?.mission_id === selectedMissionId;
 }
 
 function GraphNodeButton({

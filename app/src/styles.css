@@ -1,20 +1,20 @@
 :root {
   color-scheme: dark;
-  --bg: #080a0d;
-  --panel: rgba(15, 20, 24, 0.88);
-  --panel-2: rgba(27, 34, 38, 0.9);
-  --line: rgba(116, 135, 141, 0.24);
-  --line-strong: rgba(117, 217, 196, 0.58);
-  --text: #eef7f5;
-  --muted: #8ea09c;
-  --soft: #c9d8d4;
-  --green: #6ee79a;
-  --amber: #f1c35f;
-  --red: #f07171;
-  --cyan: #75d9c4;
-  --blue: #7fb2ff;
-  --magenta: #e18aff;
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.46);
+  --bg: #0b0d10;
+  --panel: rgba(18, 21, 26, 0.94);
+  --panel-2: rgba(27, 31, 38, 0.96);
+  --line: rgba(132, 145, 160, 0.22);
+  --line-strong: rgba(126, 144, 255, 0.58);
+  --text: #f2f5f8;
+  --muted: #9099a6;
+  --soft: #ccd3dc;
+  --green: #54d885;
+  --amber: #e7b84b;
+  --red: #ef6666;
+  --cyan: #8ea2ff;
+  --blue: #7f9dff;
+  --magenta: #c38cff;
+  --shadow: 0 18px 56px rgba(0, 0, 0, 0.4);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -29,10 +29,9 @@ body {
   margin: 0;
   color: var(--text);
   background:
-    linear-gradient(90deg, rgba(117, 217, 196, 0.04) 1px, transparent 1px),
-    linear-gradient(rgba(117, 217, 196, 0.035) 1px, transparent 1px),
-    radial-gradient(circle at 50% 12%, rgba(225, 138, 255, 0.11), transparent 36%),
-    radial-gradient(circle at 72% 78%, rgba(117, 217, 196, 0.09), transparent 38%),
+    linear-gradient(90deg, rgba(142, 162, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(rgba(142, 162, 255, 0.028) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0, rgba(142, 162, 255, 0.08), transparent 34%),
     var(--bg);
   background-size:
     42px 42px,
@@ -100,7 +99,7 @@ h3 {
   padding: 20px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 42%),
-    rgba(8, 12, 14, 0.88);
+    rgba(10, 12, 15, 0.94);
   border-color: var(--line);
   border-style: solid;
   box-shadow: var(--shadow);
@@ -140,10 +139,10 @@ small,
   height: 46px;
   color: var(--cyan);
   border: 1px solid var(--line-strong);
-  border-radius: 50%;
+  border-radius: 12px;
   box-shadow:
-    inset 0 0 18px rgba(117, 217, 196, 0.22),
-    0 0 26px rgba(117, 217, 196, 0.18);
+    inset 0 0 18px rgba(142, 162, 255, 0.14),
+    0 0 20px rgba(142, 162, 255, 0.1);
 }
 
 .brand-mark::before,
@@ -155,7 +154,8 @@ small,
 
 .brand-mark::before {
   inset: 8px;
-  border: 1px solid rgba(127, 178, 255, 0.5);
+  border: 1px solid rgba(127, 157, 255, 0.45);
+  border-radius: 8px;
 }
 
 .brand-mark::after {
@@ -178,23 +178,12 @@ small,
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.055), transparent 36%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.045), transparent 34%),
     var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
-}
-
-.console-panel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  background: linear-gradient(90deg, transparent, rgba(117, 217, 196, 0.08), transparent);
-  transform: translateX(-100%);
-  animation: panel-sweep 8s linear infinite;
 }
 
 .panel-head {
@@ -234,8 +223,8 @@ textarea:focus {
 .primary {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent),
-    #237b70;
-  box-shadow: 0 0 28px rgba(117, 217, 196, 0.16);
+    #5666d8;
+  box-shadow: 0 10px 30px rgba(86, 102, 216, 0.18);
 }
 
 .secondary {
@@ -374,15 +363,15 @@ dd {
   border: 1px solid var(--line);
   border-radius: 8px;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.024) 1px, transparent 1px),
-    linear-gradient(90deg, transparent 15%, rgba(117, 217, 196, 0.045) 15%, rgba(117, 217, 196, 0.045) 16%, transparent 16%),
-    linear-gradient(90deg, transparent 31%, rgba(117, 217, 196, 0.035) 31%, rgba(117, 217, 196, 0.035) 32%, transparent 32%),
-    linear-gradient(90deg, transparent 49%, rgba(117, 217, 196, 0.035) 49%, rgba(117, 217, 196, 0.035) 50%, transparent 50%),
-    linear-gradient(90deg, transparent 67%, rgba(117, 217, 196, 0.035) 67%, rgba(117, 217, 196, 0.035) 68%, transparent 68%),
-    linear-gradient(90deg, transparent 84%, rgba(117, 217, 196, 0.045) 84%, rgba(117, 217, 196, 0.045) 85%, transparent 85%),
-    rgba(4, 7, 9, 0.76);
-  background-size: 34px 34px;
+    linear-gradient(rgba(255, 255, 255, 0.032) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, transparent 15%, rgba(142, 162, 255, 0.055) 15%, rgba(142, 162, 255, 0.055) 16%, transparent 16%),
+    linear-gradient(90deg, transparent 31%, rgba(142, 162, 255, 0.045) 31%, rgba(142, 162, 255, 0.045) 32%, transparent 32%),
+    linear-gradient(90deg, transparent 49%, rgba(142, 162, 255, 0.045) 49%, rgba(142, 162, 255, 0.045) 50%, transparent 50%),
+    linear-gradient(90deg, transparent 67%, rgba(142, 162, 255, 0.045) 67%, rgba(142, 162, 255, 0.045) 68%, transparent 68%),
+    linear-gradient(90deg, transparent 84%, rgba(142, 162, 255, 0.055) 84%, rgba(142, 162, 255, 0.055) 85%, transparent 85%),
+    rgba(10, 13, 17, 0.92);
+  background-size: 28px 28px;
 }
 
 .starfield,
@@ -393,21 +382,14 @@ dd {
 
 .starfield {
   inset: 0;
-  background-image:
-    radial-gradient(circle, rgba(238, 247, 245, 0.36) 1px, transparent 1px),
-    radial-gradient(circle, rgba(117, 217, 196, 0.34) 1px, transparent 1px);
-  background-position:
-    0 0,
-    37px 51px;
-  background-size:
-    96px 96px,
-    143px 143px;
-  opacity: 0.3;
+  background-image: radial-gradient(circle, rgba(242, 245, 248, 0.24) 1px, transparent 1px);
+  background-size: 120px 120px;
+  opacity: 0.18;
 }
 
 .scanline {
   inset: 0;
-  background: linear-gradient(180deg, transparent, rgba(117, 217, 196, 0.11), transparent);
+  background: linear-gradient(180deg, transparent, rgba(142, 162, 255, 0.08), transparent);
   transform: translateY(-100%);
   animation: scan 7s linear infinite;
 }
@@ -425,7 +407,7 @@ dd {
 }
 
 .factory-lanes span {
-  color: rgba(142, 160, 156, 0.72);
+  color: rgba(144, 153, 166, 0.78);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -444,23 +426,23 @@ dd {
 
 .graph-edge {
   fill: none;
-  stroke: rgba(143, 161, 173, 0.34);
+  stroke: rgba(144, 153, 166, 0.36);
   stroke-width: 0.22;
   vector-effect: non-scaling-stroke;
   marker-end: url("#edge-arrow");
 }
 
 #edge-arrow path {
-  fill: rgba(143, 161, 173, 0.5);
+  fill: rgba(144, 153, 166, 0.58);
 }
 
 .graph-edge.runs {
-  stroke: rgba(241, 195, 95, 0.42);
+  stroke: rgba(231, 184, 75, 0.5);
 }
 
 .graph-edge.proposes,
 .graph-edge.verifies {
-  stroke: rgba(117, 217, 196, 0.46);
+  stroke: rgba(142, 162, 255, 0.58);
 }
 
 .graph-edge.blocks {
@@ -469,9 +451,9 @@ dd {
 }
 
 .graph-edge.selected {
-  stroke: rgba(117, 217, 196, 0.88);
+  stroke: rgba(142, 162, 255, 0.92);
   stroke-width: 0.34;
-  filter: drop-shadow(0 0 5px rgba(117, 217, 196, 0.75));
+  filter: drop-shadow(0 0 4px rgba(142, 162, 255, 0.48));
 }
 
 .graph-node {
@@ -484,14 +466,14 @@ dd {
   padding: 10px 12px;
   color: var(--text);
   background:
-    radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.1), transparent 52%),
-    rgba(13, 18, 21, 0.88);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+    rgba(17, 21, 27, 0.96);
   border: 1px solid var(--line);
   border-radius: 8px;
   text-align: center;
   box-shadow:
-    0 18px 48px rgba(0, 0, 0, 0.26),
-    inset 0 0 20px rgba(255, 255, 255, 0.03);
+    0 14px 34px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
   transform: translate(-50%, -50%);
   z-index: 2;
   transition:
@@ -505,18 +487,18 @@ dd {
   content: "";
   position: absolute;
   inset: -6px;
-  border: 1px solid rgba(117, 217, 196, 0.12);
+  border: 1px solid rgba(142, 162, 255, 0.1);
   border-radius: 12px;
   pointer-events: none;
 }
 
 .graph-node:hover,
 .graph-node.selected {
-  border-color: rgba(117, 217, 196, 0.76);
+  border-color: rgba(142, 162, 255, 0.82);
   box-shadow:
-    0 0 0 1px rgba(117, 217, 196, 0.18),
-    0 18px 48px rgba(0, 0, 0, 0.28),
-    0 0 34px rgba(117, 217, 196, 0.15);
+    0 0 0 1px rgba(142, 162, 255, 0.2),
+    0 16px 36px rgba(0, 0, 0, 0.3),
+    0 0 22px rgba(142, 162, 255, 0.14);
   transform: translate(-50%, -50%) scale(1.04);
 }
 
