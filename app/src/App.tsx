@@ -2,120 +2,105 @@ import { useMemo, useState } from "react";
 import {
   Check,
   CircleDot,
-  Code2,
-  FileCode2,
-  GitBranch,
   Network,
   Play,
   RadioTower,
   Rocket,
   ShieldCheck,
-  Sparkles,
   Terminal,
   X,
   Zap,
 } from "lucide-react";
+import { GraphMap } from "./components/GraphMap";
+import type { PatchStatus as WorkerPatchStatus } from "./domain";
+import {
+  mockMissionLoop,
+  mockGraphNodes,
+  mockPatchDiff,
+  mockVerificationOutput,
+  mockWorkflowSteps,
+  mockWorkspaceMissions,
+  type MissionNodeStatus,
+  type WorkspaceMission,
+} from "./mockMission";
 
-type NodeStatus = "pending" | "active" | "working" | "done" | "rejected";
-type PatchStatus = "pending" | "approved" | "rejected";
+type PatchStatus = Extract<WorkerPatchStatus, "pending" | "approved" | "rejected">;
 
-type MissionState = {
+type MissionRuntime = {
   step: number;
   patchStatus: PatchStatus;
   verified: boolean;
 };
 
-type OrbitNode = {
-  id: string;
-  label: string;
-  detail: string;
-  status: NodeStatus;
-  icon: typeof Network;
-  position: string;
-};
+type MissionRuntimeMap = Record<string, MissionRuntime>;
 
-const steps = [
-  "Mission intent captured.",
-  "Worker linked to repository graph.",
-  "package.json streamed into context.",
-  "src/cli.ts routed into context.",
-  "Patch assembled for version command.",
-  "Patch waiting at approval gate.",
-];
-
-const proposedDiff = `diff --git a/package.json b/package.json
-index 2b13a1c..91d44fd 100644
---- a/package.json
-+++ b/package.json
-@@ -4,6 +4,7 @@
-   "bin": {
-     "demo": "./dist/cli.js"
-   },
-+  "version": "0.1.0",
-   "scripts": {
-     "build": "tsc",
-     "test": "vitest run"
-diff --git a/src/cli.ts b/src/cli.ts
-index 8b891fa..7f1c0db 100644
---- a/src/cli.ts
-+++ b/src/cli.ts
-@@ -1,6 +1,11 @@
- import pkg from "../package.json";
-
- const command = process.argv[2];
-
-+if (command === "version" || command === "--version") {
-+  console.log(pkg.version);
-+  process.exit(0);
-+}
-+
- console.log("Usage: demo <command>");`;
-
-const initialState: MissionState = {
-  step: -1,
-  patchStatus: "pending",
-  verified: false,
-};
+const initialMissionRuntime = Object.fromEntries(
+  mockWorkspaceMissions.map((mission) => [
+    mission.id,
+    {
+      step: mission.step,
+      patchStatus: mission.patch_status,
+      verified: mission.verified,
+    },
+  ]),
+) as MissionRuntimeMap;
 
 export function App() {
-  const [missionText, setMissionText] = useState("add a version command");
-  const [missionState, setMissionState] = useState<MissionState>(initialState);
+  const [selectedMissionId, setSelectedMissionId] = useState(mockWorkspaceMissions[0].id);
+  const [missionDraft, setMissionDraft] = useState("stabilize the release path");
+  const [runtimeByMission, setRuntimeByMission] = useState<MissionRuntimeMap>(initialMissionRuntime);
 
-  const title = missionText.trim() || "Untitled mission";
-  const patchReady = missionState.step >= 5;
-  const activity = steps.slice(0, missionState.step + 1);
-  const progress = missionState.verified
-    ? 100
-    : missionState.patchStatus === "approved"
-      ? 82
-      : missionState.patchStatus === "rejected"
-        ? 62
-        : Math.max(0, Math.round(((missionState.step + 1) / steps.length) * 72));
+  const selectedMission = mockWorkspaceMissions.find((mission) => mission.id === selectedMissionId) ?? mockWorkspaceMissions[0];
+  const selectedRepository = repositoryFor(selectedMission);
+  const selectedRuntime = runtimeByMission[selectedMission.id];
+  const patchReady = selectedRuntime.step >= mockWorkflowSteps.length - 1;
+  const activity = mockWorkflowSteps.slice(0, selectedRuntime.step + 1);
+  const missionStatus = missionStatusFor(selectedRuntime, patchReady);
+  const visibleMissions = useMemo(
+    () =>
+      mockWorkspaceMissions.map((mission) => ({
+        ...mission,
+        runtime: runtimeByMission[mission.id],
+      })),
+    [runtimeByMission],
+  );
+  const graphNodes = useMemo(
+    () =>
+      mockGraphNodes.map((node) => ({
+        ...node,
+        status: node.mission_id ? statusFromRuntime(runtimeByMission[node.mission_id]) : undefined,
+      })),
+    [runtimeByMission],
+  );
 
-  const missionStatus = useMemo(() => missionStatusFor(missionState, patchReady), [missionState, patchReady]);
-  const orbitNodes = useMemo(() => buildOrbitNodes(missionState, patchReady), [missionState, patchReady]);
+  const updateSelectedRuntime = (next: (runtime: MissionRuntime) => MissionRuntime) => {
+    setRuntimeByMission((current) => ({
+      ...current,
+      [selectedMission.id]: next(current[selectedMission.id]),
+    }));
+  };
 
   const startMission = () => {
-    setMissionState({ step: 0, patchStatus: "pending", verified: false });
+    updateSelectedRuntime(() => ({ step: 0, patchStatus: "pending", verified: false }));
   };
 
   const advanceStep = () => {
-    setMissionState((current) => ({
+    updateSelectedRuntime((current) => ({
       ...current,
-      step: Math.min(current.step + 1, steps.length - 1),
+      step: Math.min(current.step + 1, mockWorkflowSteps.length - 1),
     }));
   };
 
   const approvePatch = () => {
-    setMissionState((current) => ({ ...current, patchStatus: "approved" }));
+    updateSelectedRuntime((current) => ({ ...current, patchStatus: "approved" }));
   };
 
   const rejectPatch = () => {
-    setMissionState((current) => ({ ...current, patchStatus: "rejected" }));
+    updateSelectedRuntime((current) => ({ ...current, patchStatus: "rejected" }));
   };
 
   const runVerification = () => {
-    setMissionState((current) => ({ ...current, verified: true }));
+    updateSelectedRuntime((current) => ({ ...current, verified: true }));
   };
 
   return (
@@ -131,96 +116,80 @@ export function App() {
           </div>
         </div>
 
-        <section className="console-panel repo-console" aria-label="Repository">
-          <div className="panel-head compact">
-            <div>
-              <div className="section-label">Repository</div>
-              <h2>demo-cli</h2>
-            </div>
-            <GitBranch size={18} aria-hidden="true" />
-          </div>
-          <button className="repo-button" type="button">
-            <Network size={16} aria-hidden="true" />
-            <span>/Users/akomov/dev/demo-cli</span>
-          </button>
-          <dl className="metric-grid">
-            <div>
-              <dt>Areas</dt>
-              <dd>4</dd>
-            </div>
-            <div>
-              <dt>Tests</dt>
-              <dd>18</dd>
-            </div>
-            <div>
-              <dt>Branch</dt>
-              <dd>main</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section className="console-panel mission-console" aria-label="Mission">
-          <div className="section-label">Mission intent</div>
+        <section className="console-panel launch-console" aria-label="New mission">
+          <div className="section-label">Mission intake</div>
           <textarea
             aria-label="Mission intent"
-            value={missionText}
-            onChange={(event) => setMissionText(event.target.value)}
+            value={missionDraft}
+            onChange={(event) => setMissionDraft(event.target.value)}
           />
-          <button className="primary command-button" type="button" onClick={startMission}>
+          <button className="primary command-button" type="button">
             <Rocket size={17} aria-hidden="true" />
-            <span>Start mission</span>
+            <span>Queue mission</span>
           </button>
         </section>
 
-        <section className="console-panel telemetry-console" aria-label="Mission telemetry">
-          <div className="section-label">Telemetry</div>
+        <section className="console-panel fleet-console" aria-label="Workspace telemetry">
+          <div className="section-label">Workspace telemetry</div>
+          <dl className="metric-grid">
+            <div>
+              <dt>Repos</dt>
+              <dd>{mockMissionLoop.repositories.length}</dd>
+            </div>
+            <div>
+              <dt>Missions</dt>
+              <dd>{mockWorkspaceMissions.length}</dd>
+            </div>
+            <div>
+              <dt>Review</dt>
+              <dd>{visibleMissions.filter((mission) => isReviewing(mission.runtime)).length}</dd>
+            </div>
+          </dl>
           <div className="telemetry-stack">
-            <TelemetryLine label="Context lock" value={missionState.step >= 3 ? "Synced" : "Seeking"} />
-            <TelemetryLine label="Patch gate" value={patchReady ? patchGateLabel(missionState.patchStatus) : "Cold"} />
-            <TelemetryLine label="Verifier" value={missionState.verified ? "Passed" : missionState.patchStatus === "approved" ? "Armed" : "Idle"} />
+            <TelemetryLine label="Running" value={String(visibleMissions.filter((mission) => isRunning(mission.runtime)).length)} />
+            <TelemetryLine label="Blocked" value={String(visibleMissions.filter((mission) => mission.runtime.patchStatus === "rejected").length)} />
+            <TelemetryLine label="Verified" value={String(visibleMissions.filter((mission) => mission.runtime.verified).length)} />
           </div>
         </section>
       </aside>
 
-      <section className="mission-stage" aria-label="Mission system">
+      <section className="mission-stage" aria-label="Orbital command map">
         <header className="stage-header">
           <div>
-            <div className="section-label">Active mission</div>
-            <h2>{title}</h2>
+            <div className="section-label">Constellation map</div>
+            <h2>Repositories, missions, workers, files, and gates in one graph</h2>
           </div>
           <div className={`status-pill ${missionStatus.className}`}>{missionStatus.label}</div>
         </header>
 
-        <section className="orbital-map" aria-label="Mission graph">
-          <div className="starfield" aria-hidden="true" />
-          <div className="scanline" aria-hidden="true" />
-          <div className="orbit orbit-one" aria-hidden="true" />
-          <div className="orbit orbit-two" aria-hidden="true" />
-          <div className="orbit orbit-three" aria-hidden="true" />
-          <div className="signal signal-a" aria-hidden="true" />
-          <div className="signal signal-b" aria-hidden="true" />
-          <div className="signal signal-c" aria-hidden="true" />
-
-          <div className={`mission-core ${missionStatus.className}`}>
-            <div className="core-ring" aria-hidden="true" />
-            <div className="core-shell">
-              <Sparkles size={22} aria-hidden="true" />
-              <span>Mission core</span>
-              <strong>{title}</strong>
-              <div className="core-progress" aria-label={`Mission progress ${progress}%`}>
-                <span style={{ width: `${progress}%` }} />
-              </div>
-              <small>{progress}% synchronized</small>
-            </div>
-          </div>
-
-          {orbitNodes.map((node) => (
-            <OrbitNodeView key={node.id} node={node} />
-          ))}
-        </section>
+        <GraphMap nodes={graphNodes} selectedMissionId={selectedMission.id} onSelectMission={setSelectedMissionId} />
       </section>
 
       <aside className="systems-rail">
+        <section className="console-panel selected-console" aria-label="Selected mission">
+          <div className="panel-head">
+            <div>
+              <div className="section-label">Selected mission</div>
+              <h2>{selectedMission.title}</h2>
+            </div>
+            <MissionGlyph status={statusFromRuntime(selectedRuntime)} />
+          </div>
+          <div className="selected-meta">
+            <span>
+              <Network size={14} aria-hidden="true" />
+              {selectedRepository.name}
+            </span>
+            <span>
+              <RadioTower size={14} aria-hidden="true" />
+              {selectedMission.worker}
+            </span>
+            <span>
+              <Terminal size={14} aria-hidden="true" />
+              {selectedMission.command}
+            </span>
+          </div>
+        </section>
+
         <section className="console-panel activity-console" aria-label="Agent activity">
           <div className="panel-head">
             <div>
@@ -231,7 +200,7 @@ export function App() {
               className="secondary icon-button"
               type="button"
               onClick={advanceStep}
-              disabled={missionState.step >= steps.length - 1 || missionState.patchStatus !== "pending"}
+              disabled={selectedRuntime.step >= mockWorkflowSteps.length - 1 || selectedRuntime.patchStatus !== "pending"}
               aria-label="Advance run"
               title="Advance run"
             >
@@ -239,7 +208,7 @@ export function App() {
             </button>
           </div>
           <ol className="activity-list">
-            {activity.length === 0 ? <li className="quiet">Awaiting mission ignition.</li> : null}
+            {activity.length === 0 ? <li className="quiet">Mission is queued outside the active lane.</li> : null}
             {activity.map((step) => (
               <li key={step}>{step}</li>
             ))}
@@ -252,18 +221,18 @@ export function App() {
               <div className="section-label">Patch</div>
               <h2>Approval gate</h2>
             </div>
-            <div className={`mini-state ${patchStateClass(missionState, patchReady)}`}>
-              {patchStateLabel(missionState, patchReady)}
+            <div className={`mini-state ${patchStateClass(selectedRuntime, patchReady)}`}>
+              {patchStateLabel(selectedRuntime, patchReady)}
             </div>
           </div>
           <pre className="diff">
-            <code>{patchReady ? proposedDiff : "Patch stream locked until agent inspection completes."}</code>
+            <code>{patchReady ? mockPatchDiff : "Patch stream locked until this mission reaches review."}</code>
           </pre>
           <div className="actions">
             <button
               className="secondary"
               type="button"
-              disabled={!patchReady || missionState.patchStatus !== "pending"}
+              disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
               onClick={rejectPatch}
             >
               <X size={16} aria-hidden="true" />
@@ -272,7 +241,7 @@ export function App() {
             <button
               className="primary"
               type="button"
-              disabled={!patchReady || missionState.patchStatus !== "pending"}
+              disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
               onClick={approvePatch}
             >
               <Check size={16} aria-hidden="true" />
@@ -290,7 +259,7 @@ export function App() {
             <button
               className="secondary icon-button"
               type="button"
-              disabled={missionState.patchStatus !== "approved" || missionState.verified}
+              disabled={selectedRuntime.patchStatus !== "approved" || selectedRuntime.verified}
               onClick={runVerification}
               aria-label="Run verification"
               title="Run verification"
@@ -298,27 +267,21 @@ export function App() {
               <Terminal size={16} aria-hidden="true" />
             </button>
           </div>
-          <div className="command-line">npm test</div>
-          <pre className="test-output">{verificationOutput(missionState)}</pre>
+          <div className="command-line">{selectedMission.command}</div>
+          <pre className="test-output">{verificationOutput(selectedRuntime)}</pre>
         </section>
       </aside>
     </main>
   );
 }
 
-function OrbitNodeView({ node }: { node: OrbitNode }) {
-  const Icon = node.icon;
+function MissionGlyph({ status }: { status: MissionNodeStatus }) {
+  const Icon = status === "verified" ? ShieldCheck : status === "review" || status === "approved" ? Zap : RadioTower;
 
   return (
-    <article className={`orbit-node ${node.status} ${node.position}`}>
-      <div className="node-icon">
-        <Icon size={18} aria-hidden="true" />
-      </div>
-      <div>
-        <span>{node.label}</span>
-        <strong>{node.detail}</strong>
-      </div>
-    </article>
+    <span className={`mission-glyph ${status}`}>
+      <Icon size={15} aria-hidden="true" />
+    </span>
   );
 }
 
@@ -331,155 +294,87 @@ function TelemetryLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-function buildOrbitNodes(state: MissionState, patchReady: boolean): OrbitNode[] {
-  return [
-    {
-      id: "repo",
-      label: "Repo graph",
-      detail: "demo-cli",
-      status: "active",
-      icon: Network,
-      position: "pos-repo",
-    },
-    {
-      id: "agent",
-      label: "Worker",
-      detail: state.step >= 5 ? "patch proposed" : state.step >= 1 ? "running" : "standing by",
-      status: state.step >= 1 ? "working" : "pending",
-      icon: RadioTower,
-      position: "pos-agent",
-    },
-    {
-      id: "package",
-      label: "Context",
-      detail: "package.json",
-      status: state.step >= 2 ? "done" : "pending",
-      icon: FileCode2,
-      position: "pos-package",
-    },
-    {
-      id: "cli",
-      label: "Context",
-      detail: "src/cli.ts",
-      status: state.step >= 3 ? "done" : "pending",
-      icon: Code2,
-      position: "pos-cli",
-    },
-    {
-      id: "patch",
-      label: "Patch",
-      detail: patchReady ? patchGateLabel(state.patchStatus) : "assembling",
-      status: patchNodeStatus(state, patchReady),
-      icon: Zap,
-      position: "pos-patch",
-    },
-    {
-      id: "verify",
-      label: "Verify",
-      detail: verifyNodeDetail(state),
-      status: verifyNodeStatus(state),
-      icon: ShieldCheck,
-      position: "pos-verify",
-    },
-  ];
+function repositoryFor(mission: WorkspaceMission) {
+  return (
+    mockMissionLoop.repositories.find((repository) => repository.id === mission.repository_id) ?? mockMissionLoop.repositories[0]
+  );
 }
 
-function missionStatusFor(state: MissionState, patchReady: boolean) {
-  if (state.verified) {
-    return { label: "Verified", className: "done" };
+function statusFromRuntime(runtime: MissionRuntime): MissionNodeStatus {
+  if (runtime.verified) {
+    return "verified";
   }
-  if (state.patchStatus === "approved") {
-    return { label: "Approved", className: "active" };
-  }
-  if (state.patchStatus === "rejected") {
-    return { label: "Rejected", className: "rejected" };
-  }
-  if (state.step >= 0) {
-    return { label: patchReady ? "Review" : "Running", className: "active" };
-  }
-  return { label: "Draft", className: "idle" };
-}
-
-function patchNodeStatus(state: MissionState, patchReady: boolean): NodeStatus {
-  if (state.patchStatus === "approved") {
-    return "done";
-  }
-  if (state.patchStatus === "rejected") {
-    return "rejected";
-  }
-  return patchReady ? "active" : "pending";
-}
-
-function verifyNodeStatus(state: MissionState): NodeStatus {
-  if (state.verified) {
-    return "done";
-  }
-  if (state.patchStatus === "approved") {
-    return "active";
-  }
-  if (state.patchStatus === "rejected") {
-    return "rejected";
-  }
-  return "pending";
-}
-
-function verifyNodeDetail(state: MissionState) {
-  if (state.verified) {
-    return "passed";
-  }
-  if (state.patchStatus === "approved") {
-    return "armed";
-  }
-  if (state.patchStatus === "rejected") {
-    return "stopped";
-  }
-  return "blocked";
-}
-
-function patchGateLabel(status: PatchStatus) {
-  if (status === "approved") {
+  if (runtime.patchStatus === "approved") {
     return "approved";
   }
-  if (status === "rejected") {
-    return "rejected";
+  if (runtime.patchStatus === "rejected") {
+    return "blocked";
   }
-  return "ready";
+  if (runtime.step >= mockWorkflowSteps.length - 1) {
+    return "review";
+  }
+  if (runtime.step >= 0) {
+    return "running";
+  }
+  return "draft";
 }
 
-function patchStateLabel(state: MissionState, patchReady: boolean) {
-  if (state.patchStatus === "approved") {
+function missionStatusFor(runtime: MissionRuntime, patchReady: boolean) {
+  const status = statusFromRuntime(runtime);
+  if (status === "verified") {
+    return { label: "Verified", className: "done" };
+  }
+  if (status === "approved") {
+    return { label: "Approved", className: "active" };
+  }
+  if (status === "blocked") {
+    return { label: "Blocked", className: "rejected" };
+  }
+  if (status === "review") {
+    return { label: patchReady ? "Review" : "Running", className: "active" };
+  }
+  if (status === "running") {
+    return { label: "Running", className: "active" };
+  }
+  return { label: "Queued", className: "idle" };
+}
+
+function isRunning(runtime: MissionRuntime) {
+  return statusFromRuntime(runtime) === "running";
+}
+
+function isReviewing(runtime: MissionRuntime) {
+  return statusFromRuntime(runtime) === "review";
+}
+
+function patchStateLabel(runtime: MissionRuntime, patchReady: boolean) {
+  if (runtime.patchStatus === "approved") {
     return "Approved";
   }
-  if (state.patchStatus === "rejected") {
+  if (runtime.patchStatus === "rejected") {
     return "Rejected";
   }
   return patchReady ? "Ready" : "Cold";
 }
 
-function patchStateClass(state: MissionState, patchReady: boolean) {
-  if (state.patchStatus === "approved") {
+function patchStateClass(runtime: MissionRuntime, patchReady: boolean) {
+  if (runtime.patchStatus === "approved") {
     return "done";
   }
-  if (state.patchStatus === "rejected") {
+  if (runtime.patchStatus === "rejected") {
     return "rejected";
   }
   return patchReady ? "active" : "";
 }
 
-function verificationOutput(state: MissionState) {
-  if (state.verified) {
-    return `> npm test
-
- PASS  src/cli.test.ts
-  version command prints 0.1.0
-
-Test Files  1 passed
-Duration    0.8s`;
+function verificationOutput(runtime: MissionRuntime) {
+  if (runtime.verified) {
+    return mockVerificationOutput;
   }
-  if (state.patchStatus === "approved") {
+  if (runtime.patchStatus === "approved") {
     return "Patch approved. Verification command is armed.";
   }
-  if (state.patchStatus === "rejected") {
+  if (runtime.patchStatus === "rejected") {
     return "Patch rejected. Mission stopped before file changes.";
   }
   return "Waiting for approved patch.";

@@ -1,8 +1,7 @@
 :root {
   color-scheme: dark;
   --bg: #080a0d;
-  --panel: rgba(15, 20, 24, 0.86);
-  --panel-solid: #11161b;
+  --panel: rgba(15, 20, 24, 0.88);
   --panel-2: rgba(27, 34, 38, 0.9);
   --line: rgba(116, 135, 141, 0.24);
   --line-strong: rgba(117, 217, 196, 0.58);
@@ -81,9 +80,15 @@ h2 {
   letter-spacing: 0;
 }
 
+h3 {
+  font-size: 21px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
 .control-deck {
   display: grid;
-  grid-template-columns: 310px minmax(560px, 1fr) 420px;
+  grid-template-columns: 310px minmax(620px, 1fr) 420px;
   min-height: 100vh;
 }
 
@@ -121,9 +126,9 @@ h2 {
 .section-label,
 label,
 dt,
-.orbit-node span,
+small,
 .telemetry-line span,
-small {
+.selected-meta span {
   color: var(--muted);
 }
 
@@ -200,62 +205,6 @@ small {
   margin-bottom: 14px;
 }
 
-.panel-head.compact {
-  margin-bottom: 12px;
-}
-
-.repo-button {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
-  color: var(--text);
-  background: rgba(9, 13, 16, 0.72);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  justify-content: flex-start;
-  text-align: left;
-}
-
-.repo-button span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin: 14px 0 0;
-}
-
-.metric-grid div {
-  min-width: 0;
-  padding: 10px 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 6px;
-}
-
-dt {
-  font-size: 11px;
-}
-
-dd {
-  margin: 3px 0 0;
-  overflow: hidden;
-  color: var(--soft);
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mission-console {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 textarea {
   width: 100%;
   min-height: 116px;
@@ -298,11 +247,40 @@ textarea:focus {
 
 .command-button {
   width: 100%;
+  margin-top: 10px;
 }
 
 .icon-button {
   width: 38px;
   padding: 0;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.metric-grid div {
+  min-width: 0;
+  padding: 10px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+}
+
+dt {
+  font-size: 11px;
+}
+
+dd {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--soft);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .telemetry-stack {
@@ -388,7 +366,7 @@ textarea:focus {
   border-color: var(--red);
 }
 
-.orbital-map {
+.space-map {
   position: relative;
   min-height: 660px;
   margin: 24px;
@@ -402,8 +380,13 @@ textarea:focus {
   background-size: 34px 34px;
 }
 
-.starfield {
+.starfield,
+.scanline {
   position: absolute;
+  pointer-events: none;
+}
+
+.starfield {
   inset: 0;
   background-image:
     radial-gradient(circle, rgba(238, 247, 245, 0.36) 1px, transparent 1px),
@@ -414,301 +397,226 @@ textarea:focus {
   background-size:
     96px 96px,
     143px 143px;
-  opacity: 0.33;
+  opacity: 0.3;
 }
 
 .scanline {
-  position: absolute;
   inset: 0;
   background: linear-gradient(180deg, transparent, rgba(117, 217, 196, 0.11), transparent);
   transform: translateY(-100%);
   animation: scan 7s linear infinite;
 }
 
-.orbit {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  border: 1px solid rgba(117, 217, 196, 0.22);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.orbit::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  border: 1px dashed rgba(127, 178, 255, 0.22);
-}
-
-.orbit-one {
-  width: 260px;
-  height: 260px;
-  animation: orbit-turn 24s linear infinite;
-}
-
-.orbit-two {
-  width: 470px;
-  height: 330px;
-  animation: orbit-turn 34s linear infinite reverse;
-}
-
-.orbit-three {
-  width: 690px;
-  height: 470px;
-  animation: orbit-turn 48s linear infinite;
-}
-
-.signal {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  height: 2px;
-  transform-origin: left center;
-  background: linear-gradient(90deg, rgba(117, 217, 196, 0), rgba(117, 217, 196, 0.82), rgba(225, 138, 255, 0));
-  filter: drop-shadow(0 0 9px rgba(117, 217, 196, 0.45));
-  opacity: 0.62;
-}
-
-.signal-a {
-  width: 280px;
-  transform: rotate(-26deg);
-  animation: signal-pulse 2.8s ease-in-out infinite;
-}
-
-.signal-b {
-  width: 330px;
-  transform: rotate(148deg);
-  animation: signal-pulse 3.3s ease-in-out infinite 0.6s;
-}
-
-.signal-c {
-  width: 240px;
-  transform: rotate(70deg);
-  animation: signal-pulse 3.8s ease-in-out infinite 1.1s;
-}
-
-.mission-core {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  display: grid;
-  place-items: center;
-  width: 260px;
-  height: 260px;
-  transform: translate(-50%, -50%);
-  z-index: 3;
-}
-
-.core-ring {
+.graph-edges {
   position: absolute;
   inset: 0;
-  border: 1px solid rgba(117, 217, 196, 0.44);
-  border-radius: 50%;
-  box-shadow:
-    inset 0 0 40px rgba(117, 217, 196, 0.1),
-    0 0 70px rgba(117, 217, 196, 0.15);
-  animation: breathe 3.2s ease-in-out infinite;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
 }
 
-.core-ring::before,
-.core-ring::after {
-  content: "";
+.graph-edge {
+  stroke: rgba(143, 161, 173, 0.28);
+  stroke-width: 0.18;
+  vector-effect: non-scaling-stroke;
+}
+
+.graph-edge.runs {
+  stroke: rgba(241, 195, 95, 0.42);
+}
+
+.graph-edge.proposes,
+.graph-edge.verifies {
+  stroke: rgba(117, 217, 196, 0.46);
+}
+
+.graph-edge.blocks {
+  stroke: rgba(240, 113, 113, 0.5);
+  stroke-dasharray: 3 3;
+}
+
+.graph-edge.selected {
+  stroke: rgba(117, 217, 196, 0.88);
+  stroke-width: 0.34;
+  filter: drop-shadow(0 0 5px rgba(117, 217, 196, 0.75));
+}
+
+.graph-node {
   position: absolute;
-  border-radius: 50%;
-}
-
-.core-ring::before {
-  inset: 20px;
-  border: 1px solid rgba(127, 178, 255, 0.35);
-}
-
-.core-ring::after {
-  inset: 44px;
-  border: 1px dashed rgba(225, 138, 255, 0.34);
-  animation: orbit-turn 18s linear infinite;
-}
-
-.core-shell {
   display: grid;
-  justify-items: center;
-  gap: 8px;
-  width: 178px;
-  min-height: 178px;
-  padding: 24px 18px;
+  place-items: center;
+  gap: 3px;
+  width: 92px;
+  min-height: 74px;
+  padding: 10px 8px;
   color: var(--text);
   background:
-    radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.12), transparent 52%),
-    rgba(8, 12, 14, 0.86);
-  border: 1px solid rgba(117, 217, 196, 0.34);
-  border-radius: 50%;
-  text-align: center;
-  box-shadow: inset 0 0 34px rgba(117, 217, 196, 0.12);
-}
-
-.core-shell svg {
-  color: var(--cyan);
-}
-
-.core-shell span {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
-.core-shell strong {
-  display: -webkit-box;
-  max-width: 140px;
-  overflow: hidden;
-  font-size: 15px;
-  line-height: 1.25;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.core-progress {
-  width: 118px;
-  height: 5px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-}
-
-.core-progress span {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--cyan), var(--magenta));
-  border-radius: inherit;
-  transition: width 240ms ease;
-}
-
-.orbit-node {
-  position: absolute;
-  display: grid;
-  grid-template-columns: 38px 1fr;
-  gap: 10px;
-  align-items: center;
-  width: 188px;
-  min-height: 68px;
-  padding: 12px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.07), transparent 50%),
-    rgba(13, 18, 21, 0.9);
+    radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.1), transparent 52%),
+    rgba(13, 18, 21, 0.88);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
-  z-index: 4;
+  border-radius: 999px;
+  text-align: center;
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.26),
+    inset 0 0 20px rgba(255, 255, 255, 0.03);
+  transform: translate(-50%, -50%);
+  z-index: 2;
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
+    opacity 180ms ease,
     transform 180ms ease;
 }
 
-.orbit-node strong {
-  display: block;
-  max-width: 116px;
+.graph-node::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 1px solid rgba(117, 217, 196, 0.12);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.graph-node:hover,
+.graph-node.selected {
+  border-color: rgba(117, 217, 196, 0.76);
+  box-shadow:
+    0 0 0 1px rgba(117, 217, 196, 0.18),
+    0 18px 48px rgba(0, 0, 0, 0.28),
+    0 0 34px rgba(117, 217, 196, 0.15);
+  transform: translate(-50%, -50%) scale(1.04);
+}
+
+.graph-node:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.graph-node svg {
+  color: var(--muted);
+}
+
+.graph-node span {
+  width: 100%;
   overflow: hidden;
-  color: var(--text);
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.orbit-node span {
-  display: block;
-  margin-bottom: 3px;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.graph-node small {
+  width: 100%;
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.node-icon {
+.graph-node.repo {
+  width: 126px;
+  min-height: 126px;
+  border-color: rgba(127, 178, 255, 0.38);
+}
+
+.graph-node.repo::before {
+  inset: -16px;
+  border-color: rgba(127, 178, 255, 0.18);
+}
+
+.graph-node.repo svg {
+  color: var(--blue);
+}
+
+.graph-node.mission {
+  width: 108px;
+  min-height: 92px;
+}
+
+.graph-node.file,
+.graph-node.worker,
+.graph-node.patch,
+.graph-node.verification,
+.graph-node.test {
+  width: 86px;
+  min-height: 70px;
+}
+
+.graph-node.worker svg,
+.graph-node.running svg {
+  color: var(--amber);
+}
+
+.graph-node.review svg,
+.graph-node.approved svg,
+.graph-node.patch svg {
+  color: var(--cyan);
+}
+
+.graph-node.blocked svg {
+  color: var(--red);
+}
+
+.graph-node.verified svg,
+.graph-node.verification svg,
+.graph-node.test svg {
+  color: var(--green);
+}
+
+.mission-glyph {
+  grid-row: 1 / 3;
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   color: var(--muted);
   background: rgba(255, 255, 255, 0.045);
   border: 1px solid rgba(255, 255, 255, 0.055);
   border-radius: 7px;
 }
 
-.orbit-node.active,
-.orbit-node.working {
-  border-color: rgba(117, 217, 196, 0.7);
-  box-shadow:
-    0 0 0 1px rgba(117, 217, 196, 0.16),
-    0 18px 48px rgba(0, 0, 0, 0.28),
-    0 0 34px rgba(117, 217, 196, 0.16);
+.mission-glyph.running {
+  color: var(--amber);
 }
 
-.orbit-node.active .node-icon,
-.orbit-node.working .node-icon {
+.mission-glyph.review,
+.mission-glyph.approved {
   color: var(--cyan);
 }
 
-.orbit-node.done {
-  border-color: rgba(110, 231, 154, 0.56);
-}
-
-.orbit-node.done .node-icon {
-  color: var(--green);
-}
-
-.orbit-node.rejected {
-  border-color: rgba(240, 113, 113, 0.62);
-}
-
-.orbit-node.rejected .node-icon {
+.mission-glyph.blocked {
   color: var(--red);
 }
 
-.orbit-node.pending {
-  opacity: 0.72;
+.mission-glyph.verified {
+  color: var(--green);
 }
 
-.pos-repo {
-  left: calc(50% - 94px);
-  top: 54px;
+.selected-meta {
+  display: grid;
+  gap: 9px;
 }
 
-.pos-agent {
-  right: 64px;
-  top: 170px;
-}
-
-.pos-package {
-  right: 104px;
-  bottom: 130px;
-}
-
-.pos-cli {
-  left: 104px;
-  bottom: 130px;
-}
-
-.pos-patch {
-  left: 64px;
-  top: 170px;
-}
-
-.pos-verify {
-  left: calc(50% - 94px);
-  bottom: 54px;
+.selected-meta span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .activity-console {
-  min-height: 250px;
+  min-height: 230px;
 }
 
 .activity-list {
   display: grid;
   gap: 10px;
-  max-height: 174px;
+  max-height: 152px;
   padding: 0;
   margin: 0;
   overflow: auto;
@@ -746,7 +654,7 @@ textarea:focus {
 
 .patch-console {
   flex: 1 1 auto;
-  min-height: 340px;
+  min-height: 320px;
 }
 
 .diff,
@@ -764,7 +672,7 @@ textarea:focus {
 
 .diff {
   height: calc(100% - 104px);
-  min-height: 210px;
+  min-height: 190px;
   padding: 14px;
 }
 
@@ -801,34 +709,6 @@ textarea:focus {
   }
 }
 
-@keyframes orbit-turn {
-  to {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-
-@keyframes breathe {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.84;
-  }
-  50% {
-    transform: scale(1.035);
-    opacity: 1;
-  }
-}
-
-@keyframes signal-pulse {
-  0%,
-  100% {
-    opacity: 0.18;
-  }
-  50% {
-    opacity: 0.82;
-  }
-}
-
 @keyframes panel-sweep {
   0% {
     transform: translateX(-100%);
@@ -859,13 +739,8 @@ textarea:focus {
   }
 
   .brand,
-  .telemetry-console {
+  .fleet-console {
     grid-column: 1 / -1;
-  }
-
-  .systems-rail {
-    display: grid;
-    grid-template-columns: 1fr;
   }
 }
 
@@ -883,25 +758,14 @@ textarea:focus {
     white-space: normal;
   }
 
-  .orbital-map {
-    display: grid;
-    gap: 12px;
+  .space-map {
     min-height: auto;
+    height: 620px;
     margin: 16px;
-    padding: 16px;
   }
 
-  .starfield,
-  .scanline,
-  .orbit,
-  .signal,
-  .mission-core,
-  .core-ring {
-    display: none;
-  }
-
-  .orbit-node {
-    position: static;
-    width: 100%;
+  .graph-node {
+    width: 82px;
+    min-height: 68px;
   }
 }
