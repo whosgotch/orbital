@@ -31,6 +31,10 @@ func (s *Service) RunVerification(ctx context.Context, repoID string, missionID 
 		return nil, fmt.Errorf("mission %s does not belong to repository %s", missionID, repoID)
 	}
 
+	if state.Missions[missionIndex].Status != domain.MissionStatusApplied {
+		return nil, fmt.Errorf("mission must be applied before verification: %s", missionID)
+	}
+
 	startedAt := time.Now().UTC()
 	verification := domain.VerificationRun{
 		ID:           fmt.Sprintf("verification_%d", startedAt.UnixNano()),

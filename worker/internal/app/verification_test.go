@@ -140,6 +140,52 @@ func TestRunVerificationRejectsUnknownMission(t *testing.T) {
 	}
 }
 
+func TestRunVerificationRejectsDraftMission(t *testing.T) {
+	assertRunVerificationRejectsMissionStatus(t, domain.MissionStatusDraft)
+}
+
+func TestRunVerificationRejectsWaitingApprovalMission(t *testing.T) {
+	assertRunVerificationRejectsMissionStatus(t, domain.MissionStatusWaitingApproval)
+}
+
+func TestRunVerificationRejectsRejectedMission(t *testing.T) {
+	assertRunVerificationRejectsMissionStatus(t, domain.MissionStatusRejected)
+}
+
+func assertRunVerificationRejectsMissionStatus(t *testing.T, status domain.MissionStatus) {
+	t.Helper()
+
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+	state := verificationState(t.TempDir())
+	state.Missions[0].Status = status
+
+	if err := jsonStore.Save(state); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	if _, err := svc.RunVerification(context.Background(), "repo_1", "mission_1", "true"); err == nil {
+		t.Fatalf("expected error for mission status %q, got nil", status)
+	}
+
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got.Missions[0].Status != status {
+		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, status)
+	}
+
+	if len(got.VerificationRuns) != 0 {
+		t.Fatalf("expected 0 verification runs, got %d", len(got.VerificationRuns))
+	}
+
+	if len(got.WorkflowEvents) != 0 {
+		t.Fatalf("expected 0 workflow events, got %d", len(got.WorkflowEvents))
+	}
+}
+
 func verificationState(repoPath string) *store.State {
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 
