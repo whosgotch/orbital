@@ -24,6 +24,17 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 		return nil, fmt.Errorf("repository path is not a directory: %s", cleanPath)
 	}
 
+	state, err := s.store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, repository := range state.Repositories {
+		if repository.Path == cleanPath {
+			return &repository, nil
+		}
+	}
+
 	now := time.Now().UTC()
 	repository := domain.Repository{
 		ID:        fmt.Sprintf("repo_%d", now.UnixNano()),
@@ -31,11 +42,6 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 		Name:      filepath.Base(cleanPath),
 		Branch:    "",
 		CreatedAt: now,
-	}
-
-	state, err := s.store.Load()
-	if err != nil {
-		return nil, err
 	}
 
 	state.Repositories = append(state.Repositories, repository)

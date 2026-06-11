@@ -37,6 +37,35 @@ func TestOpenRepositorySavesRepository(t *testing.T) {
 	}
 }
 
+func TestOpenRepositoryReturnsExistingRepositoryForSamePath(t *testing.T) {
+	repoDir := t.TempDir()
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+
+	first, err := svc.OpenRepository(repoDir)
+	if err != nil {
+		t.Fatalf("OpenRepository() first error = %v", err)
+	}
+
+	second, err := svc.OpenRepository(repoDir)
+	if err != nil {
+		t.Fatalf("OpenRepository() second error = %v", err)
+	}
+
+	if second.ID != first.ID {
+		t.Fatalf("second repository ID = %q, want %q", second.ID, first.ID)
+	}
+
+	state, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if len(state.Repositories) != 1 {
+		t.Fatalf("expected 1 repository, got %d", len(state.Repositories))
+	}
+}
+
 func TestOpenRepositoryRejectsFilePath(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "not-a-repo.txt")
