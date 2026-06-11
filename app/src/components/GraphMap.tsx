@@ -8,11 +8,12 @@ import {
 
 type GraphMapProps = {
   nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>;
+  selectedNodeId: string;
   selectedMissionId: string;
-  onSelectMission: (missionId: string) => void;
+  onSelectNode: (nodeId: string) => void;
 };
 
-export function GraphMap({ nodes, selectedMissionId, onSelectMission }: GraphMapProps) {
+export function GraphMap({ nodes, selectedNodeId, selectedMissionId, onSelectNode }: GraphMapProps) {
   return (
     <section className="space-map" aria-label="Workspace graph map">
       <div className="starfield" aria-hidden="true" />
@@ -39,8 +40,8 @@ export function GraphMap({ nodes, selectedMissionId, onSelectMission }: GraphMap
         <GraphNodeButton
           key={node.id}
           node={node}
-          selectedMissionId={selectedMissionId}
-          onSelectMission={onSelectMission}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={onSelectNode}
         />
       ))}
     </section>
@@ -89,27 +90,21 @@ function edgeTouchesMission(
 
 function GraphNodeButton({
   node,
-  selectedMissionId,
-  onSelectMission,
+  selectedNodeId,
+  onSelectNode,
 }: {
   node: WorkspaceGraphNode & { status?: MissionNodeStatus };
-  selectedMissionId: string;
-  onSelectMission: (missionId: string) => void;
+  selectedNodeId: string;
+  onSelectNode: (nodeId: string) => void;
 }) {
-  const missionSelected = node.mission_id === selectedMissionId;
-  const selectable = Boolean(node.mission_id);
+  const selected = node.id === selectedNodeId;
 
   return (
     <button
-      className={`graph-node ${node.kind} ${node.status ?? ""} ${missionSelected ? "selected" : ""}`}
+      className={`graph-node ${node.kind} ${node.status ?? ""} ${selected ? "selected" : ""}`}
       style={{ left: `${node.x}%`, top: `${node.y}%` }}
       type="button"
-      disabled={!selectable}
-      onClick={() => {
-        if (node.mission_id) {
-          onSelectMission(node.mission_id);
-        }
-      }}
+      onClick={() => onSelectNode(node.id)}
     >
       <GraphGlyph kind={node.kind} status={node.status} />
       <span>{node.label}</span>

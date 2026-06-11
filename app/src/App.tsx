@@ -21,6 +21,7 @@ import {
   mockWorkflowSteps,
   mockWorkspaceMissions,
   type MissionNodeStatus,
+  type WorkspaceGraphNode,
   type WorkspaceMission,
 } from "./mockMission";
 
@@ -46,10 +47,12 @@ const initialMissionRuntime = Object.fromEntries(
 ) as MissionRuntimeMap;
 
 export function App() {
-  const [selectedMissionId, setSelectedMissionId] = useState(mockWorkspaceMissions[0].id);
+  const [selectedNodeId, setSelectedNodeId] = useState("mission_version");
   const [missionDraft, setMissionDraft] = useState("stabilize the release path");
   const [runtimeByMission, setRuntimeByMission] = useState<MissionRuntimeMap>(initialMissionRuntime);
 
+  const selectedGraphNode = mockGraphNodes.find((node) => node.id === selectedNodeId) ?? mockGraphNodes[0];
+  const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode) ?? mockWorkspaceMissions[0].id;
   const selectedMission = mockWorkspaceMissions.find((mission) => mission.id === selectedMissionId) ?? mockWorkspaceMissions[0];
   const selectedRepository = repositoryFor(selectedMission);
   const selectedRuntime = runtimeByMission[selectedMission.id];
@@ -162,32 +165,24 @@ export function App() {
           <div className={`status-pill ${missionStatus.className}`}>{missionStatus.label}</div>
         </header>
 
-        <GraphMap nodes={graphNodes} selectedMissionId={selectedMission.id} onSelectMission={setSelectedMissionId} />
+        <GraphMap
+          nodes={graphNodes}
+          selectedNodeId={selectedGraphNode.id}
+          selectedMissionId={selectedMission.id}
+          onSelectNode={setSelectedNodeId}
+        />
       </section>
 
       <aside className="systems-rail">
-        <section className="console-panel selected-console" aria-label="Selected mission">
+        <section className="console-panel selected-console" aria-label="Selected node">
           <div className="panel-head">
             <div>
-              <div className="section-label">Selected mission</div>
-              <h2>{selectedMission.title}</h2>
+              <div className="section-label">Inspector</div>
+              <h2>{selectedGraphNode.label}</h2>
             </div>
             <MissionGlyph status={statusFromRuntime(selectedRuntime)} />
           </div>
-          <div className="selected-meta">
-            <span>
-              <Network size={14} aria-hidden="true" />
-              {selectedRepository.name}
-            </span>
-            <span>
-              <RadioTower size={14} aria-hidden="true" />
-              {selectedMission.worker}
-            </span>
-            <span>
-              <Terminal size={14} aria-hidden="true" />
-              {selectedMission.command}
-            </span>
-          </div>
+          <NodeInspector node={selectedGraphNode} mission={selectedMission} runtime={selectedRuntime} />
         </section>
 
         <section className="console-panel activity-console" aria-label="Agent activity">
@@ -294,10 +289,145 @@ function TelemetryLine({ label, value }: { label: string; value: string }) {
   );
 }
 
+function NodeInspector({
+  node,
+  mission,
+  runtime,
+}: {
+  node: WorkspaceGraphNode;
+  mission: WorkspaceMission;
+  runtime: MissionRuntime;
+}) {
+  const repository = node.repository_id
+    ? mockMissionLoop.repositories.find((repo) => repo.id === node.repository_id)
+    : repositoryFor(mission);
+
+  if (node.kind === "repo") {
+    const missionCount = mockWorkspaceMissions.filter((item) => item.repository_id === node.repository_id).length;
+    return (
+      <div className="selected-meta">
+        <span>
+          <Network size={14} aria-hidden="true" />
+          {repository?.path ?? "Unknown repository"}
+        </span>
+        <span>
+          <RadioTower size={14} aria-hidden="true" />
+          {missionCount} missions
+        </span>
+        <span>
+          <Terminal size={14} aria-hidden="true" />
+          branch {repository?.branch ?? "unknown"}
+        </span>
+      </div>
+    );
+  }
+
+  if (node.kind === "worker") {
+    return (
+      <div className="selected-meta">
+        <span>
+          <RadioTower size={14} aria-hidden="true" />
+          local worker pool
+        </span>
+        <span>
+          <Network size={14} aria-hidden="true" />
+          attached to active mission lanes
+        </span>
+        <span>
+          <Terminal size={14} aria-hidden="true" />
+          status ready
+        </span>
+      </div>
+    );
+  }
+
+  if (node.kind === "file") {
+    return (
+      <div className="selected-meta">
+        <span>
+          <Network size={14} aria-hidden="true" />
+          {repository?.name ?? "workspace"}
+        </span>
+        <span>
+          <RadioTower size={14} aria-hidden="true" />
+          context for {mission.title}
+        </span>
+        <span>
+          <Terminal size={14} aria-hidden="true" />
+          {node.label}
+        </span>
+      </div>
+    );
+  }
+
+  if (node.kind === "patch") {
+    return (
+      <div className="selected-meta">
+        <span>
+          <Network size={14} aria-hidden="true" />
+          {mission.title}
+        </span>
+        <span>
+          <RadioTower size={14} aria-hidden="true" />
+          patch {runtime.patchStatus}
+        </span>
+        <span>
+          <Terminal size={14} aria-hidden="true" />
+          approval gate
+        </span>
+      </div>
+    );
+  }
+
+  if (node.kind === "verification" || node.kind === "test") {
+    return (
+      <div className="selected-meta">
+        <span>
+          <Network size={14} aria-hidden="true" />
+          {repository?.name ?? mission.title}
+        </span>
+        <span>
+          <RadioTower size={14} aria-hidden="true" />
+          {runtime.verified ? "verified" : "waiting"}
+        </span>
+        <span>
+          <Terminal size={14} aria-hidden="true" />
+          {mission.command}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="selected-meta">
+      <span>
+        <Network size={14} aria-hidden="true" />
+        {repository?.name ?? "workspace"}
+      </span>
+      <span>
+        <RadioTower size={14} aria-hidden="true" />
+        {mission.worker}
+      </span>
+      <span>
+        <Terminal size={14} aria-hidden="true" />
+        {mission.command}
+      </span>
+    </div>
+  );
+}
+
 function repositoryFor(mission: WorkspaceMission) {
   return (
     mockMissionLoop.repositories.find((repository) => repository.id === mission.repository_id) ?? mockMissionLoop.repositories[0]
   );
+}
+
+function nearestMissionId(node: WorkspaceGraphNode) {
+  if (node.repository_id) {
+    return mockWorkspaceMissions.find((mission) => mission.repository_id === node.repository_id)?.id;
+  }
+
+  return undefined;
 }
 
 function statusFromRuntime(runtime: MissionRuntime): MissionNodeStatus {
