@@ -44,6 +44,10 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 	state.Missions[missionIndex].Status = domain.MissionStatusRunning
 	state.Missions[missionIndex].UpdatedAt = now
 
+	if err := s.store.Save(state); err != nil {
+		return nil, err
+	}
+
 	events, err := worker.StartRun(ctx, agent.RunRequest{
 		RunID:       run.ID,
 		MissionID:   mission.ID,
@@ -67,28 +71,55 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 	}
 
 	for event := range events {
-		if event.WorkflowEvent != nil {
-			event.WorkflowEvent.MissionID = missionID
-			state.WorkflowEvents = append(state.WorkflowEvents, *event.WorkflowEvent)
-		}
-
-		if event.PatchProposal != nil {
-			state.PatchProposals = append(state.PatchProposals, *event.PatchProposal)
-			state.Missions[missionIndex].Status = domain.MissionStatusWaitingApproval
-			state.Missions[missionIndex].UpdatedAt = event.PatchProposal.UpdatedAt
+		if err := s.saveRunEvent(missionID, event); err != nil {
+			return nil, err
 		}
 	}
 
+	state, err = s.store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	runIndex := findRunIndex(state.AgentRuns, run.ID)
+	if runIndex == -1 {
+		return nil, fmt.Errorf("agent run not found: %s", run.ID)
+	}
+
 	completedAt := time.Now().UTC()
-	run.Status = domain.AgentRunStatusCompleted
-	run.CompletedAt = &completedAt
-	state.AgentRuns[len(state.AgentRuns)-1] = run
+	state.AgentRuns[runIndex].Status = domain.AgentRunStatusCompleted
+	state.AgentRuns[runIndex].CompletedAt = &completedAt
 
 	if err := s.store.Save(state); err != nil {
 		return nil, err
 	}
 
-	return &run, nil
+	return &state.AgentRuns[runIndex], nil
+}
+
+func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
+	state, err := s.store.Load()
+	if err != nil {
+		return err
+	}
+
+	missionIndex := findMissionIndex(state.Missions, missionID)
+	if missionIndex == -1 {
+		return fmt.Errorf("mission not found: %s", missionID)
+	}
+
+	if event.WorkflowEvent != nil {
+		event.WorkflowEvent.MissionID = missionID
+		state.WorkflowEvents = append(state.WorkflowEvents, *event.WorkflowEvent)
+	}
+
+	if event.PatchProposal != nil {
+		state.PatchProposals = append(state.PatchProposals, *event.PatchProposal)
+		state.Missions[missionIndex].Status = domain.MissionStatusWaitingApproval
+		state.Missions[missionIndex].UpdatedAt = event.PatchProposal.UpdatedAt
+	}
+
+	return s.store.Save(state)
 }
 
 func findMissionIndex(missions []domain.Mission, missionID string) int {
