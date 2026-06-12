@@ -32,7 +32,7 @@ import {
   type WorkspaceRuntime,
   type WorkspaceRuntimeMap,
 } from "./workspaceAdapter";
-import { loadMissionLoopState } from "./missionLoopLoader";
+import { loadMissionLoopState, refreshMissionLoopState } from "./missionLoopLoader";
 
 const initialMissionLoop = mockMissionLoop;
 
@@ -208,7 +208,7 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      hydrateMissionLoop(await loadMissionLoopState());
+      hydrateMissionLoop(await refreshMissionLoopState());
     } catch (error) {
       setMissionLoopError(error instanceof Error ? error.message : "Failed to load mission loop state.");
     } finally {
@@ -217,7 +217,20 @@ export function App() {
   };
 
   useEffect(() => {
-    void refreshMissionLoop();
+    const loadMissionLoop = async () => {
+      setRefreshingMissionLoop(true);
+      setMissionLoopError("");
+
+      try {
+        hydrateMissionLoop(await loadMissionLoopState());
+      } catch (error) {
+        setMissionLoopError(error instanceof Error ? error.message : "Failed to load mission loop state.");
+      } finally {
+        setRefreshingMissionLoop(false);
+      }
+    };
+
+    void loadMissionLoop();
   }, []);
 
   return (

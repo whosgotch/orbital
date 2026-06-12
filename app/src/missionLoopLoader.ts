@@ -9,6 +9,19 @@ export async function loadMissionLoopState(): Promise<MissionLoopState> {
     return JSON.parse(state) as MissionLoopState;
   }
 
+  return loadRuntimeFixture();
+}
+
+export async function refreshMissionLoopState(): Promise<MissionLoopState> {
+  if (isTauriRuntime()) {
+    const state = await invoke<string>("refresh_demo_worker_loop");
+    return JSON.parse(state) as MissionLoopState;
+  }
+
+  return loadRuntimeFixture();
+}
+
+async function loadRuntimeFixture(): Promise<MissionLoopState> {
   const response = await fetch(missionLoopFixturePath);
   if (!response.ok) {
     throw new Error(`Failed to load mission loop state: ${response.status}`);
