@@ -12,7 +12,6 @@ import {
   Zap,
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
-import type { PatchStatus as WorkerPatchStatus } from "./domain";
 import {
   mockMissionLoop,
   mockGraphEdges,
@@ -26,35 +25,35 @@ import {
   type WorkspaceGraphNode,
   type WorkspaceMission,
 } from "./mockMission";
+import {
+  workspaceViewFromMissionLoop,
+  type WorkspaceRuntime,
+  type WorkspaceRuntimeMap,
+} from "./workspaceAdapter";
 
-type PatchStatus = Extract<WorkerPatchStatus, "pending" | "approved" | "rejected">;
-
-type MissionRuntime = {
-  step: number;
-  patchStatus: PatchStatus;
-  verified: boolean;
-};
-
-type MissionRuntimeMap = Record<string, MissionRuntime>;
-
-const initialMissionRuntime = Object.fromEntries(
-  mockWorkspaceMissions.map((mission) => [
-    mission.id,
-    {
-      step: mission.step,
-      patchStatus: mission.patch_status,
-      verified: mission.verified,
-    },
-  ]),
-) as MissionRuntimeMap;
+const initialWorkspaceView = workspaceViewFromMissionLoop(mockMissionLoop, {
+  missions: mockWorkspaceMissions,
+  graphNodes: mockGraphNodes,
+  graphEdges: mockGraphEdges,
+  runtimeByMission: Object.fromEntries(
+    mockWorkspaceMissions.map((mission) => [
+      mission.id,
+      {
+        step: mission.step,
+        patchStatus: mission.patch_status,
+        verified: mission.verified,
+      },
+    ]),
+  ) as WorkspaceRuntimeMap,
+});
 
 export function App() {
   const [selectedNodeId, setSelectedNodeId] = useState("mission_version");
   const [missionDraft, setMissionDraft] = useState("stabilize the release path");
-  const [workspaceMissions, setWorkspaceMissions] = useState(mockWorkspaceMissions);
-  const [workspaceGraphNodes, setWorkspaceGraphNodes] = useState(mockGraphNodes);
-  const [workspaceGraphEdges, setWorkspaceGraphEdges] = useState(mockGraphEdges);
-  const [runtimeByMission, setRuntimeByMission] = useState<MissionRuntimeMap>(initialMissionRuntime);
+  const [workspaceMissions, setWorkspaceMissions] = useState(initialWorkspaceView.missions);
+  const [workspaceGraphNodes, setWorkspaceGraphNodes] = useState(initialWorkspaceView.graphNodes);
+  const [workspaceGraphEdges, setWorkspaceGraphEdges] = useState(initialWorkspaceView.graphEdges);
+  const [runtimeByMission, setRuntimeByMission] = useState<WorkspaceRuntimeMap>(initialWorkspaceView.runtimeByMission);
 
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0].id;
@@ -81,7 +80,7 @@ export function App() {
     [runtimeByMission, workspaceGraphNodes],
   );
 
-  const updateSelectedRuntime = (next: (runtime: MissionRuntime) => MissionRuntime) => {
+  const updateSelectedRuntime = (next: (runtime: WorkspaceRuntime) => WorkspaceRuntime) => {
     setRuntimeByMission((current) => ({
       ...current,
       [selectedMission.id]: next(current[selectedMission.id]),
@@ -361,7 +360,7 @@ function NodeInspector({
   node: WorkspaceGraphNode;
   mission: WorkspaceMission;
   missions: WorkspaceMission[];
-  runtime: MissionRuntime;
+  runtime: WorkspaceRuntime;
 }) {
   const repository = node.repository_id
     ? mockMissionLoop.repositories.find((repo) => repo.id === node.repository_id)
@@ -500,7 +499,7 @@ function missionLabel(title: string) {
   return words.slice(0, 3).join(" ");
 }
 
-function statusFromRuntime(runtime: MissionRuntime): MissionNodeStatus {
+function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus {
   if (runtime.verified) {
     return "verified";
   }
@@ -519,7 +518,7 @@ function statusFromRuntime(runtime: MissionRuntime): MissionNodeStatus {
   return "draft";
 }
 
-function missionStatusFor(runtime: MissionRuntime, patchReady: boolean) {
+function missionStatusFor(runtime: WorkspaceRuntime, patchReady: boolean) {
   const status = statusFromRuntime(runtime);
   if (status === "verified") {
     return { label: "Verified", className: "done" };
@@ -539,15 +538,15 @@ function missionStatusFor(runtime: MissionRuntime, patchReady: boolean) {
   return { label: "Queued", className: "idle" };
 }
 
-function isRunning(runtime: MissionRuntime) {
+function isRunning(runtime: WorkspaceRuntime) {
   return statusFromRuntime(runtime) === "running";
 }
 
-function isReviewing(runtime: MissionRuntime) {
+function isReviewing(runtime: WorkspaceRuntime) {
   return statusFromRuntime(runtime) === "review";
 }
 
-function patchStateLabel(runtime: MissionRuntime, patchReady: boolean) {
+function patchStateLabel(runtime: WorkspaceRuntime, patchReady: boolean) {
   if (runtime.patchStatus === "approved") {
     return "Approved";
   }
@@ -557,7 +556,7 @@ function patchStateLabel(runtime: MissionRuntime, patchReady: boolean) {
   return patchReady ? "Ready" : "Cold";
 }
 
-function patchStateClass(runtime: MissionRuntime, patchReady: boolean) {
+function patchStateClass(runtime: WorkspaceRuntime, patchReady: boolean) {
   if (runtime.patchStatus === "approved") {
     return "done";
   }
@@ -567,7 +566,7 @@ function patchStateClass(runtime: MissionRuntime, patchReady: boolean) {
   return patchReady ? "active" : "";
 }
 
-function verificationOutput(runtime: MissionRuntime) {
+function verificationOutput(runtime: WorkspaceRuntime) {
   if (runtime.verified) {
     return mockVerificationOutput;
   }
