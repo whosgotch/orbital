@@ -1,6 +1,6 @@
 # Orbital App
 
-The app currently renders a worker-shaped mission fixture from `src/workerMissionFixture.json`.
+The app currently renders a worker-shaped mission fixture from `public/workerMissionFixture.json`.
 
 ## Refresh worker fixture
 
@@ -16,4 +16,4 @@ To export the current saved worker state without resetting or running the demo a
 npm run worker-fixture:export
 ```
 
-Both scripts use `/private/tmp/orbital-demo-repo` and write `src/workerMissionFixture.json`.
+Both scripts use `/private/tmp/orbital-demo-repo` and write `public/workerMissionFixture.json`.
