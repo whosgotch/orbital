@@ -5,6 +5,7 @@ import {
   Network,
   Play,
   RadioTower,
+  RefreshCw,
   Rocket,
   ShieldCheck,
   Terminal,
@@ -34,7 +35,7 @@ import { loadMissionLoopState } from "./missionLoopLoader";
 
 const activeMissionLoop = loadMissionLoopState();
 
-const initialWorkspaceView = workspaceViewFromMissionLoop(activeMissionLoop, {
+const workspaceViewFallback = {
   missions: mockWorkspaceMissions,
   graphNodes: mockGraphNodes,
   graphEdges: mockGraphEdges,
@@ -51,9 +52,12 @@ const initialWorkspaceView = workspaceViewFromMissionLoop(activeMissionLoop, {
   patchDiffByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockPatchDiff])),
   verificationOutputByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockVerificationOutput])),
   activityByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockWorkflowSteps])),
-});
+};
+
+const initialWorkspaceView = workspaceViewFromMissionLoop(activeMissionLoop, workspaceViewFallback);
 
 export function App() {
+  const [missionLoopState, setMissionLoopState] = useState(activeMissionLoop);
   const [selectedNodeId, setSelectedNodeId] = useState("mission_version");
   const [missionDraft, setMissionDraft] = useState("stabilize the release path");
   const [workspaceMissions, setWorkspaceMissions] = useState(initialWorkspaceView.missions);
@@ -67,7 +71,7 @@ export function App() {
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0].id;
   const selectedMission = workspaceMissions.find((mission) => mission.id === selectedMissionId) ?? workspaceMissions[0];
-  const selectedRepository = repositoryFor(selectedMission, activeMissionLoop.repositories);
+  const selectedRepository = repositoryFor(selectedMission, missionLoopState.repositories);
   const selectedRuntime = runtimeByMission[selectedMission.id];
   const selectedPatchDiff = patchDiffByMission[selectedMission.id] ?? "";
   const selectedVerificationOutput = verificationOutputByMission[selectedMission.id] ?? "";
@@ -178,6 +182,25 @@ export function App() {
     updateSelectedRuntime((current) => ({ ...current, verified: true }));
   };
 
+  const refreshMissionLoop = () => {
+    const nextMissionLoopState = loadMissionLoopState();
+    const nextWorkspaceView = workspaceViewFromMissionLoop(nextMissionLoopState, workspaceViewFallback);
+
+    setMissionLoopState(nextMissionLoopState);
+    setWorkspaceMissions(nextWorkspaceView.missions);
+    setWorkspaceGraphNodes(nextWorkspaceView.graphNodes);
+    setWorkspaceGraphEdges(nextWorkspaceView.graphEdges);
+    setRuntimeByMission(nextWorkspaceView.runtimeByMission);
+    setPatchDiffByMission(nextWorkspaceView.patchDiffByMission);
+    setVerificationOutputByMission(nextWorkspaceView.verificationOutputByMission);
+    setActivityByMission(nextWorkspaceView.activityByMission);
+    setSelectedNodeId((current) =>
+      nextWorkspaceView.graphNodes.some((node) => node.id === current)
+        ? current
+        : nextWorkspaceView.graphNodes[0]?.id ?? current,
+    );
+  };
+
   return (
     <main className="control-deck">
       <aside className="command-rail">
@@ -209,7 +232,7 @@ export function App() {
           <dl className="metric-grid">
             <div>
               <dt>Repos</dt>
-              <dd>{activeMissionLoop.repositories.length}</dd>
+              <dd>{missionLoopState.repositories.length}</dd>
             </div>
             <div>
               <dt>Missions</dt>
@@ -234,7 +257,18 @@ export function App() {
             <div className="section-label">Constellation map</div>
             <h2>Repositories, missions, workers, files, and gates in one graph</h2>
           </div>
-          <div className={`status-pill ${missionStatus.className}`}>{missionStatus.label}</div>
+          <div className="stage-actions">
+            <button
+              className="secondary icon-button"
+              type="button"
+              onClick={refreshMissionLoop}
+              aria-label="Refresh mission loop"
+              title="Refresh mission loop"
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+            </button>
+            <div className={`status-pill ${missionStatus.className}`}>{missionStatus.label}</div>
+          </div>
         </header>
 
         <GraphMap
@@ -259,7 +293,7 @@ export function App() {
             node={selectedGraphNode}
             mission={selectedMission}
             missions={workspaceMissions}
-            repositories={activeMissionLoop.repositories}
+            repositories={missionLoopState.repositories}
             runtime={selectedRuntime}
           />
         </section>

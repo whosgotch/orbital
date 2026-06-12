@@ -321,6 +321,12 @@ dd {
   white-space: nowrap;
 }
 
+.stage-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .status-pill,
 .mini-state {
   min-width: 86px;
