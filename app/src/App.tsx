@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import {
-  mockMissionLoop,
   mockGraphEdges,
   mockGraphNodes,
   mockPatchDiff,
@@ -25,13 +24,17 @@ import {
   type WorkspaceGraphNode,
   type WorkspaceMission,
 } from "./mockMission";
+import type { Repository } from "./domain";
 import {
   workspaceViewFromMissionLoop,
   type WorkspaceRuntime,
   type WorkspaceRuntimeMap,
 } from "./workspaceAdapter";
+import { workerMissionFixture } from "./workerMissionFixture";
 
-const initialWorkspaceView = workspaceViewFromMissionLoop(mockMissionLoop, {
+const activeMissionLoop = workerMissionFixture;
+
+const initialWorkspaceView = workspaceViewFromMissionLoop(activeMissionLoop, {
   missions: mockWorkspaceMissions,
   graphNodes: mockGraphNodes,
   graphEdges: mockGraphEdges,
@@ -64,7 +67,7 @@ export function App() {
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0].id;
   const selectedMission = workspaceMissions.find((mission) => mission.id === selectedMissionId) ?? workspaceMissions[0];
-  const selectedRepository = repositoryFor(selectedMission);
+  const selectedRepository = repositoryFor(selectedMission, activeMissionLoop.repositories);
   const selectedRuntime = runtimeByMission[selectedMission.id];
   const selectedPatchDiff = patchDiffByMission[selectedMission.id] ?? "";
   const selectedVerificationOutput = verificationOutputByMission[selectedMission.id] ?? "";
@@ -107,10 +110,11 @@ export function App() {
     }
 
     const missionId = `mission_${Date.now()}`;
-    const appMissionCount = workspaceMissions.filter((mission) => mission.repository_id === "repo_app").length;
+    const targetRepositoryId = selectedRepository.id;
+    const targetMissionCount = workspaceMissions.filter((mission) => mission.repository_id === targetRepositoryId).length;
     const mission: WorkspaceMission = {
       id: missionId,
-      repository_id: "repo_app",
+      repository_id: targetRepositoryId,
       title,
       status: "running",
       worker: "mock",
@@ -127,13 +131,13 @@ export function App() {
       label: missionLabel(title),
       detail: "mission",
       x: 27,
-      y: Math.min(92, 64 + appMissionCount * 6),
+      y: Math.min(92, 22 + targetMissionCount * 12),
       mission_id: missionId,
-      repository_id: "repo_app",
+      repository_id: targetRepositoryId,
     };
     const edge: WorkspaceGraphEdge = {
-      id: `edge_repo_app_${missionId}`,
-      from: "repo_app",
+      id: `edge_${targetRepositoryId}_${missionId}`,
+      from: targetRepositoryId,
       to: missionId,
       kind: "owns",
     };
@@ -205,7 +209,7 @@ export function App() {
           <dl className="metric-grid">
             <div>
               <dt>Repos</dt>
-              <dd>{mockMissionLoop.repositories.length}</dd>
+              <dd>{activeMissionLoop.repositories.length}</dd>
             </div>
             <div>
               <dt>Missions</dt>
@@ -255,6 +259,7 @@ export function App() {
             node={selectedGraphNode}
             mission={selectedMission}
             missions={workspaceMissions}
+            repositories={activeMissionLoop.repositories}
             runtime={selectedRuntime}
           />
         </section>
@@ -367,16 +372,18 @@ function NodeInspector({
   node,
   mission,
   missions,
+  repositories,
   runtime,
 }: {
   node: WorkspaceGraphNode;
   mission: WorkspaceMission;
   missions: WorkspaceMission[];
+  repositories: Repository[];
   runtime: WorkspaceRuntime;
 }) {
   const repository = node.repository_id
-    ? mockMissionLoop.repositories.find((repo) => repo.id === node.repository_id)
-    : repositoryFor(mission);
+    ? repositories.find((repo) => repo.id === node.repository_id)
+    : repositoryFor(mission, repositories);
 
   if (node.kind === "repo") {
     const missionCount = missions.filter((item) => item.repository_id === node.repository_id).length;
@@ -492,10 +499,8 @@ function NodeInspector({
   );
 }
 
-function repositoryFor(mission: WorkspaceMission) {
-  return (
-    mockMissionLoop.repositories.find((repository) => repository.id === mission.repository_id) ?? mockMissionLoop.repositories[0]
-  );
+function repositoryFor(mission: WorkspaceMission, repositories: Repository[]) {
+  return repositories.find((repository) => repository.id === mission.repository_id) ?? repositories[0];
 }
 
 function nearestMissionId(node: WorkspaceGraphNode, missions: WorkspaceMission[]) {
