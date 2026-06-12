@@ -47,6 +47,7 @@ const initialWorkspaceView = workspaceViewFromMissionLoop(mockMissionLoop, {
   ) as WorkspaceRuntimeMap,
   patchDiffByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockPatchDiff])),
   verificationOutputByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockVerificationOutput])),
+  activityByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockWorkflowSteps])),
 });
 
 export function App() {
@@ -58,6 +59,7 @@ export function App() {
   const [runtimeByMission, setRuntimeByMission] = useState<WorkspaceRuntimeMap>(initialWorkspaceView.runtimeByMission);
   const [patchDiffByMission, setPatchDiffByMission] = useState(initialWorkspaceView.patchDiffByMission);
   const [verificationOutputByMission, setVerificationOutputByMission] = useState(initialWorkspaceView.verificationOutputByMission);
+  const [activityByMission, setActivityByMission] = useState(initialWorkspaceView.activityByMission);
 
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0].id;
@@ -67,7 +69,8 @@ export function App() {
   const selectedPatchDiff = patchDiffByMission[selectedMission.id] ?? "";
   const selectedVerificationOutput = verificationOutputByMission[selectedMission.id] ?? "";
   const patchReady = selectedRuntime.step >= mockWorkflowSteps.length - 1;
-  const activity = mockWorkflowSteps.slice(0, selectedRuntime.step + 1);
+  const selectedActivity = activityByMission[selectedMission.id] ?? [];
+  const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
   const visibleMissions = useMemo(
     () =>
@@ -148,6 +151,7 @@ export function App() {
     }));
     setPatchDiffByMission((current) => ({ ...current, [missionId]: "" }));
     setVerificationOutputByMission((current) => ({ ...current, [missionId]: "" }));
+    setActivityByMission((current) => ({ ...current, [missionId]: ["Mission intent captured."] }));
     setSelectedNodeId(missionId);
   };
 

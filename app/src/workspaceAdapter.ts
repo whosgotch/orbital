@@ -23,6 +23,7 @@ export type WorkspaceView = {
   runtimeByMission: WorkspaceRuntimeMap;
   patchDiffByMission: Record<string, string>;
   verificationOutputByMission: Record<string, string>;
+  activityByMission: Record<string, string[]>;
 };
 
 type WorkspaceViewFallback = WorkspaceView;
@@ -58,6 +59,13 @@ export function workspaceViewFromMissionLoop(
   const verificationOutputByMission = Object.fromEntries(
     state.missions.map((mission) => [mission.id, latestVerification(state, mission.id)?.output ?? ""]),
   );
+  const activityByMission = Object.fromEntries(
+    state.missions.map((mission) => {
+      const run = state.agent_runs.filter((item) => item.mission_id === mission.id).at(-1);
+      const events = state.workflow_events.filter((event) => event.mission_id === mission.id || event.run_id === run?.id);
+      return [mission.id, events.map((event) => event.message)];
+    }),
+  );
 
   return {
     missions,
@@ -66,6 +74,7 @@ export function workspaceViewFromMissionLoop(
     runtimeByMission,
     patchDiffByMission,
     verificationOutputByMission,
+    activityByMission,
   };
 }
 
