@@ -1,6 +1,12 @@
 import type { MissionLoopState } from "./domain";
-import workerMissionFixture from "./workerMissionFixture.json";
 
-export function loadMissionLoopState(): MissionLoopState {
-  return workerMissionFixture as MissionLoopState;
+const missionLoopFixturePath = "/workerMissionFixture.json";
+
+export async function loadMissionLoopState(): Promise<MissionLoopState> {
+  const response = await fetch(missionLoopFixturePath);
+  if (!response.ok) {
+    throw new Error(`Failed to load mission loop state: ${response.status}`);
+  }
+
+  return (await response.json()) as MissionLoopState;
 }

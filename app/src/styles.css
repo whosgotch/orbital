@@ -327,6 +327,18 @@ dd {
   gap: 10px;
 }
 
+.stage-error {
+  margin: 12px 24px -12px;
+  padding: 10px 12px;
+  color: var(--red);
+  background: rgba(239, 102, 102, 0.08);
+  border: 1px solid rgba(239, 102, 102, 0.24);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  z-index: 2;
+}
+
 .status-pill,
 .mini-state {
   min-width: 86px;

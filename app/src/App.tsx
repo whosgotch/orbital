@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Check,
   CircleDot,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import {
+  mockMissionLoop,
   mockGraphEdges,
   mockGraphNodes,
   mockPatchDiff,
@@ -25,7 +26,7 @@ import {
   type WorkspaceGraphNode,
   type WorkspaceMission,
 } from "./mockMission";
-import type { Repository } from "./domain";
+import type { MissionLoopState, Repository } from "./domain";
 import {
   workspaceViewFromMissionLoop,
   type WorkspaceRuntime,
@@ -33,7 +34,7 @@ import {
 } from "./workspaceAdapter";
 import { loadMissionLoopState } from "./missionLoopLoader";
 
-const activeMissionLoop = loadMissionLoopState();
+const initialMissionLoop = mockMissionLoop;
 
 const workspaceViewFallback = {
   missions: mockWorkspaceMissions,
@@ -54,10 +55,12 @@ const workspaceViewFallback = {
   activityByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockWorkflowSteps])),
 };
 
-const initialWorkspaceView = workspaceViewFromMissionLoop(activeMissionLoop, workspaceViewFallback);
+const initialWorkspaceView = workspaceViewFromMissionLoop(initialMissionLoop, workspaceViewFallback);
 
 export function App() {
-  const [missionLoopState, setMissionLoopState] = useState(activeMissionLoop);
+  const [missionLoopState, setMissionLoopState] = useState(initialMissionLoop);
+  const [refreshingMissionLoop, setRefreshingMissionLoop] = useState(false);
+  const [missionLoopError, setMissionLoopError] = useState("");
   const [selectedNodeId, setSelectedNodeId] = useState("mission_version");
   const [missionDraft, setMissionDraft] = useState("stabilize the release path");
   const [workspaceMissions, setWorkspaceMissions] = useState(initialWorkspaceView.missions);
@@ -182,8 +185,7 @@ export function App() {
     updateSelectedRuntime((current) => ({ ...current, verified: true }));
   };
 
-  const refreshMissionLoop = () => {
-    const nextMissionLoopState = loadMissionLoopState();
+  const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState) => {
     const nextWorkspaceView = workspaceViewFromMissionLoop(nextMissionLoopState, workspaceViewFallback);
 
     setMissionLoopState(nextMissionLoopState);
@@ -200,6 +202,23 @@ export function App() {
         : nextWorkspaceView.graphNodes[0]?.id ?? current,
     );
   };
+
+  const refreshMissionLoop = async () => {
+    setRefreshingMissionLoop(true);
+    setMissionLoopError("");
+
+    try {
+      hydrateMissionLoop(await loadMissionLoopState());
+    } catch (error) {
+      setMissionLoopError(error instanceof Error ? error.message : "Failed to load mission loop state.");
+    } finally {
+      setRefreshingMissionLoop(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshMissionLoop();
+  }, []);
 
   return (
     <main className="control-deck">
@@ -262,6 +281,7 @@ export function App() {
               className="secondary icon-button"
               type="button"
               onClick={refreshMissionLoop}
+              disabled={refreshingMissionLoop}
               aria-label="Refresh mission loop"
               title="Refresh mission loop"
             >
@@ -270,6 +290,7 @@ export function App() {
             <div className={`status-pill ${missionStatus.className}`}>{missionStatus.label}</div>
           </div>
         </header>
+        {missionLoopError ? <div className="stage-error">{missionLoopError}</div> : null}
 
         <GraphMap
           nodes={graphNodes}
