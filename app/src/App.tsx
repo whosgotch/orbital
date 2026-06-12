@@ -45,6 +45,8 @@ const initialWorkspaceView = workspaceViewFromMissionLoop(mockMissionLoop, {
       },
     ]),
   ) as WorkspaceRuntimeMap,
+  patchDiffByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockPatchDiff])),
+  verificationOutputByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockVerificationOutput])),
 });
 
 export function App() {
@@ -54,12 +56,16 @@ export function App() {
   const [workspaceGraphNodes, setWorkspaceGraphNodes] = useState(initialWorkspaceView.graphNodes);
   const [workspaceGraphEdges, setWorkspaceGraphEdges] = useState(initialWorkspaceView.graphEdges);
   const [runtimeByMission, setRuntimeByMission] = useState<WorkspaceRuntimeMap>(initialWorkspaceView.runtimeByMission);
+  const [patchDiffByMission, setPatchDiffByMission] = useState(initialWorkspaceView.patchDiffByMission);
+  const [verificationOutputByMission, setVerificationOutputByMission] = useState(initialWorkspaceView.verificationOutputByMission);
 
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0].id;
   const selectedMission = workspaceMissions.find((mission) => mission.id === selectedMissionId) ?? workspaceMissions[0];
   const selectedRepository = repositoryFor(selectedMission);
   const selectedRuntime = runtimeByMission[selectedMission.id];
+  const selectedPatchDiff = patchDiffByMission[selectedMission.id] ?? "";
+  const selectedVerificationOutput = verificationOutputByMission[selectedMission.id] ?? "";
   const patchReady = selectedRuntime.step >= mockWorkflowSteps.length - 1;
   const activity = mockWorkflowSteps.slice(0, selectedRuntime.step + 1);
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
@@ -140,6 +146,8 @@ export function App() {
         verified: mission.verified,
       },
     }));
+    setPatchDiffByMission((current) => ({ ...current, [missionId]: "" }));
+    setVerificationOutputByMission((current) => ({ ...current, [missionId]: "" }));
     setSelectedNodeId(missionId);
   };
 
@@ -283,7 +291,7 @@ export function App() {
             </div>
           </div>
           <pre className="diff">
-            <code>{patchReady ? mockPatchDiff : "Patch stream locked until this mission reaches review."}</code>
+            <code>{patchReady ? selectedPatchDiff || "No patch proposal captured for this mission." : "Patch stream locked until this mission reaches review."}</code>
           </pre>
           <div className="actions">
             <button
@@ -325,7 +333,7 @@ export function App() {
             </button>
           </div>
           <div className="command-line">{selectedMission.command}</div>
-          <pre className="test-output">{verificationOutput(selectedRuntime)}</pre>
+          <pre className="test-output">{verificationOutput(selectedRuntime, selectedVerificationOutput)}</pre>
         </section>
       </aside>
     </main>
@@ -566,9 +574,9 @@ function patchStateClass(runtime: WorkspaceRuntime, patchReady: boolean) {
   return patchReady ? "active" : "";
 }
 
-function verificationOutput(runtime: WorkspaceRuntime) {
+function verificationOutput(runtime: WorkspaceRuntime, output: string) {
   if (runtime.verified) {
-    return mockVerificationOutput;
+    return output || "Verification passed.";
   }
   if (runtime.patchStatus === "approved") {
     return "Patch approved. Verification command is armed.";

@@ -21,6 +21,8 @@ export type WorkspaceView = {
   graphNodes: WorkspaceGraphNode[];
   graphEdges: WorkspaceGraphEdge[];
   runtimeByMission: WorkspaceRuntimeMap;
+  patchDiffByMission: Record<string, string>;
+  verificationOutputByMission: Record<string, string>;
 };
 
 type WorkspaceViewFallback = WorkspaceView;
@@ -46,12 +48,24 @@ export function workspaceViewFromMissionLoop(
       },
     ]),
   ) as WorkspaceRuntimeMap;
+  const patchDiffByMission = Object.fromEntries(
+    state.missions.map((mission) => {
+      const run = state.agent_runs.filter((item) => item.mission_id === mission.id).at(-1);
+      const patch = run ? state.patch_proposals.filter((proposal) => proposal.run_id === run.id).at(-1) : undefined;
+      return [mission.id, patch?.diff ?? ""];
+    }),
+  );
+  const verificationOutputByMission = Object.fromEntries(
+    state.missions.map((mission) => [mission.id, latestVerification(state, mission.id)?.output ?? ""]),
+  );
 
   return {
     missions,
     graphNodes: graphNodesFromState(state, missions),
     graphEdges: graphEdgesFromState(missions),
     runtimeByMission,
+    patchDiffByMission,
+    verificationOutputByMission,
   };
 }
 
