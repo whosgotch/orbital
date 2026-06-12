@@ -17,3 +17,13 @@ npm run worker-fixture:export
 ```
 
 Both scripts use `/private/tmp/orbital-demo-repo` and write `public/workerMissionFixture.json`.
+
+## Desktop shell
+
+The app includes a Tauri v2 shell under `src-tauri/`.
+
+```sh
+npm run tauri:dev
+```
+
+Tauri commands require Rust and Cargo to be installed locally.
