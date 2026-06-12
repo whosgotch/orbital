@@ -30,9 +30,9 @@ import {
   type WorkspaceRuntime,
   type WorkspaceRuntimeMap,
 } from "./workspaceAdapter";
-import { workerMissionFixture } from "./workerMissionFixture";
+import { loadMissionLoopState } from "./missionLoopLoader";
 
-const activeMissionLoop = workerMissionFixture;
+const activeMissionLoop = loadMissionLoopState();
 
 const initialWorkspaceView = workspaceViewFromMissionLoop(activeMissionLoop, {
   missions: mockWorkspaceMissions,
