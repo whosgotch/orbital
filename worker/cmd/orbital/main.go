@@ -32,5 +32,5 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 }
 
 func usageError() error {
-	return fmt.Errorf("usage: orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital demo-fixture <repo-path>")
+	return fmt.Errorf("usage: orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital demo-fixture <repo-path>")
 }

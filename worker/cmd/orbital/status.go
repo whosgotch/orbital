@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -11,6 +12,9 @@ import (
 )
 
 func showStatus(args []string, stdout io.Writer) error {
+	if len(args) == 4 && args[2] == "--json" {
+		return showStatusJSON(args[3], stdout)
+	}
 	if len(args) != 3 {
 		return usageError()
 	}
@@ -40,6 +44,18 @@ func showStatus(args []string, stdout io.Writer) error {
 	}
 
 	return nil
+}
+
+func showStatusJSON(repoPath string, stdout io.Writer) error {
+	jsonStore := store.NewJSONStore(filepath.Join(repoPath, ".orbital"))
+	state, err := jsonStore.Load()
+	if err != nil {
+		return err
+	}
+
+	encoder := json.NewEncoder(stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(state)
 }
 
 func printMissionStatus(stdout io.Writer, service *app.Service, mission domain.Mission) error {

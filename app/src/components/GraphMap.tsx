@@ -1,19 +1,20 @@
 import { FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
 import {
-  mockGraphEdges,
   type GraphNodeKind,
   type MissionNodeStatus,
+  type WorkspaceGraphEdge,
   type WorkspaceGraphNode,
 } from "../mockMission";
 
 type GraphMapProps = {
   nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>;
+  edges: WorkspaceGraphEdge[];
   selectedNodeId: string;
   selectedMissionId: string;
   onSelectNode: (nodeId: string) => void;
 };
 
-export function GraphMap({ nodes, selectedNodeId, selectedMissionId, onSelectNode }: GraphMapProps) {
+export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, onSelectNode }: GraphMapProps) {
   return (
     <section className="space-map" aria-label="Workspace graph map">
       <div className="starfield" aria-hidden="true" />
@@ -32,7 +33,7 @@ export function GraphMap({ nodes, selectedNodeId, selectedMissionId, onSelectNod
             <path d="M 0 0 L 8 4 L 0 8 z" />
           </marker>
         </defs>
-        {mockGraphEdges.map((edge) => (
+        {edges.map((edge) => (
           <GraphEdge key={edge.id} edge={edge} nodes={nodes} selectedMissionId={selectedMissionId} />
         ))}
       </svg>
@@ -53,7 +54,7 @@ function GraphEdge({
   nodes,
   selectedMissionId,
 }: {
-  edge: (typeof mockGraphEdges)[number];
+  edge: WorkspaceGraphEdge;
   nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>;
   selectedMissionId: string;
 }) {
@@ -67,7 +68,7 @@ function GraphEdge({
   return <path className={`graph-edge ${edge.kind} ${selected ? "selected" : ""}`} d={path} markerEnd="url(#edge-arrow)" />;
 }
 
-function edgePath(edge: (typeof mockGraphEdges)[number], nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>) {
+function edgePath(edge: WorkspaceGraphEdge, nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>) {
   const from = nodes.find((node) => node.id === edge.from);
   const to = nodes.find((node) => node.id === edge.to);
   if (!from || !to) {
@@ -79,7 +80,7 @@ function edgePath(edge: (typeof mockGraphEdges)[number], nodes: Array<WorkspaceG
 }
 
 function edgeTouchesMission(
-  edge: (typeof mockGraphEdges)[number],
+  edge: WorkspaceGraphEdge,
   nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>,
   selectedMissionId: string,
 ) {

@@ -15,12 +15,14 @@ import { GraphMap } from "./components/GraphMap";
 import type { PatchStatus as WorkerPatchStatus } from "./domain";
 import {
   mockMissionLoop,
+  mockGraphEdges,
   mockGraphNodes,
   mockPatchDiff,
   mockVerificationOutput,
   mockWorkflowSteps,
   mockWorkspaceMissions,
   type MissionNodeStatus,
+  type WorkspaceGraphEdge,
   type WorkspaceGraphNode,
   type WorkspaceMission,
 } from "./mockMission";
@@ -49,11 +51,14 @@ const initialMissionRuntime = Object.fromEntries(
 export function App() {
   const [selectedNodeId, setSelectedNodeId] = useState("mission_version");
   const [missionDraft, setMissionDraft] = useState("stabilize the release path");
+  const [workspaceMissions, setWorkspaceMissions] = useState(mockWorkspaceMissions);
+  const [workspaceGraphNodes, setWorkspaceGraphNodes] = useState(mockGraphNodes);
+  const [workspaceGraphEdges, setWorkspaceGraphEdges] = useState(mockGraphEdges);
   const [runtimeByMission, setRuntimeByMission] = useState<MissionRuntimeMap>(initialMissionRuntime);
 
-  const selectedGraphNode = mockGraphNodes.find((node) => node.id === selectedNodeId) ?? mockGraphNodes[0];
-  const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode) ?? mockWorkspaceMissions[0].id;
-  const selectedMission = mockWorkspaceMissions.find((mission) => mission.id === selectedMissionId) ?? mockWorkspaceMissions[0];
+  const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
+  const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0].id;
+  const selectedMission = workspaceMissions.find((mission) => mission.id === selectedMissionId) ?? workspaceMissions[0];
   const selectedRepository = repositoryFor(selectedMission);
   const selectedRuntime = runtimeByMission[selectedMission.id];
   const patchReady = selectedRuntime.step >= mockWorkflowSteps.length - 1;
@@ -61,19 +66,19 @@ export function App() {
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
   const visibleMissions = useMemo(
     () =>
-      mockWorkspaceMissions.map((mission) => ({
+      workspaceMissions.map((mission) => ({
         ...mission,
         runtime: runtimeByMission[mission.id],
       })),
-    [runtimeByMission],
+    [runtimeByMission, workspaceMissions],
   );
   const graphNodes = useMemo(
     () =>
-      mockGraphNodes.map((node) => ({
+      workspaceGraphNodes.map((node) => ({
         ...node,
         status: node.mission_id ? statusFromRuntime(runtimeByMission[node.mission_id]) : undefined,
       })),
-    [runtimeByMission],
+    [runtimeByMission, workspaceGraphNodes],
   );
 
   const updateSelectedRuntime = (next: (runtime: MissionRuntime) => MissionRuntime) => {
@@ -85,6 +90,58 @@ export function App() {
 
   const startMission = () => {
     updateSelectedRuntime(() => ({ step: 0, patchStatus: "pending", verified: false }));
+  };
+
+  const queueMission = () => {
+    const title = missionDraft.trim();
+    if (!title) {
+      return;
+    }
+
+    const missionId = `mission_${Date.now()}`;
+    const appMissionCount = workspaceMissions.filter((mission) => mission.repository_id === "repo_app").length;
+    const mission: WorkspaceMission = {
+      id: missionId,
+      repository_id: "repo_app",
+      title,
+      status: "running",
+      worker: "mock",
+      command: "npm run build",
+      files: ["src/App.tsx"],
+      step: 0,
+      patch_status: "pending",
+      verified: false,
+      map_position: "center",
+    };
+    const missionNode: WorkspaceGraphNode = {
+      id: missionId,
+      kind: "mission",
+      label: missionLabel(title),
+      detail: "mission",
+      x: 27,
+      y: Math.min(92, 64 + appMissionCount * 6),
+      mission_id: missionId,
+      repository_id: "repo_app",
+    };
+    const edge: WorkspaceGraphEdge = {
+      id: `edge_repo_app_${missionId}`,
+      from: "repo_app",
+      to: missionId,
+      kind: "owns",
+    };
+
+    setWorkspaceMissions((current) => [...current, mission]);
+    setWorkspaceGraphNodes((current) => [...current, missionNode]);
+    setWorkspaceGraphEdges((current) => [...current, edge]);
+    setRuntimeByMission((current) => ({
+      ...current,
+      [missionId]: {
+        step: mission.step,
+        patchStatus: mission.patch_status,
+        verified: mission.verified,
+      },
+    }));
+    setSelectedNodeId(missionId);
   };
 
   const advanceStep = () => {
@@ -126,7 +183,7 @@ export function App() {
             value={missionDraft}
             onChange={(event) => setMissionDraft(event.target.value)}
           />
-          <button className="primary command-button" type="button">
+          <button className="primary command-button" type="button" onClick={queueMission} disabled={!missionDraft.trim()}>
             <Rocket size={17} aria-hidden="true" />
             <span>Queue mission</span>
           </button>
@@ -141,7 +198,7 @@ export function App() {
             </div>
             <div>
               <dt>Missions</dt>
-              <dd>{mockWorkspaceMissions.length}</dd>
+              <dd>{workspaceMissions.length}</dd>
             </div>
             <div>
               <dt>Review</dt>
@@ -167,6 +224,7 @@ export function App() {
 
         <GraphMap
           nodes={graphNodes}
+          edges={workspaceGraphEdges}
           selectedNodeId={selectedGraphNode.id}
           selectedMissionId={selectedMission.id}
           onSelectNode={setSelectedNodeId}
@@ -182,7 +240,12 @@ export function App() {
             </div>
             <MissionGlyph status={statusFromRuntime(selectedRuntime)} />
           </div>
-          <NodeInspector node={selectedGraphNode} mission={selectedMission} runtime={selectedRuntime} />
+          <NodeInspector
+            node={selectedGraphNode}
+            mission={selectedMission}
+            missions={workspaceMissions}
+            runtime={selectedRuntime}
+          />
         </section>
 
         <section className="console-panel activity-console" aria-label="Agent activity">
@@ -194,7 +257,7 @@ export function App() {
             <button
               className="secondary icon-button"
               type="button"
-              onClick={advanceStep}
+              onClick={selectedRuntime.step < 0 ? startMission : advanceStep}
               disabled={selectedRuntime.step >= mockWorkflowSteps.length - 1 || selectedRuntime.patchStatus !== "pending"}
               aria-label="Advance run"
               title="Advance run"
@@ -292,10 +355,12 @@ function TelemetryLine({ label, value }: { label: string; value: string }) {
 function NodeInspector({
   node,
   mission,
+  missions,
   runtime,
 }: {
   node: WorkspaceGraphNode;
   mission: WorkspaceMission;
+  missions: WorkspaceMission[];
   runtime: MissionRuntime;
 }) {
   const repository = node.repository_id
@@ -303,7 +368,7 @@ function NodeInspector({
     : repositoryFor(mission);
 
   if (node.kind === "repo") {
-    const missionCount = mockWorkspaceMissions.filter((item) => item.repository_id === node.repository_id).length;
+    const missionCount = missions.filter((item) => item.repository_id === node.repository_id).length;
     return (
       <div className="selected-meta">
         <span>
@@ -422,12 +487,17 @@ function repositoryFor(mission: WorkspaceMission) {
   );
 }
 
-function nearestMissionId(node: WorkspaceGraphNode) {
+function nearestMissionId(node: WorkspaceGraphNode, missions: WorkspaceMission[]) {
   if (node.repository_id) {
-    return mockWorkspaceMissions.find((mission) => mission.repository_id === node.repository_id)?.id;
+    return missions.find((mission) => mission.repository_id === node.repository_id)?.id;
   }
 
   return undefined;
+}
+
+function missionLabel(title: string) {
+  const words = title.split(/\s+/).filter(Boolean);
+  return words.slice(0, 3).join(" ");
 }
 
 function statusFromRuntime(runtime: MissionRuntime): MissionNodeStatus {
