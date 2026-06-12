@@ -1,6 +1,6 @@
 import type { MissionLoopState } from "./domain";
-import { workerMissionFixture } from "./workerMissionFixture";
+import workerMissionFixture from "./workerMissionFixture.json";
 
 export function loadMissionLoopState(): MissionLoopState {
-  return workerMissionFixture;
+  return workerMissionFixture as MissionLoopState;
 }
