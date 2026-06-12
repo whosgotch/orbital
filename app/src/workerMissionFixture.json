@@ -1,138 +1,138 @@
 {
   "repositories": [
     {
-      "id": "repo_demo",
+      "id": "repo_1781264962068518000",
       "path": "/private/tmp/orbital-demo-repo",
       "name": "orbital-demo-repo",
-      "branch": "main",
-      "created_at": "2026-06-12T09:00:00Z"
+      "branch": "",
+      "created_at": "2026-06-12T11:49:22.068518Z"
     }
   ],
   "missions": [
     {
-      "id": "mission_version",
-      "repository_id": "repo_demo",
+      "id": "mission_1781264962069431000",
+      "repository_id": "repo_1781264962068518000",
       "text": "add a version command",
       "status": "verified",
-      "created_at": "2026-06-12T09:01:00Z",
-      "updated_at": "2026-06-12T09:06:00Z"
+      "created_at": "2026-06-12T11:49:22.069431Z",
+      "updated_at": "2026-06-12T11:49:22.117672Z"
     }
   ],
   "agent_runs": [
     {
-      "id": "run_version",
-      "mission_id": "mission_version",
+      "id": "run_1781264962069595000",
+      "mission_id": "mission_1781264962069431000",
       "worker_name": "mock",
       "status": "completed",
-      "started_at": "2026-06-12T09:02:00Z",
-      "completed_at": "2026-06-12T09:04:00Z"
+      "started_at": "2026-06-12T11:49:22.069595Z",
+      "completed_at": "2026-06-12T11:49:22.070658Z"
     }
   ],
   "workflow_events": [
     {
-      "id": "event_run_started",
-      "mission_id": "mission_version",
-      "run_id": "run_version",
+      "id": "event_1781264962069690000",
+      "mission_id": "mission_1781264962069431000",
+      "run_id": "run_1781264962069595000",
       "type": "run_started",
       "message": "Mock worker started.",
-      "created_at": "2026-06-12T09:02:00Z"
+      "created_at": "2026-06-12T11:49:22.06974Z"
     },
     {
-      "id": "event_repo_inspected",
-      "mission_id": "mission_version",
-      "run_id": "run_version",
+      "id": "event_1781264962069742000",
+      "mission_id": "mission_1781264962069431000",
+      "run_id": "run_1781264962069595000",
       "type": "repo_inspected",
       "message": "Repository inspected.",
-      "created_at": "2026-06-12T09:02:15Z"
+      "created_at": "2026-06-12T11:49:22.069742Z"
     },
     {
-      "id": "event_package_read",
-      "mission_id": "mission_version",
-      "run_id": "run_version",
+      "id": "event_1781264962069866000",
+      "mission_id": "mission_1781264962069431000",
+      "run_id": "run_1781264962069595000",
       "type": "file_read",
       "message": "Read package metadata.",
       "file_path": "package.json",
-      "created_at": "2026-06-12T09:02:30Z"
+      "created_at": "2026-06-12T11:49:22.069871Z"
     },
     {
-      "id": "event_cli_read",
-      "mission_id": "mission_version",
-      "run_id": "run_version",
+      "id": "event_1781264962069966000",
+      "mission_id": "mission_1781264962069431000",
+      "run_id": "run_1781264962069595000",
       "type": "file_read",
       "message": "Read CLI entrypoint.",
       "file_path": "src/cli.ts",
-      "created_at": "2026-06-12T09:02:45Z"
+      "created_at": "2026-06-12T11:49:22.069967Z"
     },
     {
-      "id": "event_patch_proposed",
-      "mission_id": "mission_version",
-      "run_id": "run_version",
+      "id": "event_1781264962070205000",
+      "mission_id": "mission_1781264962069431000",
+      "run_id": "run_1781264962069595000",
       "type": "patch_proposed",
       "message": "Patch proposed.",
-      "created_at": "2026-06-12T09:03:00Z"
+      "created_at": "2026-06-12T11:49:22.070206Z"
     },
     {
-      "id": "event_run_completed",
-      "mission_id": "mission_version",
-      "run_id": "run_version",
+      "id": "event_1781264962070336000",
+      "mission_id": "mission_1781264962069431000",
+      "run_id": "run_1781264962069595000",
       "type": "run_completed",
       "message": "Mock worker completed.",
-      "created_at": "2026-06-12T09:04:00Z"
+      "created_at": "2026-06-12T11:49:22.070336Z"
     },
     {
-      "id": "event_patch_approved",
-      "mission_id": "mission_version",
-      "run_id": "run_version",
+      "id": "event_1781264962070863000",
+      "mission_id": "mission_1781264962069431000",
+      "run_id": "run_1781264962069595000",
       "type": "patch_approved",
       "message": "Patch approved.",
-      "created_at": "2026-06-12T09:04:30Z"
+      "created_at": "2026-06-12T11:49:22.070863Z"
     },
     {
-      "id": "event_patch_applied",
-      "mission_id": "mission_version",
-      "run_id": "run_version",
+      "id": "event_1781264962088157000",
+      "mission_id": "mission_1781264962069431000",
+      "run_id": "run_1781264962069595000",
       "type": "patch_applied",
       "message": "Patch applied.",
-      "created_at": "2026-06-12T09:05:00Z"
+      "created_at": "2026-06-12T11:49:22.088157Z"
     },
     {
-      "id": "event_verification_run",
-      "mission_id": "mission_version",
+      "id": "event_1781264962088329000",
+      "mission_id": "mission_1781264962069431000",
       "type": "verification_run",
-      "message": "Verification command started.",
-      "command": "npm test",
-      "created_at": "2026-06-12T09:05:30Z"
+      "message": "Verification started.",
+      "command": "node -e \"console.log('verified')\"",
+      "created_at": "2026-06-12T11:49:22.088329Z"
     },
     {
-      "id": "event_verification_passed",
-      "mission_id": "mission_version",
+      "id": "event_1781264962117672000",
+      "mission_id": "mission_1781264962069431000",
       "type": "verification_passed",
       "message": "Verification passed.",
-      "command": "npm test",
-      "created_at": "2026-06-12T09:06:00Z"
+      "command": "node -e \"console.log('verified')\"",
+      "created_at": "2026-06-12T11:49:22.117672Z"
     }
   ],
   "patch_proposals": [
     {
-      "id": "patch_version",
-      "run_id": "run_version",
+      "id": "patch_1781264962070087000",
+      "run_id": "run_1781264962069595000",
       "status": "applied",
-      "diff": "diff --git a/package.json b/package.json\nindex 2b13a1c..91d44fd 100644\n--- a/package.json\n+++ b/package.json\n@@ -4,6 +4,7 @@\n   \"bin\": {\n     \"demo\": \"./dist/cli.js\"\n   },\n+  \"version\": \"0.1.0\",\n   \"scripts\": {\n     \"build\": \"tsc\",\n     \"test\": \"vitest run\"\ndiff --git a/src/cli.ts b/src/cli.ts\nindex 8b891fa..7f1c0db 100644\n--- a/src/cli.ts\n+++ b/src/cli.ts\n@@ -1,5 +1,10 @@\n import pkg from \"../package.json\";\n \n const command = process.argv[2];\n \n+if (command === \"version\" || command === \"--version\") {\n+  console.log(pkg.version);\n+  process.exit(0);\n+}\n+\n console.log(\"Usage: demo <command>\");",
-      "created_at": "2026-06-12T09:03:00Z",
-      "updated_at": "2026-06-12T09:05:00Z"
+      "diff": "diff --git a/package.json b/package.json\nindex 2b13a1c..91d44fd 100644\n--- a/package.json\n+++ b/package.json\n@@ -4,6 +4,7 @@\n   \"bin\": {\n     \"demo\": \"./dist/cli.js\"\n   },\n+  \"version\": \"0.1.0\",\n   \"scripts\": {\n     \"build\": \"tsc\",\n     \"test\": \"vitest run\"\ndiff --git a/src/cli.ts b/src/cli.ts\nindex 8b891fa..7f1c0db 100644\n--- a/src/cli.ts\n+++ b/src/cli.ts\n@@ -1,5 +1,10 @@\n import pkg from \"../package.json\";\n\n const command = process.argv[2];\n\n+if (command === \"version\" || command === \"--version\") {\n+  console.log(pkg.version);\n+  process.exit(0);\n+}\n+\n console.log(\"Usage: demo \u003ccommand\u003e\");\n",
+      "created_at": "2026-06-12T11:49:22.070087Z",
+      "updated_at": "2026-06-12T11:49:22.088157Z"
     }
   ],
   "verification_runs": [
     {
-      "id": "verification_version",
-      "mission_id": "mission_version",
-      "repository_id": "repo_demo",
-      "command": "npm test",
+      "id": "verification_1781264962088329000",
+      "mission_id": "mission_1781264962069431000",
+      "repository_id": "repo_1781264962068518000",
+      "command": "node -e \"console.log('verified')\"",
       "status": "passed",
       "exit_code": 0,
-      "output": "> npm test\n\n PASS  src/cli.test.ts\n  version command prints 0.1.0\n\nTest Files  1 passed\nDuration    0.8s",
-      "started_at": "2026-06-12T09:05:30Z",
-      "completed_at": "2026-06-12T09:06:00Z"
+      "output": "verified\n",
+      "started_at": "2026-06-12T11:49:22.088329Z",
+      "completed_at": "2026-06-12T11:49:22.117672Z"
     }
   ]
 }
