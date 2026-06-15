@@ -42,7 +42,8 @@ body {
 }
 
 button,
-textarea {
+textarea,
+input {
   font: inherit;
 }
 
@@ -194,10 +195,9 @@ small,
   margin-bottom: 14px;
 }
 
-textarea {
+textarea,
+input {
   width: 100%;
-  min-height: 116px;
-  resize: vertical;
   padding: 12px;
   color: var(--text);
   background: rgba(5, 8, 10, 0.82);
@@ -206,7 +206,17 @@ textarea {
   outline: 0;
 }
 
-textarea:focus {
+textarea {
+  min-height: 116px;
+  resize: vertical;
+}
+
+input {
+  min-height: 40px;
+}
+
+textarea:focus,
+input:focus {
   border-color: var(--cyan);
   box-shadow: 0 0 0 3px rgba(117, 217, 196, 0.13);
 }
@@ -237,6 +247,23 @@ textarea:focus {
 .command-button {
   width: 100%;
   margin-top: 10px;
+}
+
+.workspace-actions {
+  margin-top: 10px;
+}
+
+.workspace-actions button {
+  flex: 1;
+}
+
+.workspace-path {
+  margin-top: 10px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .icon-button {

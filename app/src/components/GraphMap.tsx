@@ -21,11 +21,11 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, onSe
       <div className="scanline" aria-hidden="true" />
       <div className="factory-lanes" aria-hidden="true">
         <span>Source</span>
-        <span>Mission</span>
-        <span>Context</span>
-        <span>Worker</span>
+        <span>Intake</span>
+        <span>Manager</span>
+        <span>Workers</span>
         <span>Patch</span>
-        <span>Verify</span>
+        <span>QA</span>
       </div>
       <svg className="graph-edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <defs>

@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Orbital",
   "version": "0.1.0",
-  "identifier": "dev.orbital.app",
+  "identifier": "dev.orbital.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
@@ -25,7 +25,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "icon": []
+    "targets": ["app"],
+    "icon": ["icons/icon.png"]
   }
 }

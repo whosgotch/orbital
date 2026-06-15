@@ -63,7 +63,7 @@ export function workspaceViewFromMissionLoop(
     state.missions.map((mission) => {
       const run = state.agent_runs.filter((item) => item.mission_id === mission.id).at(-1);
       const events = state.workflow_events.filter((event) => event.mission_id === mission.id || event.run_id === run?.id);
-      return [mission.id, events.map((event) => event.message)];
+      return [mission.id, stationActivityFromEvents(events.map((event) => event.type))];
     }),
   );
 
@@ -93,7 +93,7 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
     title: mission.text,
     status: missionStatus(mission, patch?.status, verification),
     worker: latestRun?.worker_name ?? "unassigned",
-    command: verification?.command ?? commandFromEvents(state, mission.id) ?? "verification not configured",
+    command: verification?.command ?? commandFromEvents(state, mission.id) ?? defaultVerificationCommand(mission.status),
     files: Array.from(new Set(events.map((event) => event.file_path).filter((path): path is string => Boolean(path)))),
     step: Math.min(Math.max(events.length - 1, -1), maxWorkflowStep),
     patch_status: patchStatus(patch?.status),
@@ -114,19 +114,63 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
   }));
 
   const missionNodes = missions.flatMap((mission, index) => {
-    const rowY = 22 + index * 12;
+    const rowY = 24 + index * 15;
+    const hasRun = state.agent_runs.some((run) => run.mission_id === mission.id);
     const nodes: WorkspaceGraphNode[] = [
       {
         id: mission.id,
         kind: "mission",
         label: compactLabel(mission.title),
-        detail: mission.status === "blocked" ? "blocked" : "mission",
-        x: 28,
+        detail: mission.status === "blocked" ? "blocked" : "mission order",
+        x: 24,
         y: rowY,
         mission_id: mission.id,
         repository_id: mission.repository_id,
       },
     ];
+
+    if (hasRun) {
+      nodes.push({
+        id: `${mission.id}_manager`,
+        kind: "worker",
+        label: "AI manager",
+        detail: "dispatch",
+        x: 36,
+        y: rowY,
+        mission_id: mission.id,
+        repository_id: mission.repository_id,
+      });
+      nodes.push({
+        id: `${mission.id}_architect`,
+        kind: "worker",
+        label: "Architect",
+        detail: "system map",
+        x: 49,
+        y: rowY - 5,
+        mission_id: mission.id,
+        repository_id: mission.repository_id,
+      });
+      nodes.push({
+        id: `${mission.id}_engineer`,
+        kind: "worker",
+        label: "Engineer",
+        detail: "patch line",
+        x: 61,
+        y: rowY,
+        mission_id: mission.id,
+        repository_id: mission.repository_id,
+      });
+      nodes.push({
+        id: `${mission.id}_qa`,
+        kind: "worker",
+        label: "QA",
+        detail: "test gate",
+        x: 83,
+        y: rowY,
+        mission_id: mission.id,
+        repository_id: mission.repository_id,
+      });
+    }
 
     mission.files.slice(0, 2).forEach((file, fileIndex) => {
       nodes.push({
@@ -134,8 +178,8 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
         kind: "file",
         label: file,
         detail: "context",
-        x: 44,
-        y: rowY + fileIndex * 8,
+        x: 49,
+        y: rowY + 5 + fileIndex * 7,
         mission_id: mission.id,
         repository_id: mission.repository_id,
       });
@@ -144,9 +188,9 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
     nodes.push({
       id: `${mission.id}_patch`,
       kind: "patch",
-      label: "patch assembly",
+      label: "Patch bay",
       detail: "approval gate",
-      x: 70,
+      x: 72,
       y: rowY,
       mission_id: mission.id,
       repository_id: mission.repository_id,
@@ -154,9 +198,9 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
     nodes.push({
       id: `${mission.id}_verify`,
       kind: "verification",
-      label: "verify station",
+      label: "Ship gate",
       detail: mission.command,
-      x: 88,
+      x: 93,
       y: rowY,
       mission_id: mission.id,
       repository_id: mission.repository_id,
@@ -170,16 +214,36 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
 
 function graphEdgesFromState(missions: WorkspaceMission[]): WorkspaceGraphEdge[] {
   return missions.flatMap((mission) => {
+    const managerID = `${mission.id}_manager`;
+    const architectID = `${mission.id}_architect`;
+    const engineerID = `${mission.id}_engineer`;
+    const qaID = `${mission.id}_qa`;
+    const patchID = `${mission.id}_patch`;
+    const verifyID = `${mission.id}_verify`;
     const edges: WorkspaceGraphEdge[] = [
       { id: `${mission.repository_id}_${mission.id}`, from: mission.repository_id, to: mission.id, kind: "owns" },
-      { id: `${mission.id}_patch`, from: mission.id, to: `${mission.id}_patch`, kind: "proposes" },
-      { id: `${mission.id}_verify`, from: `${mission.id}_patch`, to: `${mission.id}_verify`, kind: "verifies" },
     ];
+
+    if (mission.step >= 0) {
+      edges.push(
+        { id: `${mission.id}_manager`, from: mission.id, to: managerID, kind: "runs" },
+        { id: `${mission.id}_architect`, from: managerID, to: architectID, kind: "runs" },
+        { id: `${mission.id}_engineer`, from: architectID, to: engineerID, kind: "runs" },
+        { id: `${mission.id}_patch`, from: engineerID, to: patchID, kind: "proposes" },
+        { id: `${mission.id}_qa`, from: patchID, to: qaID, kind: "runs" },
+        { id: `${mission.id}_verify`, from: qaID, to: verifyID, kind: "verifies" },
+      );
+    } else {
+      edges.push(
+        { id: `${mission.id}_patch`, from: mission.id, to: patchID, kind: "proposes" },
+        { id: `${mission.id}_verify`, from: patchID, to: verifyID, kind: "verifies" },
+      );
+    }
 
     mission.files.slice(0, 2).forEach((_, index) => {
       edges.push({
         id: `${mission.id}_file_${index}`,
-        from: mission.id,
+        from: mission.step >= 0 ? architectID : mission.id,
         to: `${mission.id}_file_${index}`,
         kind: "reads",
       });
@@ -228,6 +292,49 @@ function latestVerification(state: MissionLoopState, missionId: string) {
 
 function commandFromEvents(state: MissionLoopState, missionId: string) {
   return state.workflow_events.find((event) => event.mission_id === missionId && event.command)?.command;
+}
+
+function defaultVerificationCommand(missionStatusValue: Mission["status"]) {
+  return missionStatusValue === "applied" ? "node -e \"console.log('verified')\"" : "verification not configured";
+}
+
+function stationActivityFromEvents(eventTypes: string[]) {
+  if (eventTypes.length === 0) {
+    return ["Mission order waiting in intake."];
+  }
+
+  return eventTypes.map((eventType) => {
+    switch (eventType) {
+      case "run_started":
+        return "AI manager accepted the mission order.";
+      case "repo_inspected":
+        return "Architect mapped the repository floor.";
+      case "file_read":
+        return "Architect pulled source context onto the belt.";
+      case "patch_proposed":
+        return "Engineer delivered a patch to the approval bay.";
+      case "patch_approved":
+        return "Human CEO approved the patch for application.";
+      case "patch_rejected":
+        return "Human CEO rejected the patch and stopped the line.";
+      case "patch_applied":
+        return "Engineer applied the approved patch.";
+      case "verification_run":
+        return "QA started the verification gate.";
+      case "verification_passed":
+        return "QA cleared the mission for shipping.";
+      case "verification_failed":
+        return "QA blocked the mission at the test gate.";
+      case "run_completed":
+        return "AI manager moved the mission to human review.";
+      case "run_failed":
+        return "AI manager marked the run failed.";
+      case "run_cancelled":
+        return "AI manager cancelled the run.";
+      default:
+        return "Factory station recorded new work.";
+    }
+  });
 }
 
 function compactLabel(title: string) {

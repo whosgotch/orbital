@@ -9,6 +9,7 @@ import {
   Rocket,
   ShieldCheck,
   Terminal,
+  FolderOpen,
   X,
   Zap,
 } from "lucide-react";
@@ -32,7 +33,17 @@ import {
   type WorkspaceRuntime,
   type WorkspaceRuntimeMap,
 } from "./workspaceAdapter";
-import { loadMissionLoopState, refreshMissionLoopState } from "./missionLoopLoader";
+import {
+  approvePatchMissionLoopState,
+  demoRepoPath,
+  loadMissionLoopState,
+  openMissionLoopRepository,
+  queueMissionLoopState,
+  rejectPatchMissionLoopState,
+  refreshMissionLoopState,
+  startAgentRunMissionLoopState,
+  verifyMissionLoopState,
+} from "./missionLoopLoader";
 
 const initialMissionLoop = mockMissionLoop;
 
@@ -61,6 +72,8 @@ export function App() {
   const [missionLoopState, setMissionLoopState] = useState(initialMissionLoop);
   const [refreshingMissionLoop, setRefreshingMissionLoop] = useState(false);
   const [missionLoopError, setMissionLoopError] = useState("");
+  const [repoPathDraft, setRepoPathDraft] = useState(demoRepoPath);
+  const [activeRepoPath, setActiveRepoPath] = useState(demoRepoPath);
   const [selectedNodeId, setSelectedNodeId] = useState("mission_version");
   const [missionDraft, setMissionDraft] = useState("stabilize the release path");
   const [workspaceMissions, setWorkspaceMissions] = useState(initialWorkspaceView.missions);
@@ -106,13 +119,40 @@ export function App() {
     }));
   };
 
-  const startMission = () => {
+  const startMission = async () => {
+    setMissionLoopError("");
+
+    try {
+      const nextMissionLoopState = await startAgentRunMissionLoopState(activeRepoPath, selectedMission.id);
+      if (nextMissionLoopState) {
+        hydrateMissionLoop(nextMissionLoopState, selectedMission.id);
+        return;
+      }
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to dispatch mission."));
+      return;
+    }
+
     updateSelectedRuntime(() => ({ step: 0, patchStatus: "pending", verified: false }));
   };
 
-  const queueMission = () => {
+  const queueMission = async () => {
     const title = missionDraft.trim();
     if (!title) {
+      return;
+    }
+
+    setMissionLoopError("");
+
+    try {
+      const nextMissionLoopState = await queueMissionLoopState(activeRepoPath, title);
+      if (nextMissionLoopState) {
+        const missionId = nextMissionLoopState.missions.at(-1)?.id;
+        hydrateMissionLoop(nextMissionLoopState, missionId);
+        return;
+      }
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to queue mission."));
       return;
     }
 
@@ -173,19 +213,58 @@ export function App() {
     }));
   };
 
-  const approvePatch = () => {
+  const approvePatch = async () => {
+    setMissionLoopError("");
+
+    try {
+      const nextMissionLoopState = await approvePatchMissionLoopState(activeRepoPath, selectedMission.id);
+      if (nextMissionLoopState) {
+        hydrateMissionLoop(nextMissionLoopState, selectedMission.id);
+        return;
+      }
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to approve patch."));
+      return;
+    }
+
     updateSelectedRuntime((current) => ({ ...current, patchStatus: "approved" }));
   };
 
-  const rejectPatch = () => {
+  const rejectPatch = async () => {
+    setMissionLoopError("");
+
+    try {
+      const nextMissionLoopState = await rejectPatchMissionLoopState(activeRepoPath, selectedMission.id);
+      if (nextMissionLoopState) {
+        hydrateMissionLoop(nextMissionLoopState, selectedMission.id);
+        return;
+      }
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to reject patch."));
+      return;
+    }
+
     updateSelectedRuntime((current) => ({ ...current, patchStatus: "rejected" }));
   };
 
-  const runVerification = () => {
+  const runVerification = async () => {
+    setMissionLoopError("");
+
+    try {
+      const nextMissionLoopState = await verifyMissionLoopState(activeRepoPath, selectedMission.id, selectedMission.command);
+      if (nextMissionLoopState) {
+        hydrateMissionLoop(nextMissionLoopState, selectedMission.id);
+        return;
+      }
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to run verification."));
+      return;
+    }
+
     updateSelectedRuntime((current) => ({ ...current, verified: true }));
   };
 
-  const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState) => {
+  const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState, preferredNodeId?: string) => {
     const nextWorkspaceView = workspaceViewFromMissionLoop(nextMissionLoopState, workspaceViewFallback);
 
     setMissionLoopState(nextMissionLoopState);
@@ -196,11 +275,43 @@ export function App() {
     setPatchDiffByMission(nextWorkspaceView.patchDiffByMission);
     setVerificationOutputByMission(nextWorkspaceView.verificationOutputByMission);
     setActivityByMission(nextWorkspaceView.activityByMission);
-    setSelectedNodeId((current) =>
-      nextWorkspaceView.graphNodes.some((node) => node.id === current)
+    setSelectedNodeId((current) => {
+      if (preferredNodeId && nextWorkspaceView.graphNodes.some((node) => node.id === preferredNodeId)) {
+        return preferredNodeId;
+      }
+
+      return nextWorkspaceView.graphNodes.some((node) => node.id === current)
         ? current
-        : nextWorkspaceView.graphNodes[0]?.id ?? current,
-    );
+        : nextWorkspaceView.graphNodes[0]?.id ?? current;
+    });
+  };
+
+  const openWorkspace = async () => {
+    const repoPath = repoPathDraft.trim();
+    if (!repoPath) {
+      return;
+    }
+
+    setRefreshingMissionLoop(true);
+    setMissionLoopError("");
+
+    try {
+      const nextMissionLoopState = await openMissionLoopRepository(repoPath);
+      if (nextMissionLoopState) {
+        setActiveRepoPath(repoPath);
+        hydrateMissionLoop(nextMissionLoopState);
+      }
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to open repository."));
+    } finally {
+      setRefreshingMissionLoop(false);
+    }
+  };
+
+  const loadDemoFactory = async () => {
+    setRepoPathDraft(demoRepoPath);
+    setActiveRepoPath(demoRepoPath);
+    await refreshMissionLoop();
   };
 
   const refreshMissionLoop = async () => {
@@ -208,9 +319,9 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      hydrateMissionLoop(await refreshMissionLoopState());
+      hydrateMissionLoop(activeRepoPath === demoRepoPath ? await refreshMissionLoopState() : await loadMissionLoopState(activeRepoPath));
     } catch (error) {
-      setMissionLoopError(error instanceof Error ? error.message : "Failed to load mission loop state.");
+      setMissionLoopError(errorMessage(error, "Failed to load mission loop state."));
     } finally {
       setRefreshingMissionLoop(false);
     }
@@ -222,9 +333,9 @@ export function App() {
       setMissionLoopError("");
 
       try {
-        hydrateMissionLoop(await loadMissionLoopState());
+        hydrateMissionLoop(await loadMissionLoopState(activeRepoPath));
       } catch (error) {
-        setMissionLoopError(error instanceof Error ? error.message : "Failed to load mission loop state.");
+        setMissionLoopError(errorMessage(error, "Failed to load mission loop state."));
       } finally {
         setRefreshingMissionLoop(false);
       }
@@ -245,6 +356,28 @@ export function App() {
             <p>Local mission control</p>
           </div>
         </div>
+
+        <section className="console-panel workspace-console" aria-label="Workspace">
+          <div className="section-label">Workspace</div>
+          <input
+            aria-label="Repository path"
+            value={repoPathDraft}
+            onChange={(event) => setRepoPathDraft(event.target.value)}
+          />
+          <div className="actions workspace-actions">
+            <button className="secondary" type="button" onClick={loadDemoFactory} disabled={refreshingMissionLoop}>
+              <RefreshCw size={16} aria-hidden="true" />
+              <span>Demo</span>
+            </button>
+            <button className="primary" type="button" onClick={openWorkspace} disabled={!repoPathDraft.trim() || refreshingMissionLoop}>
+              <FolderOpen size={16} aria-hidden="true" />
+              <span>Open</span>
+            </button>
+          </div>
+          <div className="workspace-path" title={activeRepoPath}>
+            {activeRepoPath}
+          </div>
+        </section>
 
         <section className="console-panel launch-console" aria-label="New mission">
           <div className="section-label">Mission intake</div>
@@ -287,7 +420,7 @@ export function App() {
         <header className="stage-header">
           <div>
             <div className="section-label">Constellation map</div>
-            <h2>Repositories, missions, workers, files, and gates in one graph</h2>
+            <h2>Mission intake, AI manager dispatch, workers, patch bay, and QA gate</h2>
           </div>
           <div className="stage-actions">
             <button
@@ -360,8 +493,8 @@ export function App() {
         <section className="console-panel patch-console" aria-label="Patch">
           <div className="panel-head">
             <div>
-              <div className="section-label">Patch</div>
-              <h2>Approval gate</h2>
+              <div className="section-label">CEO gate</div>
+              <h2>Patch approval</h2>
             </div>
             <div className={`mini-state ${patchStateClass(selectedRuntime, patchReady)}`}>
               {patchStateLabel(selectedRuntime, patchReady)}
@@ -387,7 +520,7 @@ export function App() {
               onClick={approvePatch}
             >
               <Check size={16} aria-hidden="true" />
-              <span>Approve</span>
+              <span>Approve + apply</span>
             </button>
           </div>
         </section>
@@ -395,8 +528,8 @@ export function App() {
         <section className="console-panel verify-console" aria-label="Verification">
           <div className="panel-head">
             <div>
-              <div className="section-label">Verification</div>
-              <h2>Command relay</h2>
+              <div className="section-label">QA</div>
+              <h2>Verification gate</h2>
             </div>
             <button
               className="secondary icon-button"
@@ -478,15 +611,15 @@ function NodeInspector({
       <div className="selected-meta">
         <span>
           <RadioTower size={14} aria-hidden="true" />
-          local worker pool
+          {node.label}
         </span>
         <span>
           <Network size={14} aria-hidden="true" />
-          attached to active mission lanes
+          assigned to {mission.title}
         </span>
         <span>
           <Terminal size={14} aria-hidden="true" />
-          status ready
+          {node.detail}
         </span>
       </div>
     );
@@ -662,4 +795,15 @@ function verificationOutput(runtime: WorkspaceRuntime, output: string) {
     return "Patch rejected. Mission stopped before file changes.";
   }
   return "Waiting for approved patch.";
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+
+  return fallback;
 }
