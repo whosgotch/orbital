@@ -10,3 +10,24 @@ type State struct {
 	PatchProposals   []domain.PatchProposal   `json:"patch_proposals"`
 	VerificationRuns []domain.VerificationRun `json:"verification_runs"`
 }
+
+func (s *State) Normalize() {
+	if s.Repositories == nil {
+		s.Repositories = []domain.Repository{}
+	}
+	if s.Missions == nil {
+		s.Missions = []domain.Mission{}
+	}
+	if s.AgentRuns == nil {
+		s.AgentRuns = []domain.AgentRun{}
+	}
+	if s.WorkflowEvents == nil {
+		s.WorkflowEvents = []domain.WorkflowEvent{}
+	}
+	if s.PatchProposals == nil {
+		s.PatchProposals = []domain.PatchProposal{}
+	}
+	if s.VerificationRuns == nil {
+		s.VerificationRuns = []domain.VerificationRun{}
+	}
+}

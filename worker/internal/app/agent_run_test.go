@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,12 +15,13 @@ import (
 func TestStartAgentRunWithMockWorkerSavesRunEventsAndPatch(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
 	svc := NewService(jsonStore)
+	repoDir := writeAgentRunRepo(t)
 
 	if err := jsonStore.Save(&store.State{
 		Repositories: []domain.Repository{
 			{
 				ID:   "repo_1",
-				Path: "/tmp/demo",
+				Path: repoDir,
 				Name: "demo",
 			},
 		},
@@ -89,6 +92,40 @@ func TestStartAgentRunWithMockWorkerSavesRunEventsAndPatch(t *testing.T) {
 	if got.Missions[0].Status != domain.MissionStatusWaitingApproval {
 		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusWaitingApproval)
 	}
+}
+
+func writeAgentRunRepo(t *testing.T) string {
+	t.Helper()
+
+	repoDir := t.TempDir()
+	srcDir := filepath.Join(repoDir, "src")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, "package.json"), []byte(`{
+  "name": "demo",
+  "type": "module",
+  "bin": {
+    "demo": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  }
+}
+`), 0644); err != nil {
+		t.Fatalf("WriteFile(package.json) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "cli.ts"), []byte(`import pkg from "../package.json";
+
+const command = process.argv[2];
+
+console.log("Usage: demo <command>");
+`), 0644); err != nil {
+		t.Fatalf("WriteFile(cli.ts) error = %v", err)
+	}
+
+	return repoDir
 }
 
 func TestStartAgentRunPersistsProgressBeforeRunCompletes(t *testing.T) {

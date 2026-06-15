@@ -20,6 +20,18 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	switch args[1] {
+	case "approve":
+		return approveMissionPatch(args, stdout)
+	case "open":
+		return openRepository(args, stdout)
+	case "queue":
+		return queueMission(args, stdout)
+	case "reject":
+		return rejectMissionPatch(args, stdout)
+	case "start-run":
+		return startAgentRun(ctx, args, stdout)
+	case "verify":
+		return verifyMission(ctx, args, stdout)
 	case "run":
 		return runMission(ctx, args, stdout)
 	case "status":
@@ -32,5 +44,5 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 }
 
 func usageError() error {
-	return fmt.Errorf("usage: orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital demo-fixture <repo-path>")
+	return fmt.Errorf("usage: orbital open <repo-path>\n       orbital queue <repo-path> <mission-text>\n       orbital start-run <repo-path> <mission-id>\n       orbital approve <repo-path> <mission-id>\n       orbital reject <repo-path> <mission-id>\n       orbital verify <repo-path> <mission-id> <verification-command>\n       orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital demo-fixture <repo-path>")
 }

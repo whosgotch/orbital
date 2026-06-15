@@ -66,6 +66,262 @@ func TestRunRejectsUnknownCommand(t *testing.T) {
 	}
 }
 
+func TestOpenRepositoryPrintsStateJSON(t *testing.T) {
+	repoDir := t.TempDir()
+
+	var output bytes.Buffer
+	err := run(context.Background(), []string{"orbital", "open", repoDir}, &output)
+	if err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(output.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(open JSON) error = %v; output = %q", err, output.String())
+	}
+
+	if len(state.Repositories) != 1 {
+		t.Fatalf("expected 1 repository, got %d", len(state.Repositories))
+	}
+	if state.Repositories[0].Path != repoDir {
+		t.Fatalf("repository path = %q, want %q", state.Repositories[0].Path, repoDir)
+	}
+}
+
+func TestQueueMissionCreatesDraftMissionAndPrintsStateJSON(t *testing.T) {
+	repoDir := t.TempDir()
+
+	var output bytes.Buffer
+	err := run(context.Background(), []string{"orbital", "queue", repoDir, "stabilize release path"}, &output)
+	if err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(output.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(queue JSON) error = %v; output = %q", err, output.String())
+	}
+
+	if len(state.Repositories) != 1 {
+		t.Fatalf("expected 1 repository, got %d", len(state.Repositories))
+	}
+	if state.Repositories[0].Path != repoDir {
+		t.Fatalf("repository path = %q, want %q", state.Repositories[0].Path, repoDir)
+	}
+
+	if len(state.Missions) != 1 {
+		t.Fatalf("expected 1 mission, got %d", len(state.Missions))
+	}
+	if state.Missions[0].RepositoryID != state.Repositories[0].ID {
+		t.Fatalf("mission repository ID = %q, want %q", state.Missions[0].RepositoryID, state.Repositories[0].ID)
+	}
+	if state.Missions[0].Text != "stabilize release path" {
+		t.Fatalf("mission text = %q, want %q", state.Missions[0].Text, "stabilize release path")
+	}
+	if state.Missions[0].Status != domain.MissionStatusDraft {
+		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusDraft)
+	}
+}
+
+func TestStartRunCreatesWorkerRunAndPatch(t *testing.T) {
+	repoDir := t.TempDir()
+	if err := run(context.Background(), []string{"orbital", "demo-fixture", repoDir}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("demo-fixture run() error = %v", err)
+	}
+
+	var queueOutput bytes.Buffer
+	if err := run(context.Background(), []string{"orbital", "queue", repoDir, "add a version command"}, &queueOutput); err != nil {
+		t.Fatalf("queue run() error = %v", err)
+	}
+
+	var queuedState store.State
+	if err := json.Unmarshal(queueOutput.Bytes(), &queuedState); err != nil {
+		t.Fatalf("Unmarshal(queue JSON) error = %v", err)
+	}
+
+	var startOutput bytes.Buffer
+	err := run(context.Background(), []string{"orbital", "start-run", repoDir, queuedState.Missions[0].ID}, &startOutput)
+	if err != nil {
+		t.Fatalf("start-run run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(startOutput.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(start-run JSON) error = %v; output = %q", err, startOutput.String())
+	}
+
+	if len(state.AgentRuns) != 1 {
+		t.Fatalf("expected 1 agent run, got %d", len(state.AgentRuns))
+	}
+	if state.AgentRuns[0].Status != domain.AgentRunStatusCompleted {
+		t.Fatalf("agent run status = %q, want %q", state.AgentRuns[0].Status, domain.AgentRunStatusCompleted)
+	}
+	if len(state.PatchProposals) != 1 {
+		t.Fatalf("expected 1 patch proposal, got %d", len(state.PatchProposals))
+	}
+	if state.Missions[0].Status != domain.MissionStatusWaitingApproval {
+		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusWaitingApproval)
+	}
+}
+
+func TestApproveMissionPatchApprovesAndAppliesPatch(t *testing.T) {
+	repoDir, missionID := prepareStartedDemoMission(t)
+
+	var output bytes.Buffer
+	err := run(context.Background(), []string{"orbital", "approve", repoDir, missionID}, &output)
+	if err != nil {
+		t.Fatalf("approve run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(output.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(approve JSON) error = %v; output = %q", err, output.String())
+	}
+
+	if state.Missions[0].Status != domain.MissionStatusApplied {
+		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusApplied)
+	}
+	if state.PatchProposals[0].Status != domain.PatchStatusApplied {
+		t.Fatalf("patch status = %q, want %q", state.PatchProposals[0].Status, domain.PatchStatusApplied)
+	}
+
+	packageJSON, err := os.ReadFile(filepath.Join(repoDir, "package.json"))
+	if err != nil {
+		t.Fatalf("ReadFile(package.json) error = %v", err)
+	}
+	if !bytes.Contains(packageJSON, []byte(`"version": "0.1.0"`)) {
+		t.Fatalf("package.json does not contain applied version: %s", packageJSON)
+	}
+
+	cli, err := os.ReadFile(filepath.Join(repoDir, "src", "cli.ts"))
+	if err != nil {
+		t.Fatalf("ReadFile(cli.ts) error = %v", err)
+	}
+	if !bytes.Contains(cli, []byte(`command === "version"`)) {
+		t.Fatalf("cli.ts does not contain applied version command: %s", cli)
+	}
+}
+
+func TestApproveMissionPatchTreatsAlreadyAppliedDiffAsApplied(t *testing.T) {
+	repoDir, firstMissionID := prepareStartedDemoMission(t)
+	if err := run(context.Background(), []string{"orbital", "approve", repoDir, firstMissionID}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("first approve run() error = %v", err)
+	}
+
+	var queueOutput bytes.Buffer
+	if err := run(context.Background(), []string{"orbital", "queue", repoDir, "add a version command again"}, &queueOutput); err != nil {
+		t.Fatalf("queue run() error = %v", err)
+	}
+
+	var queuedState store.State
+	if err := json.Unmarshal(queueOutput.Bytes(), &queuedState); err != nil {
+		t.Fatalf("Unmarshal(queue JSON) error = %v", err)
+	}
+	secondMissionID := queuedState.Missions[len(queuedState.Missions)-1].ID
+
+	if err := run(context.Background(), []string{"orbital", "start-run", repoDir, secondMissionID}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("second start-run run() error = %v", err)
+	}
+
+	var output bytes.Buffer
+	if err := run(context.Background(), []string{"orbital", "approve", repoDir, secondMissionID}, &output); err != nil {
+		t.Fatalf("second approve run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(output.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(approve JSON) error = %v; output = %q", err, output.String())
+	}
+
+	secondMission := state.Missions[len(state.Missions)-1]
+	if secondMission.Status != domain.MissionStatusApplied {
+		t.Fatalf("second mission status = %q, want %q", secondMission.Status, domain.MissionStatusApplied)
+	}
+}
+
+func TestRejectMissionPatchRejectsPendingPatch(t *testing.T) {
+	repoDir, missionID := prepareStartedDemoMission(t)
+
+	var output bytes.Buffer
+	err := run(context.Background(), []string{"orbital", "reject", repoDir, missionID}, &output)
+	if err != nil {
+		t.Fatalf("reject run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(output.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(reject JSON) error = %v; output = %q", err, output.String())
+	}
+
+	if state.Missions[0].Status != domain.MissionStatusRejected {
+		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusRejected)
+	}
+	if state.PatchProposals[0].Status != domain.PatchStatusRejected {
+		t.Fatalf("patch status = %q, want %q", state.PatchProposals[0].Status, domain.PatchStatusRejected)
+	}
+
+	packageJSON, err := os.ReadFile(filepath.Join(repoDir, "package.json"))
+	if err != nil {
+		t.Fatalf("ReadFile(package.json) error = %v", err)
+	}
+	if bytes.Contains(packageJSON, []byte(`"version": "0.1.0"`)) {
+		t.Fatalf("package.json was changed after rejection: %s", packageJSON)
+	}
+}
+
+func TestVerifyMissionRunsCommandAndMarksMissionVerified(t *testing.T) {
+	repoDir, missionID := prepareAppliedDemoMission(t)
+
+	var output bytes.Buffer
+	err := run(context.Background(), []string{"orbital", "verify", repoDir, missionID, "printf verified"}, &output)
+	if err != nil {
+		t.Fatalf("verify run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(output.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(verify JSON) error = %v; output = %q", err, output.String())
+	}
+
+	if state.Missions[0].Status != domain.MissionStatusVerified {
+		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusVerified)
+	}
+	if len(state.VerificationRuns) != 1 {
+		t.Fatalf("expected 1 verification run, got %d", len(state.VerificationRuns))
+	}
+	if state.VerificationRuns[0].Status != domain.VerificationStatusPassed {
+		t.Fatalf("verification status = %q, want %q", state.VerificationRuns[0].Status, domain.VerificationStatusPassed)
+	}
+	if state.VerificationRuns[0].Output != "verified" {
+		t.Fatalf("verification output = %q, want %q", state.VerificationRuns[0].Output, "verified")
+	}
+}
+
+func TestVerifyMissionFailureMarksMissionFailed(t *testing.T) {
+	repoDir, missionID := prepareAppliedDemoMission(t)
+
+	var output bytes.Buffer
+	err := run(context.Background(), []string{"orbital", "verify", repoDir, missionID, "printf failed && exit 3"}, &output)
+	if err != nil {
+		t.Fatalf("verify run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(output.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(verify JSON) error = %v; output = %q", err, output.String())
+	}
+
+	if state.Missions[0].Status != domain.MissionStatusFailed {
+		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusFailed)
+	}
+	if state.VerificationRuns[0].Status != domain.VerificationStatusFailed {
+		t.Fatalf("verification status = %q, want %q", state.VerificationRuns[0].Status, domain.VerificationStatusFailed)
+	}
+	if state.VerificationRuns[0].ExitCode == nil || *state.VerificationRuns[0].ExitCode != 3 {
+		t.Fatalf("verification exit code = %v, want 3", state.VerificationRuns[0].ExitCode)
+	}
+}
+
 func TestStatusPrintsSavedWorkflowState(t *testing.T) {
 	repoDir := t.TempDir()
 	jsonStore := store.NewJSONStore(filepath.Join(repoDir, ".orbital"))
@@ -113,6 +369,42 @@ func TestStatusPrintsSavedWorkflowState(t *testing.T) {
 	if output.String() != want {
 		t.Fatalf("status output = %q, want %q", output.String(), want)
 	}
+}
+
+func prepareStartedDemoMission(t *testing.T) (string, string) {
+	t.Helper()
+
+	repoDir := t.TempDir()
+	if err := run(context.Background(), []string{"orbital", "demo-fixture", repoDir}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("demo-fixture run() error = %v", err)
+	}
+
+	var queueOutput bytes.Buffer
+	if err := run(context.Background(), []string{"orbital", "queue", repoDir, "add a version command"}, &queueOutput); err != nil {
+		t.Fatalf("queue run() error = %v", err)
+	}
+
+	var queuedState store.State
+	if err := json.Unmarshal(queueOutput.Bytes(), &queuedState); err != nil {
+		t.Fatalf("Unmarshal(queue JSON) error = %v", err)
+	}
+
+	if err := run(context.Background(), []string{"orbital", "start-run", repoDir, queuedState.Missions[0].ID}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("start-run run() error = %v", err)
+	}
+
+	return repoDir, queuedState.Missions[0].ID
+}
+
+func prepareAppliedDemoMission(t *testing.T) (string, string) {
+	t.Helper()
+
+	repoDir, missionID := prepareStartedDemoMission(t)
+	if err := run(context.Background(), []string{"orbital", "approve", repoDir, missionID}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("approve run() error = %v", err)
+	}
+
+	return repoDir, missionID
 }
 
 func TestStatusPrintsSavedWorkflowStateAsJSON(t *testing.T) {

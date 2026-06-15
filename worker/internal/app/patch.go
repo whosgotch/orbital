@@ -60,13 +60,17 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 		return nil, fmt.Errorf("repository not found: %s", state.Missions[missionIndex].RepositoryID)
 	}
 
-	cmd := exec.Command("git", "apply")
-	cmd.Dir = state.Repositories[repositoryIndex].Path
-	cmd.Stdin = strings.NewReader(patch.Diff)
+	if strings.TrimSpace(patch.Diff) != "" {
+		cmd := exec.Command("git", "apply")
+		cmd.Dir = state.Repositories[repositoryIndex].Path
+		cmd.Stdin = strings.NewReader(patch.Diff)
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("apply patch: %w: %s", err, strings.TrimSpace(string(output)))
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			if !patchAlreadyApplied(state.Repositories[repositoryIndex].Path, patch.Diff) {
+				return nil, fmt.Errorf("apply patch: %w: %s", err, strings.TrimSpace(string(output)))
+			}
+		}
 	}
 
 	now := time.Now().UTC()
@@ -88,6 +92,13 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 	}
 
 	return &state.PatchProposals[patchIndex], nil
+}
+
+func patchAlreadyApplied(repoPath string, diff string) bool {
+	cmd := exec.Command("git", "apply", "--reverse", "--check")
+	cmd.Dir = repoPath
+	cmd.Stdin = strings.NewReader(diff)
+	return cmd.Run() == nil
 }
 
 func (s *Service) updatePatchDecision(patchID string, patchStatus domain.PatchStatus, missionStatus domain.MissionStatus, eventType domain.WorkflowEventType, message string) (*domain.PatchProposal, error) {

@@ -25,7 +25,9 @@ func (s *JSONStore) Load() (*State, error) {
 	data, err := os.ReadFile(s.StatePath())
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return &State{}, nil
+			state := &State{}
+			state.Normalize()
+			return state, nil
 		}
 
 		return nil, err
@@ -35,6 +37,7 @@ func (s *JSONStore) Load() (*State, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return nil, err
 	}
+	state.Normalize()
 
 	return &state, nil
 }
@@ -44,6 +47,7 @@ func (s *JSONStore) Save(state *State) error {
 		return err
 	}
 
+	state.Normalize()
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return err

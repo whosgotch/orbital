@@ -30,11 +30,12 @@ func TestMockWorkerCheckAvailable(t *testing.T) {
 
 func TestMockWorkerStartRunEmitsEventsAndPatch(t *testing.T) {
 	worker := NewMockWorker()
+	repoDir := writeMockRepo(t)
 
 	events, err := worker.StartRun(context.Background(), RunRequest{
 		RunID:       "run_1",
 		MissionID:   "mission_1",
-		RepoPath:    "/tmp/demo",
+		RepoPath:    repoDir,
 		MissionText: "add a version command",
 	})
 	if err != nil {
@@ -53,6 +54,10 @@ func TestMockWorkerStartRunEmitsEventsAndPatch(t *testing.T) {
 			patchCount++
 			if event.PatchProposal.Status != domain.PatchStatusPending {
 				t.Fatalf("patch status = %q, want %q", event.PatchProposal.Status, domain.PatchStatusPending)
+			}
+			if !strings.Contains(event.PatchProposal.Diff, `+"version": "0.1.0"`) &&
+				!strings.Contains(event.PatchProposal.Diff, `+  "version": "0.1.0"`) {
+				t.Fatalf("patch diff does not add version: %s", event.PatchProposal.Diff)
 			}
 		}
 	}
@@ -82,6 +87,48 @@ func TestMockWorkerStartRunEmitsEventsAndPatch(t *testing.T) {
 }
 
 func TestMockWorkerPatchAppliesWithGitApply(t *testing.T) {
+	repoDir := writeMockRepo(t)
+	diff, err := buildVersionCommandDiff(repoDir)
+	if err != nil {
+		t.Fatalf("buildVersionCommandDiff() error = %v", err)
+	}
+
+	cmd := exec.Command("git", "apply")
+	cmd.Dir = repoDir
+	cmd.Stdin = strings.NewReader(diff)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git apply error = %v, output = %s", err, string(output))
+	}
+}
+
+func TestMockWorkerBuildVersionCommandDiffReturnsEmptyWhenAlreadySatisfied(t *testing.T) {
+	repoDir := writeMockRepo(t)
+	diff, err := buildVersionCommandDiff(repoDir)
+	if err != nil {
+		t.Fatalf("buildVersionCommandDiff() error = %v", err)
+	}
+
+	cmd := exec.Command("git", "apply")
+	cmd.Dir = repoDir
+	cmd.Stdin = strings.NewReader(diff)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git apply error = %v, output = %s", err, string(output))
+	}
+
+	diff, err = buildVersionCommandDiff(repoDir)
+	if err != nil {
+		t.Fatalf("buildVersionCommandDiff() after apply error = %v", err)
+	}
+	if strings.TrimSpace(diff) != "" {
+		t.Fatalf("diff after apply = %q, want empty", diff)
+	}
+}
+
+func writeMockRepo(t *testing.T) string {
+	t.Helper()
+
 	repoDir := t.TempDir()
 	srcDir := filepath.Join(repoDir, "src")
 	if err := os.MkdirAll(srcDir, 0755); err != nil {
@@ -96,14 +143,7 @@ func TestMockWorkerPatchAppliesWithGitApply(t *testing.T) {
 		t.Fatalf("WriteFile(cli.ts) error = %v", err)
 	}
 
-	cmd := exec.Command("git", "apply")
-	cmd.Dir = repoDir
-	cmd.Stdin = strings.NewReader(mockVersionCommandDiff)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git apply error = %v, output = %s", err, string(output))
-	}
+	return repoDir
 }
 
 const mockPackageJSON = `{

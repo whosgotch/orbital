@@ -1,6 +1,8 @@
 package store
 
 import (
+	"bytes"
+	"os"
 	"testing"
 	"time"
 
@@ -51,5 +53,22 @@ func TestJSONStoreSaveAndLoad(t *testing.T) {
 
 	if got.Repositories[0].ID != "repo_1" {
 		t.Fatalf("repository ID = %q, want %q", got.Repositories[0].ID, "repo_1")
+	}
+}
+
+func TestJSONStoreSavesEmptyCollectionsAsArrays(t *testing.T) {
+	store := NewJSONStore(t.TempDir())
+
+	if err := store.Save(&State{}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	data, err := os.ReadFile(store.StatePath())
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+
+	if bytes.Contains(data, []byte("null")) {
+		t.Fatalf("state JSON contains null collection: %s", data)
 	}
 }
