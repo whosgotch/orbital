@@ -17,6 +17,8 @@ type LocalCommandWorker struct {
 	command string
 }
 
+const maxLocalCommandOutputMessage = 1200
+
 func NewLocalCommandWorker(command string) *LocalCommandWorker {
 	return &LocalCommandWorker{command: strings.TrimSpace(command)}
 }
@@ -90,6 +92,9 @@ func (w *LocalCommandWorker) StartRun(ctx context.Context, request RunRequest) (
 
 		patchPath := localCommandPatchPath(request)
 		output, err := w.runCommand(ctx, request, patchPath)
+		if !sendLocalCommandOutput(ctx, events, request.RunID, output, w.command) {
+			return
+		}
 		if err != nil {
 			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Local command failed: %s", strings.TrimSpace(output)), "", w.command)
 			return
@@ -166,6 +171,27 @@ func (w *LocalCommandWorker) sendPatchArtifact(ctx context.Context, events chan<
 
 func localCommandPatchPath(request RunRequest) string {
 	return filepath.Join(request.RepoPath, ".orbital", "runs", request.RunID, "patch.diff")
+}
+
+func sendLocalCommandOutput(ctx context.Context, events chan<- RunEvent, runID string, output string, command string) bool {
+	message := localCommandOutputMessage(output)
+	if message == "" {
+		return true
+	}
+
+	return sendWorkflowEvent(ctx, events, runID, domain.WorkflowEventCommandExecuted, message, "", command)
+}
+
+func localCommandOutputMessage(output string) string {
+	output = strings.TrimSpace(output)
+	if output == "" {
+		return ""
+	}
+	if len(output) > maxLocalCommandOutputMessage {
+		output = output[:maxLocalCommandOutputMessage] + "..."
+	}
+
+	return "Local command output: " + output
 }
 
 func commandShell() (string, string) {

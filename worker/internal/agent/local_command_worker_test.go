@@ -26,7 +26,7 @@ func TestLocalCommandWorkerCheckAvailableRequiresCommand(t *testing.T) {
 }
 
 func TestLocalCommandWorkerEmitsCommandEvents(t *testing.T) {
-	worker := NewLocalCommandWorker(`test "$ORBITAL_MISSION_TEXT" = "ship it"`)
+	worker := NewLocalCommandWorker(`test "$ORBITAL_MISSION_TEXT" = "ship it" && printf "worker summary"`)
 	events, err := worker.StartRun(context.Background(), RunRequest{
 		RunID:       "run_1",
 		MissionID:   "mission_1",
@@ -41,11 +41,47 @@ func TestLocalCommandWorkerEmitsCommandEvents(t *testing.T) {
 	want := []domain.WorkflowEventType{
 		domain.WorkflowEventRunStarted,
 		domain.WorkflowEventCommandExecuted,
+		domain.WorkflowEventCommandExecuted,
 		domain.WorkflowEventRunCompleted,
 	}
 
 	if strings.Join(eventTypeStrings(got), ",") != strings.Join(eventTypeStrings(want), ",") {
 		t.Fatalf("event types = %v, want %v", got, want)
+	}
+}
+
+func TestLocalCommandWorkerCapturesCommandOutput(t *testing.T) {
+	worker := NewLocalCommandWorker("printf 'agent summary'")
+	events, err := worker.StartRun(context.Background(), RunRequest{
+		RunID:       "run_1",
+		MissionID:   "mission_1",
+		RepoPath:    t.TempDir(),
+		MissionText: "ship it",
+	})
+	if err != nil {
+		t.Fatalf("StartRun() error = %v", err)
+	}
+
+	var messages []string
+	for event := range events {
+		if event.WorkflowEvent != nil {
+			messages = append(messages, event.WorkflowEvent.Message)
+		}
+	}
+
+	if !containsMessage(messages, "Local command output: agent summary") {
+		t.Fatalf("messages = %v, want captured output", messages)
+	}
+}
+
+func TestLocalCommandWorkerTruncatesCommandOutput(t *testing.T) {
+	message := localCommandOutputMessage(strings.Repeat("x", maxLocalCommandOutputMessage+20))
+
+	if len(message) != len("Local command output: ")+maxLocalCommandOutputMessage+3 {
+		t.Fatalf("message length = %d, want bounded output length", len(message))
+	}
+	if !strings.HasSuffix(message, "...") {
+		t.Fatalf("message = %q, want ellipsis suffix", message)
 	}
 }
 
@@ -103,6 +139,16 @@ func TestLocalCommandWorkerEmitsPatchArtifact(t *testing.T) {
 	if eventTypes[len(eventTypes)-1] != domain.WorkflowEventRunCompleted {
 		t.Fatalf("last event type = %q, want %q", eventTypes[len(eventTypes)-1], domain.WorkflowEventRunCompleted)
 	}
+}
+
+func containsMessage(messages []string, want string) bool {
+	for _, message := range messages {
+		if message == want {
+			return true
+		}
+	}
+
+	return false
 }
 
 func collectWorkflowEventTypes(events <-chan RunEvent) []domain.WorkflowEventType {
