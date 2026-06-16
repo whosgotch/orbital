@@ -60,6 +60,7 @@ const workspaceViewFallback = {
         step: mission.step,
         patchStatus: mission.patch_status,
         verified: mission.verified,
+        status: mission.status,
       },
     ]),
   ) as WorkspaceRuntimeMap,
@@ -139,7 +140,7 @@ export function App() {
       return;
     }
 
-    updateSelectedRuntime(() => ({ step: 0, patchStatus: "pending", verified: false }));
+    updateSelectedRuntime(() => ({ step: 0, patchStatus: "pending", verified: false, status: "running" }));
   };
 
   const queueMission = async () => {
@@ -204,6 +205,7 @@ export function App() {
         step: mission.step,
         patchStatus: mission.patch_status,
         verified: mission.verified,
+        status: mission.status,
       },
     }));
     setPatchDiffByMission((current) => ({ ...current, [missionId]: "" }));
@@ -233,7 +235,7 @@ export function App() {
       return;
     }
 
-    updateSelectedRuntime((current) => ({ ...current, patchStatus: "approved" }));
+    updateSelectedRuntime((current) => ({ ...current, patchStatus: "approved", status: "approved" }));
   };
 
   const rejectPatch = async () => {
@@ -250,7 +252,7 @@ export function App() {
       return;
     }
 
-    updateSelectedRuntime((current) => ({ ...current, patchStatus: "rejected" }));
+    updateSelectedRuntime((current) => ({ ...current, patchStatus: "rejected", status: "blocked" }));
   };
 
   const runVerification = async () => {
@@ -273,7 +275,7 @@ export function App() {
       return;
     }
 
-    updateSelectedRuntime((current) => ({ ...current, verified: true }));
+    updateSelectedRuntime((current) => ({ ...current, verified: true, status: "verified" }));
   };
 
   const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState, preferredNodeId?: string) => {
@@ -808,6 +810,12 @@ function missionLabel(title: string) {
 }
 
 function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus {
+  if (runtime.status === "blocked") {
+    return "blocked";
+  }
+  if (runtime.status === "verified") {
+    return "verified";
+  }
   if (runtime.verified) {
     return "verified";
   }
@@ -895,12 +903,20 @@ function workOrderRoles(runtime: WorkspaceRuntime, patchReady: boolean) {
       name: "QA",
       detail: runtime.verified
         ? "Verification passed."
+        : runtime.status === "blocked"
+          ? "Mission blocked at QA or approval."
         : runtime.patchStatus === "approved"
           ? "Ready to run verification."
           : runtime.patchStatus === "rejected"
             ? "Mission stopped before QA."
             : "Waiting for CEO approval.",
-      state: runtime.verified ? "done" : runtime.patchStatus === "approved" ? "active" : runtime.patchStatus === "rejected" ? "blocked" : "idle",
+      state: runtime.verified
+        ? "done"
+        : runtime.status === "blocked" || runtime.patchStatus === "rejected"
+          ? "blocked"
+          : runtime.patchStatus === "approved"
+            ? "active"
+            : "idle",
     },
   ];
 }
@@ -908,6 +924,9 @@ function workOrderRoles(runtime: WorkspaceRuntime, patchReady: boolean) {
 function verificationOutput(runtime: WorkspaceRuntime, output: string) {
   if (runtime.verified) {
     return output || "Verification passed.";
+  }
+  if (runtime.status === "blocked") {
+    return output || "Mission blocked before verification completed.";
   }
   if (runtime.patchStatus === "approved") {
     return "Patch approved. Verification command is armed.";

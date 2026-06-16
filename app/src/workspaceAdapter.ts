@@ -12,6 +12,7 @@ export type WorkspaceRuntime = {
   step: number;
   patchStatus: PatchStatus;
   verified: boolean;
+  status: MissionNodeStatus;
 };
 
 export type WorkspaceRuntimeMap = Record<string, WorkspaceRuntime>;
@@ -46,6 +47,7 @@ export function workspaceViewFromMissionLoop(
         step: mission.step,
         patchStatus: mission.patch_status,
         verified: mission.verified,
+        status: mission.status,
       },
     ]),
   ) as WorkspaceRuntimeMap;
