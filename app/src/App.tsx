@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Check,
   CircleDot,
@@ -83,6 +84,9 @@ export function App() {
   const [patchDiffByMission, setPatchDiffByMission] = useState(initialWorkspaceView.patchDiffByMission);
   const [verificationOutputByMission, setVerificationOutputByMission] = useState(initialWorkspaceView.verificationOutputByMission);
   const [activityByMission, setActivityByMission] = useState(initialWorkspaceView.activityByMission);
+  const [verificationCommandByMission, setVerificationCommandByMission] = useState<Record<string, string>>(
+    Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, mission.command])),
+  );
 
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0].id;
@@ -91,6 +95,7 @@ export function App() {
   const selectedRuntime = runtimeByMission[selectedMission.id];
   const selectedPatchDiff = patchDiffByMission[selectedMission.id] ?? "";
   const selectedVerificationOutput = verificationOutputByMission[selectedMission.id] ?? "";
+  const selectedVerificationCommand = verificationCommandByMission[selectedMission.id] ?? selectedMission.command;
   const patchReady = selectedRuntime.step >= mockWorkflowSteps.length - 1;
   const selectedActivity = activityByMission[selectedMission.id] ?? [];
   const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
@@ -248,10 +253,16 @@ export function App() {
   };
 
   const runVerification = async () => {
+    const command = selectedVerificationCommand.trim();
+    if (!command) {
+      setMissionLoopError("Verification command is required.");
+      return;
+    }
+
     setMissionLoopError("");
 
     try {
-      const nextMissionLoopState = await verifyMissionLoopState(activeRepoPath, selectedMission.id, selectedMission.command);
+      const nextMissionLoopState = await verifyMissionLoopState(activeRepoPath, selectedMission.id, command);
       if (nextMissionLoopState) {
         hydrateMissionLoop(nextMissionLoopState, selectedMission.id);
         return;
@@ -275,6 +286,9 @@ export function App() {
     setPatchDiffByMission(nextWorkspaceView.patchDiffByMission);
     setVerificationOutputByMission(nextWorkspaceView.verificationOutputByMission);
     setActivityByMission(nextWorkspaceView.activityByMission);
+    setVerificationCommandByMission((current) => ({
+      ...Object.fromEntries(nextWorkspaceView.missions.map((mission) => [mission.id, current[mission.id] ?? mission.command])),
+    }));
     setSelectedNodeId((current) => {
       if (preferredNodeId && nextWorkspaceView.graphNodes.some((node) => node.id === preferredNodeId)) {
         return preferredNodeId;
@@ -303,6 +317,34 @@ export function App() {
       }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to open repository."));
+    } finally {
+      setRefreshingMissionLoop(false);
+    }
+  };
+
+  const chooseWorkspaceFolder = async () => {
+    setMissionLoopError("");
+
+    try {
+      const selected = await openDialog({
+        directory: true,
+        multiple: false,
+        title: "Choose repository folder",
+      });
+      const repoPath = Array.isArray(selected) ? selected[0] : selected;
+      if (!repoPath) {
+        return;
+      }
+
+      setRepoPathDraft(repoPath);
+      setRefreshingMissionLoop(true);
+      const nextMissionLoopState = await openMissionLoopRepository(repoPath);
+      if (nextMissionLoopState) {
+        setActiveRepoPath(repoPath);
+        hydrateMissionLoop(nextMissionLoopState);
+      }
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to choose repository folder."));
     } finally {
       setRefreshingMissionLoop(false);
     }
@@ -365,6 +407,10 @@ export function App() {
             onChange={(event) => setRepoPathDraft(event.target.value)}
           />
           <div className="actions workspace-actions">
+            <button className="secondary" type="button" onClick={chooseWorkspaceFolder} disabled={refreshingMissionLoop}>
+              <FolderOpen size={16} aria-hidden="true" />
+              <span>Choose</span>
+            </button>
             <button className="secondary" type="button" onClick={loadDemoFactory} disabled={refreshingMissionLoop}>
               <RefreshCw size={16} aria-hidden="true" />
               <span>Demo</span>
@@ -534,7 +580,7 @@ export function App() {
             <button
               className="secondary icon-button"
               type="button"
-              disabled={selectedRuntime.patchStatus !== "approved" || selectedRuntime.verified}
+              disabled={selectedRuntime.patchStatus !== "approved" || selectedRuntime.verified || !selectedVerificationCommand.trim()}
               onClick={runVerification}
               aria-label="Run verification"
               title="Run verification"
@@ -542,7 +588,17 @@ export function App() {
               <Terminal size={16} aria-hidden="true" />
             </button>
           </div>
-          <div className="command-line">{selectedMission.command}</div>
+          <input
+            className="command-line"
+            aria-label="Verification command"
+            value={selectedVerificationCommand}
+            onChange={(event) =>
+              setVerificationCommandByMission((current) => ({
+                ...current,
+                [selectedMission.id]: event.target.value,
+              }))
+            }
+          />
           <pre className="test-output">{verificationOutput(selectedRuntime, selectedVerificationOutput)}</pre>
         </section>
       </aside>

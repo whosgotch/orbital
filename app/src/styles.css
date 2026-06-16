@@ -752,6 +752,12 @@ dd {
   border-radius: 6px;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 13px;
+  outline: 0;
+}
+
+.command-line:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(117, 217, 196, 0.13);
 }
 
 .test-output {
