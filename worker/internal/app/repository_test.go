@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/whosgotch/orbital/worker/internal/domain"
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
@@ -103,6 +104,46 @@ func TestOpenRepositoryReturnsExistingRepositoryForSamePath(t *testing.T) {
 
 	if len(state.Repositories) != 1 {
 		t.Fatalf("expected 1 repository, got %d", len(state.Repositories))
+	}
+}
+
+func TestOpenRepositoryBackfillsMissingVerificationCommand(t *testing.T) {
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, "go.mod"), []byte("module example.com/demo\n"), 0644); err != nil {
+		t.Fatalf("WriteFile(go.mod) error = %v", err)
+	}
+
+	jsonStore := store.NewJSONStore(t.TempDir())
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{
+			{
+				ID:   "repo_1",
+				Path: repoDir,
+				Name: "demo",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	svc := NewService(jsonStore)
+
+	repository, err := svc.OpenRepository(repoDir)
+	if err != nil {
+		t.Fatalf("OpenRepository() error = %v", err)
+	}
+
+	if repository.VerificationCommand != "go test ./..." {
+		t.Fatalf("verification command = %q, want %q", repository.VerificationCommand, "go test ./...")
+	}
+
+	state, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if state.Repositories[0].VerificationCommand != "go test ./..." {
+		t.Fatalf("saved verification command = %q, want %q", state.Repositories[0].VerificationCommand, "go test ./...")
 	}
 }
 

@@ -29,9 +29,16 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 		return nil, err
 	}
 
-	for _, repository := range state.Repositories {
+	for index, repository := range state.Repositories {
 		if repository.Path == cleanPath {
-			return &repository, nil
+			if repository.VerificationCommand == "" {
+				state.Repositories[index].VerificationCommand = defaultVerificationCommand(cleanPath)
+				if err := s.store.Save(state); err != nil {
+					return nil, err
+				}
+			}
+
+			return &state.Repositories[index], nil
 		}
 	}
 
