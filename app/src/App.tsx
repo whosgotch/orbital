@@ -528,6 +528,10 @@ export function App() {
               <Network size={13} aria-hidden="true" />
               {selectedRepository?.name ?? "workspace"}
             </span>
+            <span title={workerLimitation(selectedMission.worker)}>
+              <RadioTower size={13} aria-hidden="true" />
+              {workerLabel(selectedMission.worker)}
+            </span>
             <span title={selectedVerificationCommand}>
               <Terminal size={13} aria-hidden="true" />
               {selectedVerificationCommand}
@@ -880,6 +884,28 @@ function patchStateClass(runtime: WorkspaceRuntime, patchReady: boolean) {
     return "rejected";
   }
   return patchReady ? "active" : "";
+}
+
+function workerLabel(workerName: string) {
+  if (workerName === "mock") {
+    return "Demo worker: limited patch generator";
+  }
+  if (workerName === "unassigned") {
+    return "Worker not assigned";
+  }
+
+  return workerName;
+}
+
+function workerLimitation(workerName: string) {
+  if (workerName === "mock") {
+    return "Supports the demo Node CLI patch path while the real local worker interface is being built.";
+  }
+  if (workerName === "unassigned") {
+    return "Dispatch the mission to assign a worker.";
+  }
+
+  return workerName;
 }
 
 function workOrderRoles(runtime: WorkspaceRuntime, patchReady: boolean) {
