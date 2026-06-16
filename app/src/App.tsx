@@ -70,6 +70,7 @@ const workspaceViewFallback = {
 };
 
 const initialWorkspaceView = workspaceViewFromMissionLoop(initialMissionLoop, workspaceViewFallback);
+type WorkerMode = "mock" | "local-command";
 
 export function App() {
   const [missionLoopState, setMissionLoopState] = useState(initialMissionLoop);
@@ -89,6 +90,10 @@ export function App() {
   const [verificationCommandByMission, setVerificationCommandByMission] = useState<Record<string, string>>(
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, mission.command])),
   );
+  const [workerModeByMission, setWorkerModeByMission] = useState<Record<string, WorkerMode>>(
+    Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, mission.worker === "local-command" ? "local-command" : "mock"])),
+  );
+  const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
 
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0].id;
@@ -98,6 +103,8 @@ export function App() {
   const selectedPatchDiff = patchDiffByMission[selectedMission.id] ?? "";
   const selectedVerificationOutput = verificationOutputByMission[selectedMission.id] ?? "";
   const selectedVerificationCommand = verificationCommandByMission[selectedMission.id] ?? selectedMission.command;
+  const selectedWorkerMode = workerModeByMission[selectedMission.id] ?? (selectedMission.worker === "local-command" ? "local-command" : "mock");
+  const selectedLocalCommand = localCommandByMission[selectedMission.id] ?? defaultLocalCommand();
   const patchReady = selectedRuntime.step >= mockWorkflowSteps.length - 1;
   const selectedActivity = activityByMission[selectedMission.id] ?? [];
   const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
@@ -130,7 +137,12 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      const nextMissionLoopState = await startAgentRunMissionLoopState(activeRepoPath, selectedMission.id);
+      const nextMissionLoopState = await startAgentRunMissionLoopState(
+        activeRepoPath,
+        selectedMission.id,
+        selectedWorkerMode,
+        selectedWorkerMode === "local-command" ? selectedLocalCommand : "",
+      );
       if (nextMissionLoopState) {
         hydrateMissionLoop(nextMissionLoopState, selectedMission.id);
         return;
@@ -211,6 +223,7 @@ export function App() {
     setPatchDiffByMission((current) => ({ ...current, [missionId]: "" }));
     setVerificationOutputByMission((current) => ({ ...current, [missionId]: "" }));
     setActivityByMission((current) => ({ ...current, [missionId]: ["Mission intent captured."] }));
+    setWorkerModeByMission((current) => ({ ...current, [missionId]: "mock" }));
     setSelectedNodeId(missionId);
   };
 
@@ -291,6 +304,14 @@ export function App() {
     setActivityByMission(nextWorkspaceView.activityByMission);
     setVerificationCommandByMission((current) => ({
       ...Object.fromEntries(nextWorkspaceView.missions.map((mission) => [mission.id, current[mission.id] ?? mission.command])),
+    }));
+    setWorkerModeByMission((current) => ({
+      ...Object.fromEntries(
+        nextWorkspaceView.missions.map((mission) => [
+          mission.id,
+          current[mission.id] ?? (mission.worker === "local-command" ? "local-command" : "mock"),
+        ]),
+      ),
     }));
     setSelectedNodeId((current) => {
       if (preferredNodeId && nextWorkspaceView.graphNodes.some((node) => node.id === preferredNodeId)) {
@@ -545,6 +566,39 @@ export function App() {
               <Terminal size={13} aria-hidden="true" />
               {selectedVerificationCommand}
             </span>
+          </div>
+          <div className="worker-controls">
+            <label>
+              <span>Worker</span>
+              <select
+                aria-label="Worker mode"
+                value={selectedWorkerMode}
+                onChange={(event) =>
+                  setWorkerModeByMission((current) => ({
+                    ...current,
+                    [selectedMission.id]: event.target.value as WorkerMode,
+                  }))
+                }
+              >
+                <option value="mock">Demo worker</option>
+                <option value="local-command">Local command</option>
+              </select>
+            </label>
+            {selectedWorkerMode === "local-command" ? (
+              <label>
+                <span>Command</span>
+                <input
+                  aria-label="Local worker command"
+                  value={selectedLocalCommand}
+                  onChange={(event) =>
+                    setLocalCommandByMission((current) => ({
+                      ...current,
+                      [selectedMission.id]: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            ) : null}
           </div>
           <div className="role-stack">
             {workOrderRoles(selectedRuntime, patchReady).map((role) => (
@@ -935,6 +989,10 @@ function workerLimitation(workerName: string) {
   }
 
   return workerName;
+}
+
+function defaultLocalCommand() {
+  return `printf "local worker completed for $ORBITAL_MISSION_ID"`;
 }
 
 function workOrderRoles(runtime: WorkspaceRuntime, patchReady: boolean) {

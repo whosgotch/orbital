@@ -34,8 +34,33 @@ fn queue_mission(repo_path: String, mission_text: String) -> Result<String, Stri
 }
 
 #[tauri::command]
-fn start_agent_run(repo_path: String, mission_id: String) -> Result<String, String> {
-    run_worker(&["start-run", repo_path.trim(), mission_id.trim()])
+fn start_agent_run(
+    repo_path: String,
+    mission_id: String,
+    worker_name: Option<String>,
+    command: Option<String>,
+) -> Result<String, String> {
+    let worker_name = worker_name.unwrap_or_else(|| "mock".to_string());
+    if worker_name.trim() == "local-command" {
+        let command = command.unwrap_or_default();
+        return run_worker(&[
+            "start-run",
+            repo_path.trim(),
+            mission_id.trim(),
+            "--worker",
+            "local-command",
+            "--command",
+            command.trim(),
+        ]);
+    }
+
+    run_worker(&[
+        "start-run",
+        repo_path.trim(),
+        mission_id.trim(),
+        "--worker",
+        worker_name.trim(),
+    ])
 }
 
 #[tauri::command]

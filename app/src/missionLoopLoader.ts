@@ -40,12 +40,17 @@ export async function queueMissionLoopState(repoPath: string, missionText: strin
   return JSON.parse(state) as MissionLoopState;
 }
 
-export async function startAgentRunMissionLoopState(repoPath: string, missionId: string): Promise<MissionLoopState | undefined> {
+export async function startAgentRunMissionLoopState(
+  repoPath: string,
+  missionId: string,
+  workerName = "mock",
+  command = "",
+): Promise<MissionLoopState | undefined> {
   if (!isTauriRuntime()) {
     return undefined;
   }
 
-  const state = await invoke<string>("start_agent_run", { repoPath, missionId });
+  const state = await invoke<string>("start_agent_run", { repoPath, missionId, workerName, command });
   return JSON.parse(state) as MissionLoopState;
 }
 
