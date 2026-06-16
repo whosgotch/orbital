@@ -668,6 +668,98 @@ dd {
   white-space: nowrap;
 }
 
+.work-order-console {
+  flex: 0 0 auto;
+}
+
+.mission-intent {
+  color: var(--soft);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.work-order-meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.work-order-meta span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-stack {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.role-row {
+  display: grid;
+  grid-template-columns: 10px 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.045);
+  border-radius: 6px;
+}
+
+.role-row svg {
+  color: var(--muted);
+}
+
+.role-row strong,
+.role-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-row strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.role-row small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.role-light {
+  width: 9px;
+  height: 9px;
+  background: var(--muted);
+  border-radius: 50%;
+}
+
+.role-light.active {
+  background: var(--amber);
+  box-shadow: 0 0 14px rgba(231, 184, 75, 0.5);
+}
+
+.role-light.done {
+  background: var(--green);
+  box-shadow: 0 0 14px rgba(84, 216, 133, 0.42);
+}
+
+.role-light.blocked {
+  background: var(--red);
+  box-shadow: 0 0 14px rgba(239, 102, 102, 0.42);
+}
+
 .activity-console {
   min-height: 230px;
 }

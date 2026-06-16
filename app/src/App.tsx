@@ -13,6 +13,7 @@ import {
   FolderOpen,
   X,
   Zap,
+  UserCheck,
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import {
@@ -511,6 +512,39 @@ export function App() {
           />
         </section>
 
+        <section className="console-panel work-order-console" aria-label="Work order">
+          <div className="panel-head">
+            <div>
+              <div className="section-label">Work order</div>
+              <h2>{missionLabel(selectedMission.title)}</h2>
+            </div>
+            <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
+          </div>
+          <p className="mission-intent">{selectedMission.title}</p>
+          <div className="work-order-meta">
+            <span title={selectedRepository?.path ?? activeRepoPath}>
+              <Network size={13} aria-hidden="true" />
+              {selectedRepository?.name ?? "workspace"}
+            </span>
+            <span title={selectedVerificationCommand}>
+              <Terminal size={13} aria-hidden="true" />
+              {selectedVerificationCommand}
+            </span>
+          </div>
+          <div className="role-stack">
+            {workOrderRoles(selectedRuntime, patchReady).map((role) => (
+              <div className="role-row" key={role.name}>
+                <span className={`role-light ${role.state}`} aria-hidden="true" />
+                <UserCheck size={14} aria-hidden="true" />
+                <div>
+                  <strong>{role.name}</strong>
+                  <small>{role.detail}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="console-panel activity-console" aria-label="Agent activity">
           <div className="panel-head">
             <div>
@@ -838,6 +872,37 @@ function patchStateClass(runtime: WorkspaceRuntime, patchReady: boolean) {
     return "rejected";
   }
   return patchReady ? "active" : "";
+}
+
+function workOrderRoles(runtime: WorkspaceRuntime, patchReady: boolean) {
+  return [
+    {
+      name: "AI Manager",
+      detail: runtime.step >= 0 ? "Mission dispatched to the floor." : "Waiting for launch order.",
+      state: runtime.step >= 0 ? "done" : "idle",
+    },
+    {
+      name: "Architect",
+      detail: runtime.step >= 2 ? "Repository context mapped." : runtime.step >= 1 ? "Reading system context." : "Queued for intake.",
+      state: runtime.step >= 2 ? "done" : runtime.step >= 1 ? "active" : "idle",
+    },
+    {
+      name: "Engineer",
+      detail: patchReady ? "Patch delivered to CEO gate." : runtime.step >= 3 ? "Building proposed change." : "Waiting for architecture.",
+      state: patchReady ? "done" : runtime.step >= 3 ? "active" : "idle",
+    },
+    {
+      name: "QA",
+      detail: runtime.verified
+        ? "Verification passed."
+        : runtime.patchStatus === "approved"
+          ? "Ready to run verification."
+          : runtime.patchStatus === "rejected"
+            ? "Mission stopped before QA."
+            : "Waiting for CEO approval.",
+      state: runtime.verified ? "done" : runtime.patchStatus === "approved" ? "active" : runtime.patchStatus === "rejected" ? "blocked" : "idle",
+    },
+  ];
 }
 
 function verificationOutput(runtime: WorkspaceRuntime, output: string) {
