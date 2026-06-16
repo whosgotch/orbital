@@ -37,11 +37,12 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 
 	now := time.Now().UTC()
 	repository := domain.Repository{
-		ID:        fmt.Sprintf("repo_%d", now.UnixNano()),
-		Path:      cleanPath,
-		Name:      filepath.Base(cleanPath),
-		Branch:    "",
-		CreatedAt: now,
+		ID:                  fmt.Sprintf("repo_%d", now.UnixNano()),
+		Path:                cleanPath,
+		Name:                filepath.Base(cleanPath),
+		Branch:              "",
+		VerificationCommand: defaultVerificationCommand(cleanPath),
+		CreatedAt:           now,
 	}
 
 	state.Repositories = append(state.Repositories, repository)
@@ -51,4 +52,20 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 	}
 
 	return &repository, nil
+}
+
+func defaultVerificationCommand(repoPath string) string {
+	if fileExists(filepath.Join(repoPath, "package.json")) {
+		return "npm test"
+	}
+	if fileExists(filepath.Join(repoPath, "go.mod")) {
+		return "go test ./..."
+	}
+
+	return "true"
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }

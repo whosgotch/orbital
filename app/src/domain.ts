@@ -3,6 +3,7 @@ export type Repository = {
   path: string;
   name: string;
   branch: string;
+  verification_command?: string;
   created_at: string;
 };
 

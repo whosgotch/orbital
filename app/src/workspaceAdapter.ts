@@ -95,7 +95,7 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
     title: mission.text,
     status: missionStatus(mission, patch?.status, verification),
     worker: latestRun?.worker_name ?? "unassigned",
-    command: verification?.command ?? commandFromEvents(state, mission.id) ?? defaultVerificationCommand(mission.status),
+    command: verification?.command ?? commandFromEvents(state, mission.id) ?? defaultVerificationCommand(state, mission),
     files: Array.from(new Set(events.map((event) => event.file_path).filter((path): path is string => Boolean(path)))),
     step: Math.min(Math.max(events.length - 1, -1), maxWorkflowStep),
     patch_status: patchStatus(patch?.status),
@@ -296,8 +296,9 @@ function commandFromEvents(state: MissionLoopState, missionId: string) {
   return state.workflow_events.find((event) => event.mission_id === missionId && event.command)?.command;
 }
 
-function defaultVerificationCommand(missionStatusValue: Mission["status"]) {
-  return missionStatusValue === "applied" ? "node -e \"console.log('verified')\"" : "verification not configured";
+function defaultVerificationCommand(state: MissionLoopState, mission: Mission) {
+  const repository = state.repositories.find((item) => item.id === mission.repository_id);
+  return repository?.verification_command || "true";
 }
 
 function stationActivityFromEvents(eventTypes: string[]) {
