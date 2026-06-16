@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
@@ -213,6 +214,52 @@ func TestStartRunCanUseLocalCommandWorker(t *testing.T) {
 	}
 	if string(marker) != "ship it" {
 		t.Fatalf("marker = %q, want %q", string(marker), "ship it")
+	}
+}
+
+func TestStartRunCanUseLocalCommandWorkerPatchArtifact(t *testing.T) {
+	repoDir := t.TempDir()
+
+	var queueOutput bytes.Buffer
+	if err := run(context.Background(), []string{"orbital", "queue", repoDir, "write a patch"}, &queueOutput); err != nil {
+		t.Fatalf("queue run() error = %v", err)
+	}
+
+	var queuedState store.State
+	if err := json.Unmarshal(queueOutput.Bytes(), &queuedState); err != nil {
+		t.Fatalf("Unmarshal(queue JSON) error = %v", err)
+	}
+
+	command := "printf 'diff --git a/a.txt b/a.txt\n' > \"$ORBITAL_PATCH_PATH\""
+
+	var startOutput bytes.Buffer
+	err := run(context.Background(), []string{
+		"orbital",
+		"start-run",
+		repoDir,
+		queuedState.Missions[0].ID,
+		"--worker",
+		"local-command",
+		"--command",
+		command,
+	}, &startOutput)
+	if err != nil {
+		t.Fatalf("start-run run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(startOutput.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(start-run JSON) error = %v; output = %q", err, startOutput.String())
+	}
+
+	if len(state.PatchProposals) != 1 {
+		t.Fatalf("expected 1 patch proposal, got %d", len(state.PatchProposals))
+	}
+	if !strings.Contains(state.PatchProposals[0].Diff, "diff --git") {
+		t.Fatalf("patch diff = %q, want diff content", state.PatchProposals[0].Diff)
+	}
+	if state.Missions[0].Status != domain.MissionStatusWaitingApproval {
+		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusWaitingApproval)
 	}
 }
 

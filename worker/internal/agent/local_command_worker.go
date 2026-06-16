@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -36,10 +37,10 @@ func (w *LocalCommandWorker) Profile() WorkerProfile {
 		Capabilities: []string{
 			"run external commands from the repository root",
 			"pass mission context through environment variables",
+			"load patch artifacts written to ORBITAL_PATCH_PATH",
 			"report command success or failure",
 		},
 		Limitations: []string{
-			"does not parse patch artifacts yet",
 			"does not stream structured agent events yet",
 		},
 	}
@@ -87,9 +88,14 @@ func (w *LocalCommandWorker) StartRun(ctx context.Context, request RunRequest) (
 			return
 		}
 
-		output, err := w.runCommand(ctx, request)
+		patchPath := localCommandPatchPath(request)
+		output, err := w.runCommand(ctx, request, patchPath)
 		if err != nil {
 			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Local command failed: %s", strings.TrimSpace(output)), "", w.command)
+			return
+		}
+
+		if !w.sendPatchArtifact(ctx, events, request.RunID, patchPath) {
 			return
 		}
 
@@ -103,7 +109,11 @@ func (w *LocalCommandWorker) CancelRun(ctx context.Context, runID string) error 
 	return nil
 }
 
-func (w *LocalCommandWorker) runCommand(ctx context.Context, request RunRequest) (string, error) {
+func (w *LocalCommandWorker) runCommand(ctx context.Context, request RunRequest, patchPath string) (string, error) {
+	if err := os.MkdirAll(filepath.Dir(patchPath), 0755); err != nil {
+		return "", err
+	}
+
 	shell, shellFlag := commandShell()
 	cmd := exec.CommandContext(ctx, shell, shellFlag, w.command)
 	cmd.Dir = request.RepoPath
@@ -112,10 +122,50 @@ func (w *LocalCommandWorker) runCommand(ctx context.Context, request RunRequest)
 		"ORBITAL_MISSION_ID="+request.MissionID,
 		"ORBITAL_REPO_PATH="+request.RepoPath,
 		"ORBITAL_MISSION_TEXT="+request.MissionText,
+		"ORBITAL_PATCH_PATH="+patchPath,
 	)
 
 	output, err := cmd.CombinedOutput()
 	return string(output), err
+}
+
+func (w *LocalCommandWorker) sendPatchArtifact(ctx context.Context, events chan<- RunEvent, runID string, patchPath string) bool {
+	diff, err := os.ReadFile(patchPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return true
+		}
+
+		sendWorkflowEvent(ctx, events, runID, domain.WorkflowEventRunFailed, fmt.Sprintf("Read patch artifact failed: %v", err), "", w.command)
+		return false
+	}
+
+	if strings.TrimSpace(string(diff)) == "" {
+		return true
+	}
+
+	now := time.Now().UTC()
+	patch := domain.PatchProposal{
+		ID:        fmt.Sprintf("patch_%d", now.UnixNano()),
+		RunID:     runID,
+		Status:    domain.PatchStatusPending,
+		Diff:      string(diff),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	select {
+	case <-ctx.Done():
+		sendCancelledEvent(events, runID)
+		return false
+	case events <- RunEvent{PatchProposal: &patch}:
+	}
+
+	return sendWorkflowEvent(ctx, events, runID, domain.WorkflowEventPatchProposed, "Local command produced a patch artifact.", patchPath, w.command)
+}
+
+func localCommandPatchPath(request RunRequest) string {
+	return filepath.Join(request.RepoPath, ".orbital", "runs", request.RunID, "patch.diff")
 }
 
 func commandShell() (string, string) {

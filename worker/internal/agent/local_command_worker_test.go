@@ -67,6 +67,44 @@ func TestLocalCommandWorkerEmitsFailedEvent(t *testing.T) {
 	}
 }
 
+func TestLocalCommandWorkerEmitsPatchArtifact(t *testing.T) {
+	worker := NewLocalCommandWorker("printf 'diff --git a/a.txt b/a.txt\n' > \"$ORBITAL_PATCH_PATH\"")
+	events, err := worker.StartRun(context.Background(), RunRequest{
+		RunID:       "run_1",
+		MissionID:   "mission_1",
+		RepoPath:    t.TempDir(),
+		MissionText: "ship it",
+	})
+	if err != nil {
+		t.Fatalf("StartRun() error = %v", err)
+	}
+
+	var patchCount int
+	var eventTypes []domain.WorkflowEventType
+	for event := range events {
+		if event.WorkflowEvent != nil {
+			eventTypes = append(eventTypes, event.WorkflowEvent.Type)
+		}
+		if event.PatchProposal != nil {
+			patchCount++
+			if !strings.Contains(event.PatchProposal.Diff, "diff --git") {
+				t.Fatalf("patch diff = %q, want diff content", event.PatchProposal.Diff)
+			}
+		}
+	}
+
+	if patchCount != 1 {
+		t.Fatalf("expected 1 patch proposal, got %d", patchCount)
+	}
+
+	if eventTypes[len(eventTypes)-2] != domain.WorkflowEventPatchProposed {
+		t.Fatalf("penultimate event type = %q, want %q", eventTypes[len(eventTypes)-2], domain.WorkflowEventPatchProposed)
+	}
+	if eventTypes[len(eventTypes)-1] != domain.WorkflowEventRunCompleted {
+		t.Fatalf("last event type = %q, want %q", eventTypes[len(eventTypes)-1], domain.WorkflowEventRunCompleted)
+	}
+}
+
 func collectWorkflowEventTypes(events <-chan RunEvent) []domain.WorkflowEventType {
 	var eventTypes []domain.WorkflowEventType
 	for event := range events {
