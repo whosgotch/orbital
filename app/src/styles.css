@@ -763,10 +763,18 @@ dd {
 }
 
 .worker-controls input,
-.worker-controls select {
+.worker-controls select,
+.worker-controls textarea {
   min-height: 36px;
   padding: 9px 10px;
   font-size: 12px;
+}
+
+.local-command-input {
+  min-height: 92px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  line-height: 1.45;
 }
 
 .role-row {

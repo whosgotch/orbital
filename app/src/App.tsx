@@ -587,7 +587,8 @@ export function App() {
             {selectedWorkerMode === "local-command" ? (
               <label>
                 <span>Command</span>
-                <input
+                <textarea
+                  className="local-command-input"
                   aria-label="Local worker command"
                   value={selectedLocalCommand}
                   onChange={(event) =>
