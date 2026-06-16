@@ -164,6 +164,58 @@ func TestStartRunCreatesWorkerRunAndPatch(t *testing.T) {
 	}
 }
 
+func TestStartRunCanUseLocalCommandWorker(t *testing.T) {
+	repoDir := t.TempDir()
+
+	var queueOutput bytes.Buffer
+	if err := run(context.Background(), []string{"orbital", "queue", repoDir, "ship it"}, &queueOutput); err != nil {
+		t.Fatalf("queue run() error = %v", err)
+	}
+
+	var queuedState store.State
+	if err := json.Unmarshal(queueOutput.Bytes(), &queuedState); err != nil {
+		t.Fatalf("Unmarshal(queue JSON) error = %v", err)
+	}
+
+	markerPath := filepath.Join(repoDir, "mission.txt")
+	command := "printf \"$ORBITAL_MISSION_TEXT\" > mission.txt"
+
+	var startOutput bytes.Buffer
+	err := run(context.Background(), []string{
+		"orbital",
+		"start-run",
+		repoDir,
+		queuedState.Missions[0].ID,
+		"--worker",
+		"local-command",
+		"--command",
+		command,
+	}, &startOutput)
+	if err != nil {
+		t.Fatalf("start-run run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(startOutput.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(start-run JSON) error = %v; output = %q", err, startOutput.String())
+	}
+
+	if state.AgentRuns[0].WorkerName != "local-command" {
+		t.Fatalf("worker name = %q, want %q", state.AgentRuns[0].WorkerName, "local-command")
+	}
+	if state.AgentRuns[0].Status != domain.AgentRunStatusCompleted {
+		t.Fatalf("agent run status = %q, want %q", state.AgentRuns[0].Status, domain.AgentRunStatusCompleted)
+	}
+
+	marker, err := os.ReadFile(markerPath)
+	if err != nil {
+		t.Fatalf("ReadFile(mission.txt) error = %v", err)
+	}
+	if string(marker) != "ship it" {
+		t.Fatalf("marker = %q, want %q", string(marker), "ship it")
+	}
+}
+
 func TestApproveMissionPatchApprovesAndAppliesPatch(t *testing.T) {
 	repoDir, missionID := prepareStartedDemoMission(t)
 
