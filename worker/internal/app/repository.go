@@ -3,7 +3,9 @@ package app
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
@@ -31,8 +33,16 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 
 	for index, repository := range state.Repositories {
 		if repository.Path == cleanPath {
+			changed := false
+			if repository.Branch == "" {
+				state.Repositories[index].Branch = currentGitBranch(cleanPath)
+				changed = true
+			}
 			if repository.VerificationCommand == "" {
 				state.Repositories[index].VerificationCommand = defaultVerificationCommand(cleanPath)
+				changed = true
+			}
+			if changed {
 				if err := s.store.Save(state); err != nil {
 					return nil, err
 				}
@@ -47,7 +57,7 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 		ID:                  fmt.Sprintf("repo_%d", now.UnixNano()),
 		Path:                cleanPath,
 		Name:                filepath.Base(cleanPath),
-		Branch:              "",
+		Branch:              currentGitBranch(cleanPath),
 		VerificationCommand: defaultVerificationCommand(cleanPath),
 		CreatedAt:           now,
 	}
@@ -75,4 +85,16 @@ func defaultVerificationCommand(repoPath string) string {
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+func currentGitBranch(repoPath string) string {
+	cmd := exec.Command("git", "branch", "--show-current")
+	cmd.Dir = repoPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(output))
 }

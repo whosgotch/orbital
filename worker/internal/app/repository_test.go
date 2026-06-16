@@ -2,6 +2,7 @@ package app
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -78,6 +79,20 @@ func TestOpenRepositorySetsGoVerificationCommand(t *testing.T) {
 	}
 }
 
+func TestOpenRepositorySetsGitBranch(t *testing.T) {
+	repoDir := initGitRepository(t)
+	svc := NewService(store.NewJSONStore(t.TempDir()))
+
+	repository, err := svc.OpenRepository(repoDir)
+	if err != nil {
+		t.Fatalf("OpenRepository() error = %v", err)
+	}
+
+	if repository.Branch != "main" {
+		t.Fatalf("repository branch = %q, want %q", repository.Branch, "main")
+	}
+}
+
 func TestOpenRepositoryReturnsExistingRepositoryForSamePath(t *testing.T) {
 	repoDir := t.TempDir()
 	jsonStore := store.NewJSONStore(t.TempDir())
@@ -104,6 +119,43 @@ func TestOpenRepositoryReturnsExistingRepositoryForSamePath(t *testing.T) {
 
 	if len(state.Repositories) != 1 {
 		t.Fatalf("expected 1 repository, got %d", len(state.Repositories))
+	}
+}
+
+func TestOpenRepositoryBackfillsMissingBranch(t *testing.T) {
+	repoDir := initGitRepository(t)
+	jsonStore := store.NewJSONStore(t.TempDir())
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{
+			{
+				ID:                  "repo_1",
+				Path:                repoDir,
+				Name:                "demo",
+				VerificationCommand: "go test ./...",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	svc := NewService(jsonStore)
+
+	repository, err := svc.OpenRepository(repoDir)
+	if err != nil {
+		t.Fatalf("OpenRepository() error = %v", err)
+	}
+
+	if repository.Branch != "main" {
+		t.Fatalf("repository branch = %q, want %q", repository.Branch, "main")
+	}
+
+	state, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if state.Repositories[0].Branch != "main" {
+		t.Fatalf("saved repository branch = %q, want %q", state.Repositories[0].Branch, "main")
 	}
 }
 
@@ -159,5 +211,23 @@ func TestOpenRepositoryRejectsFilePath(t *testing.T) {
 
 	if _, err := svc.OpenRepository(filePath); err == nil {
 		t.Fatal("expected error for file path, got nil")
+	}
+}
+
+func initGitRepository(t *testing.T) string {
+	t.Helper()
+
+	repoDir := t.TempDir()
+	runGit(t, repoDir, "init", "-b", "main")
+	return repoDir
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v error = %v, output = %s", args, err, string(output))
 	}
 }
