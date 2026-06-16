@@ -463,6 +463,15 @@ export function App() {
             <TelemetryLine label="Verified" value={String(visibleMissions.filter((mission) => mission.runtime.verified).length)} />
           </div>
         </section>
+
+        <section className="console-panel repo-scan-console" aria-label="Repository scan">
+          <div className="section-label">Repo scan</div>
+          <div className="scan-stack">
+            <ScanLine label="Stack" value={repositoryStack(selectedRepository)} />
+            <ScanLine label="Branch" value={selectedRepository?.branch || "unknown"} />
+            <ScanLine label="QA" value={selectedRepository?.verification_command || selectedVerificationCommand} />
+          </div>
+        </section>
       </aside>
 
       <section className="mission-stage" aria-label="Orbital command map">
@@ -661,6 +670,15 @@ function TelemetryLine({ label, value }: { label: string; value: string }) {
     <div className="telemetry-line">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function ScanLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="scan-line">
+      <span>{label}</span>
+      <strong title={value}>{value}</strong>
     </div>
   );
 }
@@ -884,6 +902,17 @@ function patchStateClass(runtime: WorkspaceRuntime, patchReady: boolean) {
     return "rejected";
   }
   return patchReady ? "active" : "";
+}
+
+function repositoryStack(repository: Repository | undefined) {
+  const command = repository?.verification_command ?? "";
+  if (command.startsWith("npm ")) {
+    return "Node";
+  }
+  if (command.startsWith("go ")) {
+    return "Go";
+  }
+  return "Unknown";
 }
 
 function workerLabel(workerName: string) {

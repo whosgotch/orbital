@@ -323,6 +323,43 @@ dd {
   font-size: 13px;
 }
 
+.scan-stack {
+  display: grid;
+  gap: 9px;
+  margin-top: 13px;
+}
+
+.scan-line {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.scan-line:last-child {
+  border-bottom: 0;
+}
+
+.scan-line span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scan-line strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--soft);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mission-stage {
   display: grid;
   grid-template-rows: 88px 1fr;
