@@ -72,3 +72,23 @@ func TestJSONStoreSavesEmptyCollectionsAsArrays(t *testing.T) {
 		t.Fatalf("state JSON contains null collection: %s", data)
 	}
 }
+
+func TestJSONStoreSaveDoesNotLeaveTempFiles(t *testing.T) {
+	dir := t.TempDir()
+	store := NewJSONStore(dir)
+
+	if err := store.Save(&State{}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir() error = %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.Name() != stateFileName {
+			t.Fatalf("unexpected state directory entry after save: %s", entry.Name())
+		}
+	}
+}

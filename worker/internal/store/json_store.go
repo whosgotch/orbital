@@ -5,12 +5,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 const stateFileName = "state.json"
 
 type JSONStore struct {
 	dir string
+	mu  sync.Mutex
 }
 
 func NewJSONStore(dir string) *JSONStore {
@@ -43,6 +45,9 @@ func (s *JSONStore) Load() (*State, error) {
 }
 
 func (s *JSONStore) Save(state *State) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if err := os.MkdirAll(s.dir, 0755); err != nil {
 		return err
 	}
@@ -53,5 +58,20 @@ func (s *JSONStore) Save(state *State) error {
 		return err
 	}
 
-	return os.WriteFile(s.StatePath(), data, 0644)
+	tempFile, err := os.CreateTemp(s.dir, "."+stateFileName+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tempPath := tempFile.Name()
+	defer os.Remove(tempPath)
+
+	if _, err := tempFile.Write(data); err != nil {
+		tempFile.Close()
+		return err
+	}
+	if err := tempFile.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tempPath, s.StatePath())
 }
