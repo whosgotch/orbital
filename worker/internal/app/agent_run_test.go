@@ -236,6 +236,61 @@ func TestStartAgentRunMarksRunFailedFromWorkerEvent(t *testing.T) {
 	}
 }
 
+func TestStartAgentRunFailsUnsupportedMockRepoClearly(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{
+			{
+				ID:   "repo_1",
+				Path: t.TempDir(),
+				Name: "unsupported",
+			},
+		},
+		Missions: []domain.Mission{
+			{
+				ID:           "mission_1",
+				RepositoryID: "repo_1",
+				Text:         "add a version command",
+				Status:       domain.MissionStatusDraft,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	run, err := svc.StartAgentRun(context.Background(), "mission_1", "mock")
+	if err != nil {
+		t.Fatalf("StartAgentRun() error = %v", err)
+	}
+
+	if run.Status != domain.AgentRunStatusFailed {
+		t.Fatalf("run status = %q, want %q", run.Status, domain.AgentRunStatusFailed)
+	}
+
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got.Missions[0].Status != domain.MissionStatusFailed {
+		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusFailed)
+	}
+
+	if len(got.PatchProposals) != 0 {
+		t.Fatalf("expected no patch proposals, got %d", len(got.PatchProposals))
+	}
+
+	if len(got.WorkflowEvents) != 1 {
+		t.Fatalf("expected 1 workflow event, got %d", len(got.WorkflowEvents))
+	}
+
+	if got.WorkflowEvents[0].Type != domain.WorkflowEventRunFailed {
+		t.Fatalf("event type = %q, want %q", got.WorkflowEvents[0].Type, domain.WorkflowEventRunFailed)
+	}
+}
+
 func TestStartAgentRunRejectsUnknownMission(t *testing.T) {
 	svc := NewService(store.NewJSONStore(t.TempDir()))
 
@@ -320,6 +375,10 @@ func (w *blockingWorker) CheckAvailable(ctx context.Context) (*agent.WorkerInfo,
 	}, nil
 }
 
+func (w *blockingWorker) Supports(ctx context.Context, request agent.RunRequest) agent.SupportResult {
+	return agent.SupportResult{Supported: true}
+}
+
 func (w *blockingWorker) StartRun(ctx context.Context, request agent.RunRequest) (<-chan agent.RunEvent, error) {
 	events := make(chan agent.RunEvent)
 
@@ -366,6 +425,10 @@ func (w failingWorker) CheckAvailable(ctx context.Context) (*agent.WorkerInfo, e
 		Available: true,
 		Profile:   w.Profile(),
 	}, nil
+}
+
+func (w failingWorker) Supports(ctx context.Context, request agent.RunRequest) agent.SupportResult {
+	return agent.SupportResult{Supported: true}
 }
 
 func (w failingWorker) StartRun(ctx context.Context, request agent.RunRequest) (<-chan agent.RunEvent, error) {

@@ -94,6 +94,26 @@ func TestMockWorkerStartRunEmitsEventsAndPatch(t *testing.T) {
 	}
 }
 
+func TestMockWorkerRejectsUnsupportedRepo(t *testing.T) {
+	worker := NewMockWorker()
+	repoDir := t.TempDir()
+
+	result := worker.Supports(context.Background(), RunRequest{
+		RunID:       "run_1",
+		MissionID:   "mission_1",
+		RepoPath:    repoDir,
+		MissionText: "add a version command",
+	})
+
+	if result.Supported {
+		t.Fatal("expected unsupported repo")
+	}
+
+	if result.Reason != unsupportedMockRepoMessage {
+		t.Fatalf("reason = %q, want %q", result.Reason, unsupportedMockRepoMessage)
+	}
+}
+
 func TestMockWorkerPatchAppliesWithGitApply(t *testing.T) {
 	repoDir := writeMockRepo(t)
 	diff, err := buildVersionCommandDiff(repoDir)

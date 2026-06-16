@@ -16,6 +16,8 @@ import (
 
 type MockWorker struct{}
 
+const unsupportedMockRepoMessage = "Demo worker supports Node CLI repos with package.json and src/cli.ts."
+
 func NewMockWorker() *MockWorker {
 	return &MockWorker{}
 }
@@ -52,6 +54,17 @@ func (w *MockWorker) CheckAvailable(ctx context.Context) (*WorkerInfo, error) {
 		Available: true,
 		Profile:   w.Profile(),
 	}, nil
+}
+
+func (w *MockWorker) Supports(ctx context.Context, request RunRequest) SupportResult {
+	if !fileExists(filepath.Join(request.RepoPath, "package.json")) || !fileExists(filepath.Join(request.RepoPath, "src", "cli.ts")) {
+		return SupportResult{
+			Supported: false,
+			Reason:    unsupportedMockRepoMessage,
+		}
+	}
+
+	return SupportResult{Supported: true}
 }
 
 func (w *MockWorker) StartRun(ctx context.Context, request RunRequest) (<-chan RunEvent, error) {
@@ -142,6 +155,11 @@ func sendCancelledEvent(events chan<- RunEvent, runID string) {
 			CreatedAt: time.Now().UTC(),
 		},
 	}
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func buildVersionCommandDiff(repoPath string) (string, error) {

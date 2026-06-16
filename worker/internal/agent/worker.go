@@ -28,6 +28,11 @@ type RunRequest struct {
 	MissionText string `json:"mission_text"`
 }
 
+type SupportResult struct {
+	Supported bool   `json:"supported"`
+	Reason    string `json:"reason,omitempty"`
+}
+
 type RunEvent struct {
 	WorkflowEvent *domain.WorkflowEvent `json:"workflow_event,omitempty"`
 	PatchProposal *domain.PatchProposal `json:"patch_proposal,omitempty"`
@@ -37,6 +42,7 @@ type Worker interface {
 	Name() string
 	Profile() WorkerProfile
 	CheckAvailable(ctx context.Context) (*WorkerInfo, error)
+	Supports(ctx context.Context, request RunRequest) SupportResult
 	StartRun(ctx context.Context, request RunRequest) (<-chan RunEvent, error)
 	CancelRun(ctx context.Context, runID string) error
 }

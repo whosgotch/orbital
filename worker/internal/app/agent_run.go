@@ -48,12 +48,30 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		return nil, err
 	}
 
-	events, err := worker.StartRun(ctx, agent.RunRequest{
+	runRequest := agent.RunRequest{
 		RunID:       run.ID,
 		MissionID:   mission.ID,
 		RepoPath:    state.Repositories[repositoryIndex].Path,
 		MissionText: mission.Text,
-	})
+	}
+
+	if support := worker.Supports(ctx, runRequest); !support.Supported {
+		if err := s.saveRunEvent(missionID, agent.RunEvent{
+			WorkflowEvent: &domain.WorkflowEvent{
+				ID:        fmt.Sprintf("event_%d", time.Now().UTC().UnixNano()),
+				RunID:     run.ID,
+				Type:      domain.WorkflowEventRunFailed,
+				Message:   support.Reason,
+				CreatedAt: time.Now().UTC(),
+			},
+		}); err != nil {
+			return nil, err
+		}
+
+		return s.finishAgentRun(run.ID, missionID)
+	}
+
+	events, err := worker.StartRun(ctx, runRequest)
 	if err != nil {
 		failedAt := time.Now().UTC()
 		run.Status = domain.AgentRunStatusFailed
@@ -76,18 +94,27 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		}
 	}
 
-	state, err = s.store.Load()
+	return s.finishAgentRun(run.ID, missionID)
+}
+
+func (s *Service) finishAgentRun(runID string, missionID string) (*domain.AgentRun, error) {
+	state, err := s.store.Load()
 	if err != nil {
 		return nil, err
 	}
 
-	runIndex := findRunIndex(state.AgentRuns, run.ID)
+	runIndex := findRunIndex(state.AgentRuns, runID)
 	if runIndex == -1 {
-		return nil, fmt.Errorf("agent run not found: %s", run.ID)
+		return nil, fmt.Errorf("agent run not found: %s", runID)
+	}
+
+	missionIndex := findMissionIndex(state.Missions, missionID)
+	if missionIndex == -1 {
+		return nil, fmt.Errorf("mission not found: %s", missionID)
 	}
 
 	completedAt := time.Now().UTC()
-	finalStatus := finalRunStatus(state.WorkflowEvents, run.ID)
+	finalStatus := finalRunStatus(state.WorkflowEvents, runID)
 	state.AgentRuns[runIndex].Status = finalStatus
 	state.AgentRuns[runIndex].CompletedAt = &completedAt
 	if finalStatus == domain.AgentRunStatusFailed || finalStatus == domain.AgentRunStatusCancelled {
