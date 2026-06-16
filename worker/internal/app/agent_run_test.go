@@ -191,6 +191,51 @@ func TestStartAgentRunPersistsProgressBeforeRunCompletes(t *testing.T) {
 	}
 }
 
+func TestStartAgentRunMarksRunFailedFromWorkerEvent(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	registry := agent.NewWorkerRegistry()
+	registry.Register(failingWorker{})
+	svc := NewServiceWithWorkerRegistry(jsonStore, registry)
+
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{
+			{
+				ID:   "repo_1",
+				Path: "/tmp/demo",
+				Name: "demo",
+			},
+		},
+		Missions: []domain.Mission{
+			{
+				ID:           "mission_1",
+				RepositoryID: "repo_1",
+				Text:         "add a version command",
+				Status:       domain.MissionStatusDraft,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	run, err := svc.StartAgentRun(context.Background(), "mission_1", "failing")
+	if err != nil {
+		t.Fatalf("StartAgentRun() error = %v", err)
+	}
+
+	if run.Status != domain.AgentRunStatusFailed {
+		t.Fatalf("run status = %q, want %q", run.Status, domain.AgentRunStatusFailed)
+	}
+
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got.Missions[0].Status != domain.MissionStatusFailed {
+		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusFailed)
+	}
+}
+
 func TestStartAgentRunRejectsUnknownMission(t *testing.T) {
 	svc := NewService(store.NewJSONStore(t.TempDir()))
 
@@ -298,4 +343,37 @@ func (w *blockingWorker) CancelRun(ctx context.Context, runID string) error {
 
 func (w *blockingWorker) finish() {
 	close(w.release)
+}
+
+type failingWorker struct{}
+
+func (w failingWorker) Name() string {
+	return "failing"
+}
+
+func (w failingWorker) CheckAvailable(ctx context.Context) (*agent.WorkerInfo, error) {
+	return &agent.WorkerInfo{
+		Name:      w.Name(),
+		Available: true,
+	}, nil
+}
+
+func (w failingWorker) StartRun(ctx context.Context, request agent.RunRequest) (<-chan agent.RunEvent, error) {
+	events := make(chan agent.RunEvent, 1)
+	events <- agent.RunEvent{
+		WorkflowEvent: &domain.WorkflowEvent{
+			ID:        "event_1",
+			RunID:     request.RunID,
+			Type:      domain.WorkflowEventRunFailed,
+			Message:   "Worker failed.",
+			CreatedAt: time.Now().UTC(),
+		},
+	}
+	close(events)
+
+	return events, nil
+}
+
+func (w failingWorker) CancelRun(ctx context.Context, runID string) error {
+	return nil
 }
