@@ -992,7 +992,7 @@ function workerLimitation(workerName: string) {
 }
 
 function defaultLocalCommand() {
-  return `printf "local worker completed for $ORBITAL_MISSION_ID"`;
+  return `printf 'diff --git a/orbital-local-worker.txt b/orbital-local-worker.txt\nnew file mode 100644\n--- /dev/null\n+++ b/orbital-local-worker.txt\n@@ -0,0 +1 @@\n+local worker completed\n' > "$ORBITAL_PATCH_PATH"`;
 }
 
 function workOrderRoles(runtime: WorkspaceRuntime, patchReady: boolean) {
