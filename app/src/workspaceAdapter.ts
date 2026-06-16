@@ -1,4 +1,4 @@
-import type { Mission, MissionLoopState, PatchStatus as WorkerPatchStatus, VerificationRun } from "./domain";
+import type { Mission, MissionLoopState, PatchStatus as WorkerPatchStatus, VerificationRun, WorkflowEvent } from "./domain";
 import type {
   MissionNodeStatus,
   WorkspaceGraphEdge,
@@ -65,7 +65,7 @@ export function workspaceViewFromMissionLoop(
     state.missions.map((mission) => {
       const run = state.agent_runs.filter((item) => item.mission_id === mission.id).at(-1);
       const events = state.workflow_events.filter((event) => event.mission_id === mission.id || event.run_id === run?.id);
-      return [mission.id, stationActivityFromEvents(events.map((event) => event.type))];
+      return [mission.id, stationActivityFromEvents(events)];
     }),
   );
 
@@ -301,19 +301,21 @@ function defaultVerificationCommand(state: MissionLoopState, mission: Mission) {
   return repository?.verification_command || "true";
 }
 
-function stationActivityFromEvents(eventTypes: string[]) {
-  if (eventTypes.length === 0) {
+function stationActivityFromEvents(events: WorkflowEvent[]) {
+  if (events.length === 0) {
     return ["Mission order waiting in intake."];
   }
 
-  return eventTypes.map((eventType) => {
-    switch (eventType) {
+  return events.map((event) => {
+    switch (event.type) {
       case "run_started":
         return "AI manager accepted the mission order.";
       case "repo_inspected":
         return "Architect mapped the repository floor.";
       case "file_read":
         return "Architect pulled source context onto the belt.";
+      case "command_executed":
+        return event.message.startsWith("Local command output:") ? event.message : "Local command started on the worker floor.";
       case "patch_proposed":
         return "Engineer delivered a patch to the approval bay.";
       case "patch_approved":
