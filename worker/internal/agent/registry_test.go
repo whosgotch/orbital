@@ -37,4 +37,8 @@ func TestDefaultWorkerRegistryIncludesMockWorker(t *testing.T) {
 	if worker.Name() != "mock" {
 		t.Fatalf("worker name = %q, want %q", worker.Name(), "mock")
 	}
+
+	if worker.Profile().Mode != "demo" {
+		t.Fatalf("worker mode = %q, want %q", worker.Profile().Mode, "demo")
+	}
 }

@@ -308,10 +308,15 @@ func (w *blockingWorker) Name() string {
 	return "blocking"
 }
 
+func (w *blockingWorker) Profile() agent.WorkerProfile {
+	return agent.WorkerProfile{Name: w.Name(), Mode: "test"}
+}
+
 func (w *blockingWorker) CheckAvailable(ctx context.Context) (*agent.WorkerInfo, error) {
 	return &agent.WorkerInfo{
 		Name:      w.Name(),
 		Available: true,
+		Profile:   w.Profile(),
 	}, nil
 }
 
@@ -351,10 +356,15 @@ func (w failingWorker) Name() string {
 	return "failing"
 }
 
+func (w failingWorker) Profile() agent.WorkerProfile {
+	return agent.WorkerProfile{Name: w.Name(), Mode: "test"}
+}
+
 func (w failingWorker) CheckAvailable(ctx context.Context) (*agent.WorkerInfo, error) {
 	return &agent.WorkerInfo{
 		Name:      w.Name(),
 		Available: true,
+		Profile:   w.Profile(),
 	}, nil
 }
 

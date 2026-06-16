@@ -26,6 +26,14 @@ func TestMockWorkerCheckAvailable(t *testing.T) {
 	if info.Name != "mock" {
 		t.Fatalf("worker name = %q, want %q", info.Name, "mock")
 	}
+
+	if info.Profile.Mode != "demo" {
+		t.Fatalf("worker mode = %q, want %q", info.Profile.Mode, "demo")
+	}
+
+	if len(info.Profile.Limitations) == 0 {
+		t.Fatal("expected mock worker profile to declare limitations")
+	}
 }
 
 func TestMockWorkerStartRunEmitsEventsAndPatch(t *testing.T) {

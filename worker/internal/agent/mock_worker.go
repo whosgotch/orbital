@@ -24,10 +24,33 @@ func (w *MockWorker) Name() string {
 	return "mock"
 }
 
+func (w *MockWorker) Profile() WorkerProfile {
+	return WorkerProfile{
+		Name: "mock",
+		Mode: "demo",
+		Roles: []string{
+			"AI Manager",
+			"Architect",
+			"Engineer",
+			"QA",
+		},
+		Capabilities: []string{
+			"inspect repository metadata",
+			"read demo Node CLI files",
+			"propose a version command patch",
+		},
+		Limitations: []string{
+			"only supports repositories with package.json and src/cli.ts",
+			"does not perform real planning or general code generation",
+		},
+	}
+}
+
 func (w *MockWorker) CheckAvailable(ctx context.Context) (*WorkerInfo, error) {
 	return &WorkerInfo{
 		Name:      w.Name(),
 		Available: true,
+		Profile:   w.Profile(),
 	}, nil
 }
 
