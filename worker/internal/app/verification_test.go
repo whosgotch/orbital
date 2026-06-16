@@ -89,6 +89,43 @@ func TestRunVerificationFailureMarksMissionFailed(t *testing.T) {
 	assertVerificationEvents(t, got.WorkflowEvents, domain.WorkflowEventVerificationFailed)
 }
 
+func TestRunVerificationStartupFailureMarksMissionFailed(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+
+	if err := jsonStore.Save(verificationState("/path/that/does/not/exist")); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	verification, err := svc.RunVerification(context.Background(), "repo_1", "mission_1", "printf verified")
+	if err != nil {
+		t.Fatalf("RunVerification() error = %v", err)
+	}
+
+	if verification.Status != domain.VerificationStatusFailed {
+		t.Fatalf("verification status = %q, want %q", verification.Status, domain.VerificationStatusFailed)
+	}
+
+	if verification.ExitCode != nil {
+		t.Fatalf("exit code = %v, want nil", verification.ExitCode)
+	}
+
+	if verification.Output == "" {
+		t.Fatal("expected startup failure output")
+	}
+
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got.Missions[0].Status != domain.MissionStatusFailed {
+		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusFailed)
+	}
+
+	assertVerificationEvents(t, got.WorkflowEvents, domain.WorkflowEventVerificationFailed)
+}
+
 func assertVerificationEvents(t *testing.T, events []domain.WorkflowEvent, wantFinalType domain.WorkflowEventType) {
 	t.Helper()
 

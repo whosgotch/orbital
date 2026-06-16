@@ -64,9 +64,14 @@ func (s *Service) RunVerification(ctx context.Context, repoID string, missionID 
 	err = cmd.Run()
 
 	completedAt := time.Now().UTC()
-	exitCode := cmd.ProcessState.ExitCode()
-	verification.ExitCode = &exitCode
+	if cmd.ProcessState != nil {
+		exitCode := cmd.ProcessState.ExitCode()
+		verification.ExitCode = &exitCode
+	}
 	verification.Output = output.String()
+	if verification.Output == "" && err != nil {
+		verification.Output = err.Error()
+	}
 	verification.CompletedAt = &completedAt
 
 	if err == nil {
