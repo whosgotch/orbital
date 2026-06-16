@@ -6,7 +6,7 @@ It can:
 
 - open a local repository
 - create a mission
-- start the mock worker
+- start the demo worker or a local command worker
 - save workflow events and a patch proposal
 - approve and apply the patch
 - run a verification command
@@ -47,18 +47,28 @@ GOCACHE=/private/tmp/orbital-go-cache go run ./cmd/orbital status /private/tmp/o
 ## Current CLI Commands
 
 ```sh
+orbital open <repo-path>
+orbital queue <repo-path> <mission-text>
+orbital start-run <repo-path> <mission-id>
+orbital start-run <repo-path> <mission-id> --worker local-command --command "<command>"
+orbital approve <repo-path> <mission-id>
+orbital reject <repo-path> <mission-id>
+orbital verify <repo-path> <mission-id> <verification-command>
 orbital demo-fixture <repo-path>
 orbital run <repo-path> <mission-text> <verification-command>
 orbital status <repo-path>
+orbital status --json <repo-path>
 ```
 
 Use `go run ./cmd/orbital ...` from `worker/` until a binary install step exists.
 
+## Local Command Worker
+
+See [docs/local-worker-protocol.md](docs/local-worker-protocol.md).
+
 ## Current Limitations
 
-- The only registered worker is `mock`.
-- The mock worker proposes a fixed demo patch for `package.json` and `src/cli.ts`.
-- The demo fixture exists only to make that fixed patch repeatable.
+- The demo worker only supports Node CLI repositories with `package.json` and `src/cli.ts`.
+- The local command worker can produce patch artifacts, but it does not stream structured agent events yet.
 - State is local JSON, not SQLite.
-- There is no desktop shell or React UI yet.
 - Verification commands are explicit local shell commands run inside the repository path.
