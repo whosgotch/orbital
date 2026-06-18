@@ -18,13 +18,6 @@ import {
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import {
-  mockMissionLoop,
-  mockGraphEdges,
-  mockGraphNodes,
-  mockPatchDiff,
-  mockVerificationOutput,
-  mockWorkflowSteps,
-  mockWorkspaceMissions,
   type MissionNodeStatus,
   type WorkspaceGraphEdge,
   type WorkspaceGraphNode,
@@ -49,33 +42,20 @@ import {
   verifyMissionLoopState,
 } from "./missionLoopLoader";
 
-const initialMissionLoop = mockMissionLoop;
-
-const workspaceViewFallback = {
-  missions: mockWorkspaceMissions,
-  graphNodes: mockGraphNodes,
-  graphEdges: mockGraphEdges,
-  runtimeByMission: Object.fromEntries(
-    mockWorkspaceMissions.map((mission) => [
-      mission.id,
-      {
-        step: mission.step,
-        patchStatus: mission.patch_status,
-        verified: mission.verified,
-        status: mission.status,
-      },
-    ]),
-  ) as WorkspaceRuntimeMap,
-  patchDiffByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockPatchDiff])),
-  verificationOutputByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockVerificationOutput])),
-  activityByMission: Object.fromEntries(mockWorkspaceMissions.map((mission) => [mission.id, mockWorkflowSteps])),
+const emptyMissionLoopState: MissionLoopState = {
+  repositories: [],
+  missions: [],
+  agent_runs: [],
+  workflow_events: [],
+  patch_proposals: [],
+  verification_runs: [],
 };
 
-const initialWorkspaceView = workspaceViewFromMissionLoop(initialMissionLoop, workspaceViewFallback);
+const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState);
 type WorkerMode = "mock" | "local-command" | "claude-manager";
 
 export function App() {
-  const [missionLoopState, setMissionLoopState] = useState(initialMissionLoop);
+  const [missionLoopState, setMissionLoopState] = useState(emptyMissionLoopState);
   const [refreshingMissionLoop, setRefreshingMissionLoop] = useState(false);
   const [missionLoopError, setMissionLoopError] = useState("");
   const [repoPathDraft, setRepoPathDraft] = useState(demoRepoPath);
@@ -98,17 +78,17 @@ export function App() {
   const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
 
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
-  const selectedMissionId = selectedGraphNode.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0].id;
+  const selectedMissionId = selectedGraphNode?.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0]?.id;
   const selectedMission = workspaceMissions.find((mission) => mission.id === selectedMissionId) ?? workspaceMissions[0];
-  const selectedRepository = repositoryFor(selectedMission, missionLoopState.repositories);
-  const selectedRuntime = runtimeByMission[selectedMission.id];
-  const selectedPatchDiff = patchDiffByMission[selectedMission.id] ?? "";
-  const selectedVerificationOutput = verificationOutputByMission[selectedMission.id] ?? "";
-  const selectedVerificationCommand = verificationCommandByMission[selectedMission.id] ?? selectedMission.command;
-  const selectedWorkerMode = workerModeByMission[selectedMission.id] ?? (selectedMission.worker === "local-command" ? "local-command" : "mock");
+  const selectedRepository = selectedMission ? repositoryFor(selectedMission, missionLoopState.repositories) : undefined;
+  const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? { step: -1, patchStatus: "pending" as const, verified: false, status: "queued" as const };
+  const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
+  const selectedVerificationOutput = (selectedMission ? verificationOutputByMission[selectedMission.id] : undefined) ?? "";
+  const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
+  const selectedWorkerMode = (selectedMission ? workerModeByMission[selectedMission.id] : undefined) ?? (selectedMission?.worker === "local-command" ? "local-command" : "mock");
   const selectedLocalCommand = localCommandByMission[selectedMission.id] ?? defaultLocalCommand();
-  const patchReady = selectedRuntime.step >= mockWorkflowSteps.length - 1;
-  const selectedActivity = activityByMission[selectedMission.id] ?? [];
+  const patchReady = (selectedPatchDiff ?? "") !== "";
+  const selectedActivity = activityByMission[selectedMission?.id ?? ""] ?? [];
   const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
   const visibleMissions = useMemo(
@@ -160,7 +140,7 @@ export function App() {
           [missionId]: {
             ...current[missionId],
             status: "running",
-            step: Math.min((current[missionId]?.step ?? -1) + 1, mockWorkflowSteps.length - 2),
+            step: (current[missionId]?.step ?? -1) + 1,
           },
         }));
       });
@@ -174,7 +154,7 @@ export function App() {
             ...current[missionId],
             status: "review",
             patchStatus: "pending",
-            step: mockWorkflowSteps.length - 1,
+            step: (current[missionId]?.step ?? 0) + 1,
           },
         }));
       });
@@ -222,6 +202,7 @@ export function App() {
       return;
     }
 
+    if (!selectedRepository) return;
     const missionId = `mission_${Date.now()}`;
     const targetRepositoryId = selectedRepository.id;
     const targetMissionCount = workspaceMissions.filter((mission) => mission.repository_id === targetRepositoryId).length;
@@ -229,11 +210,11 @@ export function App() {
       id: missionId,
       repository_id: targetRepositoryId,
       title,
-      status: "running",
-      worker: "mock",
+      status: "queued",
+      worker: selectedWorkerMode,
       command: "npm run build",
-      files: ["src/App.tsx"],
-      step: 0,
+      files: [],
+      step: -1,
       patch_status: "pending",
       verified: false,
       map_position: "center",
@@ -269,15 +250,15 @@ export function App() {
     }));
     setPatchDiffByMission((current) => ({ ...current, [missionId]: "" }));
     setVerificationOutputByMission((current) => ({ ...current, [missionId]: "" }));
-    setActivityByMission((current) => ({ ...current, [missionId]: ["Mission intent captured."] }));
-    setWorkerModeByMission((current) => ({ ...current, [missionId]: "mock" }));
+    setActivityByMission((current) => ({ ...current, [missionId]: [] }));
+    setWorkerModeByMission((current) => ({ ...current, [missionId]: selectedWorkerMode }));
     setSelectedNodeId(missionId);
   };
 
   const advanceStep = () => {
     updateSelectedRuntime((current) => ({
       ...current,
-      step: Math.min(current.step + 1, mockWorkflowSteps.length - 1),
+      step: current.step + 1,
     }));
   };
 
@@ -339,7 +320,7 @@ export function App() {
   };
 
   const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState, preferredNodeId?: string) => {
-    const nextWorkspaceView = workspaceViewFromMissionLoop(nextMissionLoopState, workspaceViewFallback);
+    const nextWorkspaceView = workspaceViewFromMissionLoop(nextMissionLoopState);
 
     setMissionLoopState(nextMissionLoopState);
     setWorkspaceMissions(nextWorkspaceView.missions);
@@ -567,11 +548,16 @@ export function App() {
         <GraphMap
           nodes={graphNodes}
           edges={workspaceGraphEdges}
-          selectedNodeId={selectedGraphNode.id}
-          selectedMissionId={selectedMission.id}
+          selectedNodeId={selectedGraphNode?.id ?? ""}
+          selectedMissionId={selectedMission?.id ?? ""}
           runningMissionIds={runningMissionIds}
           onSelectNode={setSelectedNodeId}
         />
+        {workspaceMissions.length === 0 ? (
+          <div className="graph-empty-state">
+            <p>Open a workspace, then queue a mission to begin.</p>
+          </div>
+        ) : null}
       </section>
 
       <aside className="systems-rail">
@@ -674,7 +660,7 @@ export function App() {
               className="secondary icon-button"
               type="button"
               onClick={selectedRuntime.step < 0 ? startMission : advanceStep}
-              disabled={selectedRuntime.step >= mockWorkflowSteps.length - 1 || selectedRuntime.patchStatus !== "pending"}
+              disabled={selectedRuntime.status === "running" || (patchReady && selectedRuntime.patchStatus !== "pending")}
               aria-label="Advance run"
               title="Advance run"
             >
@@ -951,11 +937,14 @@ function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus {
   if (runtime.patchStatus === "rejected") {
     return "blocked";
   }
-  if (runtime.step >= mockWorkflowSteps.length - 1) {
+  if (runtime.status === "review") {
     return "review";
   }
   if (runtime.step >= 0) {
     return "running";
+  }
+  if (runtime.status === "queued") {
+    return "queued";
   }
   return "draft";
 }

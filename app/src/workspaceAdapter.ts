@@ -27,16 +27,19 @@ export type WorkspaceView = {
   activityByMission: Record<string, string[]>;
 };
 
-type WorkspaceViewFallback = WorkspaceView;
+const emptyWorkspaceView: WorkspaceView = {
+  missions: [],
+  graphNodes: [],
+  graphEdges: [],
+  runtimeByMission: {},
+  patchDiffByMission: {},
+  verificationOutputByMission: {},
+  activityByMission: {},
+};
 
-const maxWorkflowStep = 5;
-
-export function workspaceViewFromMissionLoop(
-  state: MissionLoopState,
-  fallback: WorkspaceViewFallback,
-): WorkspaceView {
+export function workspaceViewFromMissionLoop(state: MissionLoopState): WorkspaceView {
   if (state.missions.length === 0) {
-    return fallback;
+    return emptyWorkspaceView;
   }
 
   const missions = state.missions.map((mission, index) => workspaceMissionFromState(state, mission, index));
@@ -97,7 +100,7 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
     worker: latestRun?.worker_name ?? "unassigned",
     command: verification?.command ?? commandFromEvents(state, mission.id) ?? defaultVerificationCommand(state, mission),
     files: Array.from(new Set(events.map((event) => event.file_path).filter((path): path is string => Boolean(path)))),
-    step: Math.min(Math.max(events.length - 1, -1), maxWorkflowStep),
+    step: Math.max(events.length - 1, -1),
     patch_status: patchStatus(patch?.status),
     verified: verification?.status === "passed",
     map_position: ["north", "east", "south", "west", "center"][index % 5] as WorkspaceMission["map_position"],

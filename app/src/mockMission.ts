@@ -1,6 +1,6 @@
 import type { MissionLoopState, PatchStatus } from "./domain";
 
-export type MissionNodeStatus = "draft" | "running" | "review" | "approved" | "blocked" | "verified";
+export type MissionNodeStatus = "draft" | "queued" | "running" | "review" | "approved" | "blocked" | "verified";
 
 export type WorkspaceMission = {
   id: string;
