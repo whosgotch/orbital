@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,19 +12,120 @@ import (
 	"strings"
 )
 
+// streamJSONLine is one line of `claude --output-format stream-json` output.
+type streamJSONLine struct {
+	Type    string `json:"type"`
+	Subtype string `json:"subtype"`
+	Result  string `json:"result"`
+	Message struct {
+		Content []struct {
+			Type  string          `json:"type"`
+			Text  string          `json:"text"`
+			Name  string          `json:"name"`
+			Input json.RawMessage `json:"input"`
+		} `json:"content"`
+	} `json:"message"`
+}
+
 // callClaudeAgentic runs Claude in the repo with edit permissions so it can
-// modify files directly, then returns Claude's textual summary. The actual
-// changes are captured separately via git diff.
-func callClaudeAgentic(ctx context.Context, repoPath, prompt string) (string, error) {
-	cmd := exec.CommandContext(ctx, "claude", "--print", "--permission-mode", "acceptEdits", prompt)
+// modify files directly. It streams Claude's actions (text, tool use) to onStep
+// as they happen, and returns Claude's final summary. The actual file changes
+// are captured separately via git diff.
+func callClaudeAgentic(ctx context.Context, repoPath, prompt string, onStep func(msg string)) (string, error) {
+	cmd := exec.CommandContext(ctx, "claude", "--print",
+		"--permission-mode", "acceptEdits",
+		"--output-format", "stream-json", "--verbose",
+		prompt)
 	cmd.Dir = repoPath
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("claude CLI start: %w", err)
+	}
+
+	var summary string
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 1024*1024), 16*1024*1024)
+	for scanner.Scan() {
+		var line streamJSONLine
+		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
+			continue
+		}
+		switch line.Type {
+		case "assistant":
+			for _, block := range line.Message.Content {
+				if block.Type == "text" && strings.TrimSpace(block.Text) != "" {
+					onStep(truncate(block.Text, 220))
+				}
+				if block.Type == "tool_use" {
+					onStep(describeToolUse(block.Name, block.Input))
+				}
+			}
+		case "result":
+			summary = strings.TrimSpace(line.Result)
+		}
+	}
+
+	if err := cmd.Wait(); err != nil {
 		return "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
-	return strings.TrimSpace(string(out)), nil
+	return summary, nil
+}
+
+// describeToolUse renders a concise, human-readable line for a Claude tool call.
+func describeToolUse(name string, input json.RawMessage) string {
+	var fields struct {
+		FilePath string `json:"file_path"`
+		Path     string `json:"path"`
+		Command  string `json:"command"`
+		Pattern  string `json:"pattern"`
+		URL      string `json:"url"`
+	}
+	_ = json.Unmarshal(input, &fields)
+
+	target := fields.FilePath
+	if target == "" {
+		target = fields.Path
+	}
+
+	switch name {
+	case "Read":
+		return "📖 Reading " + base(target)
+	case "Edit", "MultiEdit", "Write":
+		return "✏️ Editing " + base(target)
+	case "Bash":
+		return "⚡ Running: " + truncate(fields.Command, 120)
+	case "Glob", "Grep":
+		return "🔍 Searching " + fields.Pattern
+	case "WebFetch", "WebSearch":
+		return "🌐 " + name + " " + truncate(fields.URL+fields.Pattern, 80)
+	default:
+		if target != "" {
+			return name + " " + base(target)
+		}
+		return name
+	}
+}
+
+func base(path string) string {
+	if path == "" {
+		return ""
+	}
+	return filepath.Base(path)
+}
+
+func truncate(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 // ensureGitRepo makes sure repoPath is a git repo so changes can be captured

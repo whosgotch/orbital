@@ -59,7 +59,7 @@ func (w *ClaudeEngineerWorker) StartRun(ctx context.Context, request RunRequest)
 			return
 		}
 
-		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Claude is editing the repository.", "", "claude") {
+		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Claude is working in the repository.", "", "claude") {
 			return
 		}
 
@@ -69,14 +69,17 @@ Task: %s
 
 Make the necessary code changes directly by editing files. Keep the change focused and minimal. Do not commit. When done, briefly summarize what you changed.`, request.MissionText)
 
-		summary, err := callClaudeAgentic(ctx, request.RepoPath, prompt)
+		// Stream each of Claude's actions (reads, edits, commands) into the feed.
+		summary, err := callClaudeAgentic(ctx, request.RepoPath, prompt, func(msg string) {
+			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, msg, "", "claude")
+		})
 		if err != nil {
 			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Claude error: %v", err), "", "")
 			return
 		}
 
 		if strings.TrimSpace(summary) != "" {
-			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, truncate(summary, 200), "", "claude") {
+			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "✅ "+truncate(summary, 200), "", "claude") {
 				return
 			}
 		}
@@ -132,12 +135,4 @@ Make the necessary code changes directly by editing files. Keep the change focus
 
 func (w *ClaudeEngineerWorker) CancelRun(ctx context.Context, runID string) error {
 	return nil
-}
-
-func truncate(s string, n int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }
