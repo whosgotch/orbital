@@ -86,7 +86,7 @@ export function App() {
   const selectedVerificationOutput = (selectedMission ? verificationOutputByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
   const selectedWorkerMode = (selectedMission ? workerModeByMission[selectedMission.id] : undefined) ?? (selectedMission?.worker === "local-command" ? "local-command" : "mock");
-  const selectedLocalCommand = localCommandByMission[selectedMission.id] ?? defaultLocalCommand();
+  const selectedLocalCommand = localCommandByMission[selectedMission?.id ?? ""] ?? defaultLocalCommand();
   const patchReady = (selectedPatchDiff ?? "") !== "";
   const selectedActivity = activityByMission[selectedMission?.id ?? ""] ?? [];
   const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
