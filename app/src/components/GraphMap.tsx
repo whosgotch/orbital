@@ -1,4 +1,4 @@
-import { FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
+import { Crown, FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
 import {
   type GraphNodeKind,
   type MissionNodeStatus,
@@ -124,14 +124,14 @@ function GraphNodeButton({
       type="button"
       onClick={() => onSelectNode(node.id)}
     >
-      <GraphGlyph kind={node.kind} status={node.status} />
+      <GraphGlyph kind={node.kind} status={node.status} label={node.label} />
       <span>{node.label}</span>
       <small>{node.detail}</small>
     </button>
   );
 }
 
-function GraphGlyph({ kind, status }: { kind: GraphNodeKind; status?: MissionNodeStatus }) {
+function GraphGlyph({ kind, status, label }: { kind: GraphNodeKind; status?: MissionNodeStatus; label?: string }) {
   if (kind === "repo") {
     return <Network size={18} aria-hidden="true" />;
   }
@@ -143,6 +143,9 @@ function GraphGlyph({ kind, status }: { kind: GraphNodeKind; status?: MissionNod
   }
   if (kind === "verification" || kind === "test") {
     return <ShieldCheck size={17} aria-hidden="true" />;
+  }
+  if (kind === "worker" && label?.toLowerCase().includes("manager")) {
+    return <Crown size={17} aria-hidden="true" />;
   }
 
   const Icon = status === "verified" ? ShieldCheck : status === "review" || status === "approved" ? Zap : RadioTower;

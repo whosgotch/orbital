@@ -535,6 +535,12 @@ dd {
   stroke-dasharray: 3 3;
 }
 
+.graph-edge.spawns {
+  stroke: rgba(195, 140, 255, 0.6);
+  stroke-width: 0.18;
+  stroke-dasharray: 2 2;
+}
+
 .graph-edge.selected {
   stroke: rgba(142, 162, 255, 0.92);
   stroke-width: 0.34;
