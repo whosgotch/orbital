@@ -64,7 +64,7 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 			return
 		}
 
-		tasks, err := w.decomposeMission(request.MissionText)
+		tasks, err := w.decomposeMission(ctx, request.MissionText)
 		if err != nil {
 			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Decomposition failed: %v", err), "", "")
 			return
@@ -111,13 +111,13 @@ func (w *ClaudeManagerWorker) CancelRun(ctx context.Context, runID string) error
 	return nil
 }
 
-func (w *ClaudeManagerWorker) decomposeMission(missionText string) ([]subtask, error) {
+func (w *ClaudeManagerWorker) decomposeMission(ctx context.Context, missionText string) ([]subtask, error) {
 	system := `You are an AI engineering manager. Decompose the mission into at most 2 specific engineering tasks.
 
 Output ONLY a JSON array. Each element: {"role": "Engineer", "task": "<specific task>"}
 No markdown, no explanation — only the JSON array.`
 
-	response, err := callClaude(system, "Mission: "+missionText)
+	response, err := callClaude(ctx, system, "Mission: "+missionText)
 	if err != nil {
 		return nil, err
 	}

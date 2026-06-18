@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,9 +9,10 @@ import (
 	"strings"
 )
 
-func callClaude(system, userMessage string) (string, error) {
+func callClaude(ctx context.Context, system, userMessage string) (string, error) {
 	prompt := fmt.Sprintf("<system>\n%s\n</system>\n\n%s", system, userMessage)
-	cmd := exec.Command("claude", "--print", prompt)
+	cmd := exec.CommandContext(ctx, "claude", "--print")
+	cmd.Stdin = strings.NewReader(prompt)
 	out, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {

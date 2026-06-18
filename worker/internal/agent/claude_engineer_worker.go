@@ -78,7 +78,7 @@ Rules:
 - If no code change is needed, output an empty string
 - Never include explanations, markdown, or any text outside the diff`
 
-		diff, err := callClaude(system, fmt.Sprintf("Task: %s\n\nRepository:\n%s", request.MissionText, repoContext))
+		diff, err := callClaude(ctx, system, fmt.Sprintf("Task: %s\n\nRepository:\n%s", request.MissionText, repoContext))
 		if err != nil {
 			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Claude error: %v", err), "", "")
 			return
