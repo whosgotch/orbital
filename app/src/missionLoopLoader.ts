@@ -90,6 +90,6 @@ async function loadRuntimeFixture(): Promise<MissionLoopState> {
   return (await response.json()) as MissionLoopState;
 }
 
-function isTauriRuntime() {
+export function isTauriRuntime() {
   return "__TAURI_INTERNALS__" in window;
 }

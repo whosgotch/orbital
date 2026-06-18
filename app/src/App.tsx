@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Check,
@@ -29,7 +30,7 @@ import {
   type WorkspaceGraphNode,
   type WorkspaceMission,
 } from "./mockMission";
-import type { MissionLoopState, Repository } from "./domain";
+import type { MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
 import {
   workspaceViewFromMissionLoop,
   type WorkspaceRuntime,
@@ -38,6 +39,7 @@ import {
 import {
   approvePatchMissionLoopState,
   demoRepoPath,
+  isTauriRuntime,
   loadMissionLoopState,
   openMissionLoopRepository,
   queueMissionLoopState,
@@ -126,6 +128,11 @@ export function App() {
     [runtimeByMission, workspaceGraphNodes],
   );
 
+  const runningMissionIds = useMemo(
+    () => new Set(workspaceMissions.filter((m) => runtimeByMission[m.id]?.status === "running").map((m) => m.id)),
+    [workspaceMissions, runtimeByMission],
+  );
+
   const updateSelectedRuntime = (next: (runtime: WorkspaceRuntime) => WorkspaceRuntime) => {
     setRuntimeByMission((current) => ({
       ...current,
@@ -135,21 +142,61 @@ export function App() {
 
   const startMission = async () => {
     setMissionLoopError("");
+    const missionId = selectedMission.id;
+
+    let unlistenEvent: (() => void) | undefined;
+    let unlistenPatch: (() => void) | undefined;
+
+    if (isTauriRuntime()) {
+      unlistenEvent = await listen<WorkflowEvent>("workflow_event", (e) => {
+        const event = e.payload;
+        if (!event.message) return;
+        setActivityByMission((current) => ({
+          ...current,
+          [missionId]: [...(current[missionId] ?? []), event.message],
+        }));
+        setRuntimeByMission((current) => ({
+          ...current,
+          [missionId]: {
+            ...current[missionId],
+            status: "running",
+            step: Math.min((current[missionId]?.step ?? -1) + 1, mockWorkflowSteps.length - 2),
+          },
+        }));
+      });
+
+      unlistenPatch = await listen<PatchProposal>("patch_proposal", (e) => {
+        const patch = e.payload;
+        setPatchDiffByMission((current) => ({ ...current, [missionId]: patch.diff }));
+        setRuntimeByMission((current) => ({
+          ...current,
+          [missionId]: {
+            ...current[missionId],
+            status: "review",
+            patchStatus: "pending",
+            step: mockWorkflowSteps.length - 1,
+          },
+        }));
+      });
+    }
 
     try {
       const nextMissionLoopState = await startAgentRunMissionLoopState(
         activeRepoPath,
-        selectedMission.id,
+        missionId,
         selectedWorkerMode,
         selectedWorkerMode === "local-command" ? selectedLocalCommand : "",
       );
       if (nextMissionLoopState) {
-        hydrateMissionLoop(nextMissionLoopState, selectedMission.id);
+        hydrateMissionLoop(nextMissionLoopState, missionId);
         return;
       }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to dispatch mission."));
       return;
+    } finally {
+      unlistenEvent?.();
+      unlistenPatch?.();
     }
 
     updateSelectedRuntime(() => ({ step: 0, patchStatus: "pending", verified: false, status: "running" }));
@@ -522,6 +569,7 @@ export function App() {
           edges={workspaceGraphEdges}
           selectedNodeId={selectedGraphNode.id}
           selectedMissionId={selectedMission.id}
+          runningMissionIds={runningMissionIds}
           onSelectNode={setSelectedNodeId}
         />
       </section>

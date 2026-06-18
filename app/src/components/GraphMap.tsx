@@ -11,10 +11,11 @@ type GraphMapProps = {
   edges: WorkspaceGraphEdge[];
   selectedNodeId: string;
   selectedMissionId: string;
+  runningMissionIds: Set<string>;
   onSelectNode: (nodeId: string) => void;
 };
 
-export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, onSelectNode }: GraphMapProps) {
+export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode }: GraphMapProps) {
   return (
     <section className="space-map" aria-label="Workspace graph map">
       <div className="starfield" aria-hidden="true" />
@@ -34,7 +35,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, onSe
           </marker>
         </defs>
         {edges.map((edge) => (
-          <GraphEdge key={edge.id} edge={edge} nodes={nodes} selectedMissionId={selectedMissionId} />
+          <GraphEdge key={edge.id} edge={edge} nodes={nodes} selectedMissionId={selectedMissionId} runningMissionIds={runningMissionIds} />
         ))}
       </svg>
       {nodes.map((node) => (
@@ -53,10 +54,12 @@ function GraphEdge({
   edge,
   nodes,
   selectedMissionId,
+  runningMissionIds,
 }: {
   edge: WorkspaceGraphEdge;
   nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>;
   selectedMissionId: string;
+  runningMissionIds: Set<string>;
 }) {
   const path = edgePath(edge, nodes);
   if (!path) {
@@ -64,8 +67,9 @@ function GraphEdge({
   }
 
   const selected = edgeTouchesMission(edge, nodes, selectedMissionId);
+  const active = edgeTouchesRunningMission(edge, nodes, runningMissionIds);
 
-  return <path className={`graph-edge ${edge.kind} ${selected ? "selected" : ""}`} d={path} markerEnd="url(#edge-arrow)" />;
+  return <path className={`graph-edge ${edge.kind} ${selected ? "selected" : ""} ${active ? "active" : ""}`} d={path} markerEnd="url(#edge-arrow)" />;
 }
 
 function edgePath(edge: WorkspaceGraphEdge, nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>) {
@@ -87,6 +91,19 @@ function edgeTouchesMission(
   const from = nodes.find((node) => node.id === edge.from);
   const to = nodes.find((node) => node.id === edge.to);
   return from?.mission_id === selectedMissionId || to?.mission_id === selectedMissionId;
+}
+
+function edgeTouchesRunningMission(
+  edge: WorkspaceGraphEdge,
+  nodes: Array<WorkspaceGraphNode & { status?: MissionNodeStatus }>,
+  runningMissionIds: Set<string>,
+) {
+  const from = nodes.find((node) => node.id === edge.from);
+  const to = nodes.find((node) => node.id === edge.to);
+  return (
+    (from?.mission_id != null && runningMissionIds.has(from.mission_id)) ||
+    (to?.mission_id != null && runningMissionIds.has(to.mission_id))
+  );
 }
 
 function GraphNodeButton({
