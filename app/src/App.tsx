@@ -924,7 +924,8 @@ function repositoryFor(mission: WorkspaceMission, repositories: Repository[]) {
   return repositories.find((repository) => repository.id === mission.repository_id) ?? repositories[0];
 }
 
-function nearestMissionId(node: WorkspaceGraphNode, missions: WorkspaceMission[]) {
+function nearestMissionId(node: WorkspaceGraphNode | undefined, missions: WorkspaceMission[]) {
+  if (!node) return undefined;
   if (node.repository_id) {
     return missions.find((mission) => mission.repository_id === node.repository_id)?.id;
   }
