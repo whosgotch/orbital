@@ -24,9 +24,10 @@ export type Mission = {
   status: MissionStatus;
   created_at: string;
   updated_at: string;
+  parent_mission_id?: string;
 };
 
-export type AgentRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type AgentRunStatus = "queued" | "running" | "waiting_for_children" | "aggregating" | "completed" | "failed" | "cancelled";
 
 export type AgentRun = {
   id: string;
@@ -36,6 +37,8 @@ export type AgentRun = {
   started_at: string;
   completed_at?: string;
   error?: string;
+  parent_run_id?: string;
+  child_run_ids?: string[];
 };
 
 export type WorkflowEventType =
@@ -52,7 +55,11 @@ export type WorkflowEventType =
   | "verification_failed"
   | "run_completed"
   | "run_failed"
-  | "run_cancelled";
+  | "run_cancelled"
+  | "child_run_spawned"
+  | "child_run_completed"
+  | "child_run_failed"
+  | "patches_merged";
 
 export type WorkflowEvent = {
   id: string;

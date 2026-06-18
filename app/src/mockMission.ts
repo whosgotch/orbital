@@ -33,7 +33,7 @@ export type WorkspaceGraphEdge = {
   id: string;
   from: string;
   to: string;
-  kind: "owns" | "reads" | "runs" | "proposes" | "verifies" | "blocks";
+  kind: "owns" | "reads" | "runs" | "proposes" | "verifies" | "blocks" | "spawns";
 };
 
 export const mockMissionLoop: MissionLoopState = {
