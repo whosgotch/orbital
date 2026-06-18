@@ -123,6 +123,7 @@ export function App() {
   const startMission = async () => {
     setMissionLoopError("");
     const missionId = selectedMission.id;
+    console.log("[orbital] dispatch start", { missionId, worker: selectedWorkerMode, repo: activeRepoPath, tauri: isTauriRuntime() });
 
     let unlistenEvent: (() => void) | undefined;
     let unlistenPatch: (() => void) | undefined;
@@ -130,6 +131,7 @@ export function App() {
     if (isTauriRuntime()) {
       unlistenEvent = await listen<WorkflowEvent>("workflow_event", (e) => {
         const event = e.payload;
+        console.log("[orbital] workflow_event", event.type, event.message);
         if (!event.message) return;
         setActivityByMission((current) => ({
           ...current,
@@ -147,6 +149,7 @@ export function App() {
 
       unlistenPatch = await listen<PatchProposal>("patch_proposal", (e) => {
         const patch = e.payload;
+        console.log("[orbital] patch_proposal received", { runId: patch.run_id, diffLength: patch.diff?.length });
         setPatchDiffByMission((current) => ({ ...current, [missionId]: patch.diff }));
         setRuntimeByMission((current) => ({
           ...current,
@@ -161,17 +164,25 @@ export function App() {
     }
 
     try {
+      console.log("[orbital] invoking start_agent_run…");
       const nextMissionLoopState = await startAgentRunMissionLoopState(
         activeRepoPath,
         missionId,
         selectedWorkerMode,
         selectedWorkerMode === "local-command" ? selectedLocalCommand : undefined,
       );
+      console.log("[orbital] start_agent_run returned", {
+        hasState: !!nextMissionLoopState,
+        missions: nextMissionLoopState?.missions?.length,
+        runs: nextMissionLoopState?.agent_runs?.length,
+        patches: nextMissionLoopState?.patch_proposals?.length,
+      });
       if (nextMissionLoopState) {
         hydrateMissionLoop(nextMissionLoopState, missionId);
         return;
       }
     } catch (error) {
+      console.error("[orbital] dispatch failed", error);
       setMissionLoopError(errorMessage(error, "Failed to dispatch mission."));
       return;
     } finally {
@@ -321,6 +332,13 @@ export function App() {
 
   const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState, preferredNodeId?: string) => {
     const nextWorkspaceView = workspaceViewFromMissionLoop(nextMissionLoopState);
+    console.log("[orbital] hydrate", {
+      preferredNodeId,
+      patchDiffByMission: Object.fromEntries(
+        Object.entries(nextWorkspaceView.patchDiffByMission).map(([k, v]) => [k, v ? `${v.length} chars` : "empty"]),
+      ),
+      runtimeByMission: nextWorkspaceView.runtimeByMission,
+    });
 
     setMissionLoopState(nextMissionLoopState);
     setWorkspaceMissions(nextWorkspaceView.missions);
