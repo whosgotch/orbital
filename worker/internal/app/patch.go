@@ -9,6 +9,61 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/domain"
 )
 
+func (s *Service) MergePatches(runIDs []string) (*domain.PatchProposal, error) {
+	state, err := s.store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	var diffs []string
+	var missionID string
+	for _, runID := range runIDs {
+		runIndex := findRunIndex(state.AgentRuns, runID)
+		if runIndex == -1 {
+			continue
+		}
+		if missionID == "" {
+			missionID = state.AgentRuns[runIndex].MissionID
+		}
+		for _, patch := range state.PatchProposals {
+			if patch.RunID == runID && patch.Status == domain.PatchStatusPending {
+				diffs = append(diffs, strings.TrimSpace(patch.Diff))
+			}
+		}
+	}
+
+	if len(diffs) == 0 {
+		return nil, fmt.Errorf("no pending patches found for the given runs")
+	}
+
+	now := time.Now().UTC()
+	merged := domain.PatchProposal{
+		ID:        fmt.Sprintf("patch_%d", now.UnixNano()),
+		RunID:     runIDs[0],
+		Status:    domain.PatchStatusPending,
+		Diff:      strings.Join(diffs, "\n"),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	state.PatchProposals = append(state.PatchProposals, merged)
+	state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+		missionID, runIDs[0], domain.WorkflowEventPatchesMerged,
+		fmt.Sprintf("Merged patches from %d child runs.", len(runIDs)), "", now,
+	))
+
+	if missionIndex := findMissionIndex(state.Missions, missionID); missionIndex != -1 {
+		state.Missions[missionIndex].Status = domain.MissionStatusWaitingApproval
+		state.Missions[missionIndex].UpdatedAt = now
+	}
+
+	if err := s.store.Save(state); err != nil {
+		return nil, err
+	}
+
+	return &merged, nil
+}
+
 func (s *Service) ApprovePatch(patchID string) (*domain.PatchProposal, error) {
 	return s.updatePatchDecision(
 		patchID,

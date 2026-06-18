@@ -160,6 +160,76 @@ func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
 	return nil
 }
 
+func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerName string) (*domain.AgentRun, error) {
+	state, err := s.store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	parentIndex := findRunIndex(state.AgentRuns, parentRunID)
+	if parentIndex == -1 {
+		return nil, fmt.Errorf("parent run not found: %s", parentRunID)
+	}
+
+	parentRun := state.AgentRuns[parentIndex]
+	missionIndex := findMissionIndex(state.Missions, parentRun.MissionID)
+	if missionIndex == -1 {
+		return nil, fmt.Errorf("mission not found: %s", parentRun.MissionID)
+	}
+
+	repositoryIndex := findRepositoryIndex(state.Repositories, state.Missions[missionIndex].RepositoryID)
+	if repositoryIndex == -1 {
+		return nil, fmt.Errorf("repository not found: %s", state.Missions[missionIndex].RepositoryID)
+	}
+
+	worker, err := s.workerRegistry.Lookup(workerName)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	childRun := domain.AgentRun{
+		ID:          fmt.Sprintf("run_%d", now.UnixNano()),
+		MissionID:   parentRun.MissionID,
+		WorkerName:  workerName,
+		Status:      domain.AgentRunStatusRunning,
+		StartedAt:   now,
+		ParentRunID: parentRunID,
+	}
+
+	state.AgentRuns[parentIndex].ChildRunIDs = append(state.AgentRuns[parentIndex].ChildRunIDs, childRun.ID)
+	state.AgentRuns[parentIndex].Status = domain.AgentRunStatusWaitingForChildren
+	state.AgentRuns = append(state.AgentRuns, childRun)
+	state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+		parentRun.MissionID, parentRunID, domain.WorkflowEventChildRunSpawned,
+		fmt.Sprintf("Manager spawned %s agent.", workerName), "", now,
+	))
+
+	if err := s.store.Save(state); err != nil {
+		return nil, err
+	}
+
+	runRequest := agent.RunRequest{
+		RunID:       childRun.ID,
+		MissionID:   parentRun.MissionID,
+		RepoPath:    state.Repositories[repositoryIndex].Path,
+		MissionText: state.Missions[missionIndex].Text,
+	}
+
+	events, err := worker.StartRun(ctx, runRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	for event := range events {
+		if err := s.saveRunEvent(parentRun.MissionID, event); err != nil {
+			return nil, err
+		}
+	}
+
+	return s.finishAgentRun(childRun.ID, parentRun.MissionID)
+}
+
 func (s *Service) streamRunEvent(event agent.RunEvent) {
 	if s.eventOut == nil {
 		return

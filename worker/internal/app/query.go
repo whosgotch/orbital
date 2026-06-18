@@ -91,6 +91,22 @@ func (s *Service) ListPatchesByRun(runID string) ([]domain.PatchProposal, error)
 	return patches, nil
 }
 
+func (s *Service) ListChildRuns(parentRunID string) ([]domain.AgentRun, error) {
+	state, err := s.store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	runs := make([]domain.AgentRun, 0)
+	for _, run := range state.AgentRuns {
+		if run.ParentRunID == parentRunID {
+			runs = append(runs, run)
+		}
+	}
+
+	return runs, nil
+}
+
 func (s *Service) ListVerificationsByMission(missionID string) ([]domain.VerificationRun, error) {
 	state, err := s.store.Load()
 	if err != nil {
