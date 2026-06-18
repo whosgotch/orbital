@@ -58,7 +58,7 @@ func ensureGitRepo(ctx context.Context, repoPath string) error {
 // captureGitDiff stages intent-to-add for new files (so they appear in the
 // diff) and returns the working-tree diff for the repo.
 func captureGitDiff(ctx context.Context, repoPath string) (string, error) {
-	add := exec.CommandContext(ctx, "git", "add", "-A", "-N", "--", ".", ":(exclude).orbital")
+	add := exec.CommandContext(ctx, "git", "add", "-A", "-N")
 	add.Dir = repoPath
 	if out, err := add.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("git add -N: %w: %s", err, strings.TrimSpace(string(out)))
