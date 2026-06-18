@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"path/filepath"
 
@@ -25,12 +27,22 @@ func startAgentRun(ctx context.Context, args []string, stdout io.Writer) error {
 
 	jsonStore := store.NewJSONStore(filepath.Join(repoPath, ".orbital"))
 	service := serviceForStartRun(jsonStore, options)
+	service.SetEventOut(stdout)
 
 	if _, err := service.StartAgentRun(ctx, missionID, options.workerName); err != nil {
 		return err
 	}
 
-	return showStatusJSON(repoPath, stdout)
+	state, err := jsonStore.Load()
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "STATE:%s\n", data)
+	return err
 }
 
 type startRunOptions struct {

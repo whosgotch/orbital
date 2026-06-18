@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -151,7 +152,32 @@ func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
 		state.Missions[missionIndex].UpdatedAt = event.PatchProposal.UpdatedAt
 	}
 
-	return s.store.Save(state)
+	if err := s.store.Save(state); err != nil {
+		return err
+	}
+
+	s.streamRunEvent(event)
+	return nil
+}
+
+func (s *Service) streamRunEvent(event agent.RunEvent) {
+	if s.eventOut == nil {
+		return
+	}
+	var prefix string
+	var data []byte
+	var err error
+	if event.WorkflowEvent != nil {
+		prefix = "EVENT:"
+		data, err = json.Marshal(event.WorkflowEvent)
+	} else if event.PatchProposal != nil {
+		prefix = "PATCH:"
+		data, err = json.Marshal(event.PatchProposal)
+	}
+	if err != nil || data == nil {
+		return
+	}
+	fmt.Fprintf(s.eventOut, "%s%s\n", prefix, data)
 }
 
 func finalRunStatus(events []domain.WorkflowEvent, runID string) domain.AgentRunStatus {

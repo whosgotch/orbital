@@ -1,6 +1,8 @@
 package app
 
 import (
+	"io"
+
 	"github.com/whosgotch/orbital/worker/internal/agent"
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
@@ -8,6 +10,7 @@ import (
 type Service struct {
 	store          *store.JSONStore
 	workerRegistry *agent.WorkerRegistry
+	eventOut       io.Writer
 }
 
 func NewService(store *store.JSONStore) *Service {
@@ -22,4 +25,8 @@ func NewServiceWithWorkerRegistry(store *store.JSONStore, workerRegistry *agent.
 		store:          store,
 		workerRegistry: workerRegistry,
 	}
+}
+
+func (s *Service) SetEventOut(w io.Writer) {
+	s.eventOut = w
 }
