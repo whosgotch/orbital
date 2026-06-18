@@ -160,7 +160,7 @@ func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
 	return nil
 }
 
-func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerName string) (*domain.AgentRun, error) {
+func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerName string, task string) (*domain.AgentRun, error) {
 	state, err := s.store.Load()
 	if err != nil {
 		return nil, err
@@ -209,11 +209,15 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 		return nil, err
 	}
 
+	missionText := state.Missions[missionIndex].Text
+	if task != "" {
+		missionText = task
+	}
 	runRequest := agent.RunRequest{
 		RunID:       childRun.ID,
 		MissionID:   parentRun.MissionID,
 		RepoPath:    state.Repositories[repositoryIndex].Path,
-		MissionText: state.Missions[missionIndex].Text,
+		MissionText: missionText,
 	}
 
 	events, err := worker.StartRun(ctx, runRequest)

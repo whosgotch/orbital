@@ -30,3 +30,7 @@ func NewServiceWithWorkerRegistry(store *store.JSONStore, workerRegistry *agent.
 func (s *Service) SetEventOut(w io.Writer) {
 	s.eventOut = w
 }
+
+func (s *Service) RegisterWorker(w agent.Worker) {
+	s.workerRegistry.Register(w)
+}
