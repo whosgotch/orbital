@@ -36,7 +36,7 @@ fn queue_mission(repo_path: String, mission_text: String) -> Result<String, Stri
 }
 
 #[tauri::command]
-fn start_agent_run(
+async fn start_agent_run(
     app: tauri::AppHandle,
     repo_path: String,
     mission_id: String,
@@ -65,8 +65,14 @@ fn start_agent_run(
         ]
     };
 
-    let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    run_worker_streaming(&app, &arg_refs)
+    // Run the blocking worker off the main thread so the UI stays responsive
+    // while events stream in over the ~minute the run takes.
+    tauri::async_runtime::spawn_blocking(move || {
+        let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        run_worker_streaming(&app, &arg_refs)
+    })
+    .await
+    .map_err(|e| format!("worker task failed: {e}"))?
 }
 
 #[tauri::command]
