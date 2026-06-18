@@ -1,4 +1,4 @@
-import { Crown, FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
+import { Code2, Crown, Eye, FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
 import {
   type GraphNodeKind,
   type MissionNodeStatus,
@@ -144,8 +144,12 @@ function GraphGlyph({ kind, status, label }: { kind: GraphNodeKind; status?: Mis
   if (kind === "verification" || kind === "test") {
     return <ShieldCheck size={17} aria-hidden="true" />;
   }
-  if (kind === "worker" && label?.toLowerCase().includes("manager")) {
-    return <Crown size={17} aria-hidden="true" />;
+  if (kind === "worker") {
+    const lc = label?.toLowerCase() ?? "";
+    if (lc.includes("manager")) return <Crown size={17} aria-hidden="true" />;
+    if (lc.includes("engineer") || lc.includes("code")) return <Code2 size={17} aria-hidden="true" />;
+    if (lc.includes("qa") || lc.includes("quality")) return <ShieldCheck size={17} aria-hidden="true" />;
+    if (lc.includes("reviewer") || lc.includes("review")) return <Eye size={17} aria-hidden="true" />;
   }
 
   const Icon = status === "verified" ? ShieldCheck : status === "review" || status === "approved" ? Zap : RadioTower;
