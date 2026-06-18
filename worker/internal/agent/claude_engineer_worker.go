@@ -11,12 +11,10 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/domain"
 )
 
-type ClaudeEngineerWorker struct {
-	apiKey string
-}
+type ClaudeEngineerWorker struct{}
 
-func NewClaudeEngineerWorker(apiKey string) *ClaudeEngineerWorker {
-	return &ClaudeEngineerWorker{apiKey: apiKey}
+func NewClaudeEngineerWorker() *ClaudeEngineerWorker {
+	return &ClaudeEngineerWorker{}
 }
 
 func (w *ClaudeEngineerWorker) Name() string { return "claude-engineer" }
@@ -24,25 +22,25 @@ func (w *ClaudeEngineerWorker) Name() string { return "claude-engineer" }
 func (w *ClaudeEngineerWorker) Profile() WorkerProfile {
 	return WorkerProfile{
 		Name:  "claude-engineer",
-		Mode:  "cloud-api",
+		Mode:  "claude-cli",
 		Roles: []string{"Engineer"},
 		Capabilities: []string{
 			"read repository source files",
-			"generate unified diff patches via Claude API",
+			"generate unified diff patches via claude CLI",
 		},
 	}
 }
 
 func (w *ClaudeEngineerWorker) CheckAvailable(ctx context.Context) (*WorkerInfo, error) {
-	if w.apiKey == "" {
-		return &WorkerInfo{Name: w.Name(), Available: false, Reason: "ANTHROPIC_API_KEY not set", Profile: w.Profile()}, nil
+	if !claudeCLIAvailable() {
+		return &WorkerInfo{Name: w.Name(), Available: false, Reason: "claude CLI not found in PATH", Profile: w.Profile()}, nil
 	}
 	return &WorkerInfo{Name: w.Name(), Available: true, Profile: w.Profile()}, nil
 }
 
 func (w *ClaudeEngineerWorker) Supports(ctx context.Context, request RunRequest) SupportResult {
-	if w.apiKey == "" {
-		return SupportResult{Supported: false, Reason: "ANTHROPIC_API_KEY not set"}
+	if !claudeCLIAvailable() {
+		return SupportResult{Supported: false, Reason: "claude CLI not found in PATH"}
 	}
 	return SupportResult{Supported: true}
 }
@@ -68,7 +66,7 @@ func (w *ClaudeEngineerWorker) StartRun(ctx context.Context, request RunRequest)
 			}
 		}
 
-		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Calling Claude to generate patch.", "", claudeDefaultModel) {
+		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Calling Claude to generate patch.", "", "claude") {
 			return
 		}
 
@@ -76,15 +74,13 @@ func (w *ClaudeEngineerWorker) StartRun(ctx context.Context, request RunRequest)
 
 Rules:
 - Output ONLY the diff, starting with "diff --git a/..."
-- Use the exact file paths from the context
+- Use the exact file paths shown in the repository context
 - If no code change is needed, output an empty string
 - Never include explanations, markdown, or any text outside the diff`
 
-		userMsg := fmt.Sprintf("Task: %s\n\nRepository:\n%s", request.MissionText, repoContext)
-
-		diff, err := callClaude(w.apiKey, system, userMsg, 4096)
+		diff, err := callClaude(system, fmt.Sprintf("Task: %s\n\nRepository:\n%s", request.MissionText, repoContext))
 		if err != nil {
-			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Claude API error: %v", err), "", "")
+			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Claude error: %v", err), "", "")
 			return
 		}
 

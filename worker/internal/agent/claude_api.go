@@ -1,93 +1,29 @@
 package agent
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
-const claudeAPIURL = "https://api.anthropic.com/v1/messages"
-const claudeAPIVersion = "2023-06-01"
-const claudeDefaultModel = "claude-opus-4-8"
-
-type claudeMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+func callClaude(system, userMessage string) (string, error) {
+	prompt := fmt.Sprintf("<system>\n%s\n</system>\n\n%s", system, userMessage)
+	cmd := exec.Command("claude", "--print", prompt)
+	out, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("claude CLI: %s", strings.TrimSpace(string(exitErr.Stderr)))
+		}
+		return "", fmt.Errorf("claude CLI: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
-type claudeRequest struct {
-	Model     string          `json:"model"`
-	MaxTokens int             `json:"max_tokens"`
-	System    string          `json:"system,omitempty"`
-	Messages  []claudeMessage `json:"messages"`
-}
-
-type claudeContent struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-type claudeResponse struct {
-	Content []claudeContent `json:"content"`
-	Error   *struct {
-		Type    string `json:"type"`
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
-}
-
-func callClaude(apiKey, system, userMessage string, maxTokens int) (string, error) {
-	body, err := json.Marshal(claudeRequest{
-		Model:     claudeDefaultModel,
-		MaxTokens: maxTokens,
-		System:    system,
-		Messages:  []claudeMessage{{Role: "user", Content: userMessage}},
-	})
-	if err != nil {
-		return "", err
-	}
-
-	req, err := http.NewRequest("POST", claudeAPIURL, bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("x-api-key", apiKey)
-	req.Header.Set("anthropic-version", claudeAPIVersion)
-	req.Header.Set("content-type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("claude request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	var claudeResp claudeResponse
-	if err := json.Unmarshal(respBody, &claudeResp); err != nil {
-		return "", fmt.Errorf("claude response parse failed: %w", err)
-	}
-
-	if claudeResp.Error != nil {
-		return "", fmt.Errorf("claude API error: %s", claudeResp.Error.Message)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("claude API returned %d: %s", resp.StatusCode, respBody)
-	}
-
-	if len(claudeResp.Content) == 0 {
-		return "", fmt.Errorf("claude returned empty response")
-	}
-
-	return claudeResp.Content[0].Text, nil
+func claudeCLIAvailable() bool {
+	_, err := exec.LookPath("claude")
+	return err == nil
 }
 
 var repoSourceExtensions = []string{
@@ -105,7 +41,6 @@ func readRepoContext(repoPath string) (context string, files []string, err error
 
 	var sb strings.Builder
 
-	// Meta files first
 	for _, meta := range repoMetaFiles {
 		p := filepath.Join(repoPath, meta)
 		content, readErr := os.ReadFile(p)
@@ -121,7 +56,6 @@ func readRepoContext(repoPath string) (context string, files []string, err error
 		files = append(files, rel)
 	}
 
-	// Source files via walk
 	err = filepath.Walk(repoPath, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return nil
@@ -159,7 +93,6 @@ func readRepoContext(repoPath string) (context string, files []string, err error
 
 func extractJSONArray(s string) string {
 	s = strings.TrimSpace(s)
-	// Strip markdown fences
 	if idx := strings.Index(s, "```"); idx != -1 {
 		s = s[idx+3:]
 		if nl := strings.Index(s, "\n"); nl != -1 {
@@ -169,7 +102,6 @@ func extractJSONArray(s string) string {
 			s = s[:end]
 		}
 	}
-	// Extract first [...] block
 	start := strings.Index(s, "[")
 	end := strings.LastIndex(s, "]")
 	if start != -1 && end > start {

@@ -15,12 +15,11 @@ type subtask struct {
 }
 
 type ClaudeManagerWorker struct {
-	apiKey  string
 	spawner RunSpawner
 }
 
-func NewClaudeManagerWorker(apiKey string, spawner RunSpawner) *ClaudeManagerWorker {
-	return &ClaudeManagerWorker{apiKey: apiKey, spawner: spawner}
+func NewClaudeManagerWorker(spawner RunSpawner) *ClaudeManagerWorker {
+	return &ClaudeManagerWorker{spawner: spawner}
 }
 
 func (w *ClaudeManagerWorker) Name() string { return "claude-manager" }
@@ -28,7 +27,7 @@ func (w *ClaudeManagerWorker) Name() string { return "claude-manager" }
 func (w *ClaudeManagerWorker) Profile() WorkerProfile {
 	return WorkerProfile{
 		Name:  "claude-manager",
-		Mode:  "cloud-api",
+		Mode:  "claude-cli",
 		Roles: []string{"AI Manager"},
 		Capabilities: []string{
 			"decompose missions into engineering tasks via Claude API",
@@ -39,15 +38,15 @@ func (w *ClaudeManagerWorker) Profile() WorkerProfile {
 }
 
 func (w *ClaudeManagerWorker) CheckAvailable(ctx context.Context) (*WorkerInfo, error) {
-	if w.apiKey == "" {
-		return &WorkerInfo{Name: w.Name(), Available: false, Reason: "ANTHROPIC_API_KEY not set", Profile: w.Profile()}, nil
+	if !claudeCLIAvailable() {
+		return &WorkerInfo{Name: w.Name(), Available: false, Reason: "claude CLI not found in PATH", Profile: w.Profile()}, nil
 	}
 	return &WorkerInfo{Name: w.Name(), Available: true, Profile: w.Profile()}, nil
 }
 
 func (w *ClaudeManagerWorker) Supports(ctx context.Context, request RunRequest) SupportResult {
-	if w.apiKey == "" {
-		return SupportResult{Supported: false, Reason: "ANTHROPIC_API_KEY not set"}
+	if !claudeCLIAvailable() {
+		return SupportResult{Supported: false, Reason: "claude CLI not found in PATH"}
 	}
 	return SupportResult{Supported: true}
 }
@@ -61,7 +60,7 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 			return
 		}
 
-		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Analyzing mission and planning tasks.", "", claudeDefaultModel) {
+		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Analyzing mission and planning tasks.", "", "claude") {
 			return
 		}
 
@@ -84,7 +83,7 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 			}
 
 			spawnMsg := fmt.Sprintf("Spawning %s: %s", task.Role, task.Task)
-			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, spawnMsg, "", claudeDefaultModel) {
+			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, spawnMsg, "", "claude") {
 				return
 			}
 
@@ -118,7 +117,7 @@ func (w *ClaudeManagerWorker) decomposeMission(missionText string) ([]subtask, e
 Output ONLY a JSON array. Each element: {"role": "Engineer", "task": "<specific task>"}
 No markdown, no explanation — only the JSON array.`
 
-	response, err := callClaude(w.apiKey, system, "Mission: "+missionText, 1024)
+	response, err := callClaude(system, "Mission: "+missionText)
 	if err != nil {
 		return nil, err
 	}

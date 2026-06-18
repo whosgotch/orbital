@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/whosgotch/orbital/worker/internal/agent"
@@ -30,10 +29,8 @@ func startAgentRun(ctx context.Context, args []string, stdout io.Writer) error {
 	service := serviceForStartRun(jsonStore, options)
 	service.SetEventOut(stdout)
 
-	if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
-		service.RegisterWorker(agent.NewClaudeEngineerWorker(apiKey))
-		service.RegisterWorker(agent.NewClaudeManagerWorker(apiKey, service))
-	}
+	service.RegisterWorker(agent.NewClaudeEngineerWorker())
+	service.RegisterWorker(agent.NewClaudeManagerWorker(service))
 
 	if _, err := service.StartAgentRun(ctx, missionID, options.workerName); err != nil {
 		return err
