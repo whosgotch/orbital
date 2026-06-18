@@ -72,7 +72,7 @@ const workspaceViewFallback = {
 };
 
 const initialWorkspaceView = workspaceViewFromMissionLoop(initialMissionLoop, workspaceViewFallback);
-type WorkerMode = "mock" | "local-command";
+type WorkerMode = "mock" | "local-command" | "claude-manager";
 
 export function App() {
   const [missionLoopState, setMissionLoopState] = useState(initialMissionLoop);
@@ -185,7 +185,7 @@ export function App() {
         activeRepoPath,
         missionId,
         selectedWorkerMode,
-        selectedWorkerMode === "local-command" ? selectedLocalCommand : "",
+        selectedWorkerMode === "local-command" ? selectedLocalCommand : undefined,
       );
       if (nextMissionLoopState) {
         hydrateMissionLoop(nextMissionLoopState, missionId);
@@ -630,6 +630,7 @@ export function App() {
               >
                 <option value="mock">Demo worker</option>
                 <option value="local-command">Local command</option>
+                <option value="claude-manager">Claude Manager (AI)</option>
               </select>
             </label>
             {selectedWorkerMode === "local-command" ? (
@@ -1022,6 +1023,12 @@ function workerLabel(workerName: string) {
   if (workerName === "mock") {
     return "Demo worker: limited patch generator";
   }
+  if (workerName === "claude-manager") {
+    return "Claude Manager: AI orchestrates child agents";
+  }
+  if (workerName === "claude-engineer") {
+    return "Claude Engineer: AI code generation agent";
+  }
   if (workerName === "unassigned") {
     return "Worker not assigned";
   }
@@ -1032,6 +1039,9 @@ function workerLabel(workerName: string) {
 function workerLimitation(workerName: string) {
   if (workerName === "mock") {
     return "Supports the demo Node CLI patch path while the real local worker interface is being built.";
+  }
+  if (workerName === "claude-manager") {
+    return "Requires ANTHROPIC_API_KEY in environment. Decomposes mission, spawns Claude Engineer agents, merges patches.";
   }
   if (workerName === "unassigned") {
     return "Dispatch the mission to assign a worker.";
