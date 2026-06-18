@@ -561,11 +561,24 @@ export function App() {
       </section>
 
       <aside className="systems-rail">
+        {!selectedMission ? (
+          <section className="console-panel selected-console" aria-label="No mission selected">
+            <div className="panel-head">
+              <div>
+                <div className="section-label">Inspector</div>
+                <h2 className="quiet">No mission selected</h2>
+              </div>
+            </div>
+            <p className="quiet" style={{ padding: "12px 16px", fontSize: 13 }}>
+              Open a workspace and queue a mission to get started.
+            </p>
+          </section>
+        ) : (
         <section className="console-panel selected-console" aria-label="Selected node">
           <div className="panel-head">
             <div>
               <div className="section-label">Inspector</div>
-              <h2>{selectedGraphNode.label}</h2>
+              <h2>{selectedGraphNode?.label ?? ""}</h2>
             </div>
             <MissionGlyph status={statusFromRuntime(selectedRuntime)} />
           </div>
@@ -577,7 +590,9 @@ export function App() {
             runtime={selectedRuntime}
           />
         </section>
+        )}
 
+        {selectedMission && (<>
         <section className="console-panel work-order-console" aria-label="Work order">
           <div className="panel-head">
             <div>
@@ -740,6 +755,7 @@ export function App() {
           />
           <pre className="test-output">{verificationOutput(selectedRuntime, selectedVerificationOutput)}</pre>
         </section>
+        </>)}
       </aside>
     </main>
   );
