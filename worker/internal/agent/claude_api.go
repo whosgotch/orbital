@@ -4,24 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
-
-// callClaude runs a non-agentic, text-only Claude prompt and returns its output.
-// Used for planning/decomposition where we only want a textual answer.
-func callClaude(ctx context.Context, system, userMessage string) (string, error) {
-	prompt := fmt.Sprintf("<system>\n%s\n</system>\n\n%s", system, userMessage)
-	cmd := exec.CommandContext(ctx, "claude", "--print")
-	cmd.Stdin = strings.NewReader(prompt)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
-	}
-	return strings.TrimSpace(string(out)), nil
-}
 
 // callClaudeAgentic runs Claude in the repo with edit permissions so it can
 // modify files directly, then returns Claude's textual summary. The actual
@@ -48,6 +35,11 @@ func ensureGitRepo(ctx context.Context, repoPath string) error {
 		return nil
 	}
 
+	// Keep Orbital's own state out of the baseline so it never appears in diffs.
+	if err := os.WriteFile(filepath.Join(repoPath, ".gitignore"), []byte(".orbital/\n"), 0644); err != nil {
+		return fmt.Errorf("write .gitignore: %w", err)
+	}
+
 	steps := [][]string{
 		{"init"},
 		{"add", "-A"},
@@ -66,13 +58,13 @@ func ensureGitRepo(ctx context.Context, repoPath string) error {
 // captureGitDiff stages intent-to-add for new files (so they appear in the
 // diff) and returns the working-tree diff for the repo.
 func captureGitDiff(ctx context.Context, repoPath string) (string, error) {
-	add := exec.CommandContext(ctx, "git", "add", "-A", "-N")
+	add := exec.CommandContext(ctx, "git", "add", "-A", "-N", "--", ".", ":(exclude).orbital")
 	add.Dir = repoPath
 	if out, err := add.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("git add -N: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 
-	diff := exec.CommandContext(ctx, "git", "diff")
+	diff := exec.CommandContext(ctx, "git", "diff", "--", ".", ":(exclude).orbital")
 	diff.Dir = repoPath
 	var stderr bytes.Buffer
 	diff.Stderr = &stderr
@@ -86,23 +78,4 @@ func captureGitDiff(ctx context.Context, repoPath string) (string, error) {
 func claudeCLIAvailable() bool {
 	_, err := exec.LookPath("claude")
 	return err == nil
-}
-
-func extractJSONArray(s string) string {
-	s = strings.TrimSpace(s)
-	if idx := strings.Index(s, "```"); idx != -1 {
-		s = s[idx+3:]
-		if nl := strings.Index(s, "\n"); nl != -1 {
-			s = s[nl+1:]
-		}
-		if end := strings.Index(s, "```"); end != -1 {
-			s = s[:end]
-		}
-	}
-	start := strings.Index(s, "[")
-	end := strings.LastIndex(s, "]")
-	if start != -1 && end > start {
-		return s[start : end+1]
-	}
-	return s
 }

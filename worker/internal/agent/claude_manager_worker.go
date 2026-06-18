@@ -2,17 +2,10 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
 )
-
-type subtask struct {
-	Role string `json:"role"`
-	Task string `json:"task"`
-}
 
 type ClaudeManagerWorker struct {
 	spawner RunSpawner
@@ -60,35 +53,20 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 			return
 		}
 
-		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Analyzing mission and planning tasks.", "", "claude") {
-			return
-		}
-
-		tasks, err := w.decomposeMission(ctx, request.MissionText)
-		if err != nil {
-			// Planning is best-effort; fall back to the raw mission.
-			tasks = []subtask{{Role: "Engineer", Task: request.MissionText}}
-		}
-
-		msg := fmt.Sprintf("Mission plan (%d task(s)): %s", len(tasks), taskSummary(tasks))
-		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRepoInspected, msg, "", "") {
-			return
-		}
-
 		if ctx.Err() != nil {
 			sendCancelledEvent(events, request.RunID)
 			return
 		}
 
-		// Execute the whole plan as a single agentic engineering pass. Spawning
-		// multiple engineers on one working tree double-counts diffs; isolated
-		// git worktrees per agent come in a later milestone.
-		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Spawning Engineer to implement the plan.", "", "claude") {
+		// Delegate the mission to a single agentic engineer. A separate planning
+		// call adds a slow round-trip with no value here since the engineer plans
+		// and edits in one pass. Multi-agent fan-out across isolated git worktrees
+		// comes in a later milestone.
+		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Delegating mission to Engineer.", "", "claude") {
 			return
 		}
 
-		engineerTask := fmt.Sprintf("%s\n\nPlan:\n%s", request.MissionText, taskList(tasks))
-		if _, err := w.spawner.SpawnChildRun(ctx, request.RunID, "claude-engineer", engineerTask); err != nil {
+		if _, err := w.spawner.SpawnChildRun(ctx, request.RunID, "claude-engineer", request.MissionText); err != nil {
 			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Spawn failed: %v", err), "", "")
 			return
 		}
@@ -100,42 +78,4 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 
 func (w *ClaudeManagerWorker) CancelRun(ctx context.Context, runID string) error {
 	return nil
-}
-
-func (w *ClaudeManagerWorker) decomposeMission(ctx context.Context, missionText string) ([]subtask, error) {
-	system := `You are an AI engineering manager. Decompose the mission into at most 2 specific engineering tasks.
-
-Output ONLY a JSON array. Each element: {"role": "Engineer", "task": "<specific task>"}
-No markdown, no explanation — only the JSON array.`
-
-	response, err := callClaude(ctx, system, "Mission: "+missionText)
-	if err != nil {
-		return nil, err
-	}
-
-	var tasks []subtask
-	if err := json.Unmarshal([]byte(extractJSONArray(response)), &tasks); err != nil || len(tasks) == 0 {
-		// Fallback: single engineer task with the full mission text
-		return []subtask{{Role: "Engineer", Task: missionText}}, nil
-	}
-	if len(tasks) > 2 {
-		tasks = tasks[:2]
-	}
-	return tasks, nil
-}
-
-func taskSummary(tasks []subtask) string {
-	parts := make([]string, len(tasks))
-	for i, t := range tasks {
-		parts[i] = fmt.Sprintf("%s (%s)", t.Role, t.Task)
-	}
-	return strings.Join(parts, "; ")
-}
-
-func taskList(tasks []subtask) string {
-	parts := make([]string, len(tasks))
-	for i, t := range tasks {
-		parts[i] = fmt.Sprintf("%d. [%s] %s", i+1, t.Role, t.Task)
-	}
-	return strings.Join(parts, "\n")
 }
