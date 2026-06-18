@@ -541,6 +541,21 @@ dd {
   filter: drop-shadow(0 0 4px rgba(142, 162, 255, 0.48));
 }
 
+.graph-edge.active {
+  stroke-dasharray: 3 2;
+  animation: edge-flow 1.2s linear infinite;
+}
+
+.graph-edge.runs.active {
+  stroke: rgba(231, 184, 75, 0.8);
+  stroke-width: 0.3;
+}
+
+@keyframes edge-flow {
+  from { stroke-dashoffset: 10; }
+  to { stroke-dashoffset: 0; }
+}
+
 .graph-node {
   position: absolute;
   display: grid;
@@ -562,10 +577,25 @@ dd {
   transform: translate(-50%, -50%);
   z-index: 2;
   transition:
+    background 300ms ease,
     border-color 180ms ease,
     box-shadow 180ms ease,
     opacity 180ms ease,
     transform 180ms ease;
+}
+
+.graph-node.running {
+  animation: node-pulse 1.4s ease-in-out infinite;
+  border-color: rgba(231, 184, 75, 0.6);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.26),
+    0 0 14px rgba(231, 184, 75, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+@keyframes node-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.06); }
 }
 
 .graph-node::before {
