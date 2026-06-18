@@ -19,6 +19,10 @@ const (
 	WorkflowEventRunCompleted       WorkflowEventType = "run_completed"
 	WorkflowEventRunFailed          WorkflowEventType = "run_failed"
 	WorkflowEventRunCancelled       WorkflowEventType = "run_cancelled"
+	WorkflowEventChildRunSpawned    WorkflowEventType = "child_run_spawned"
+	WorkflowEventChildRunCompleted  WorkflowEventType = "child_run_completed"
+	WorkflowEventChildRunFailed     WorkflowEventType = "child_run_failed"
+	WorkflowEventPatchesMerged      WorkflowEventType = "patches_merged"
 )
 
 type WorkflowEvent struct {

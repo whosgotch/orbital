@@ -16,10 +16,11 @@ const (
 )
 
 type Mission struct {
-	ID           string        `json:"id"`
-	RepositoryID string        `json:"repository_id"`
-	Text         string        `json:"text"`
-	Status       MissionStatus `json:"status"`
-	CreatedAt    time.Time     `json:"created_at"`
-	UpdatedAt    time.Time     `json:"updated_at"`
+	ID             string        `json:"id"`
+	RepositoryID   string        `json:"repository_id"`
+	Text           string        `json:"text"`
+	Status         MissionStatus `json:"status"`
+	CreatedAt      time.Time     `json:"created_at"`
+	UpdatedAt      time.Time     `json:"updated_at"`
+	ParentMissionID string       `json:"parent_mission_id,omitempty"`
 }

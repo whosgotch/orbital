@@ -5,11 +5,13 @@ import "time"
 type AgentRunStatus string
 
 const (
-	AgentRunStatusQueued    AgentRunStatus = "queued"
-	AgentRunStatusRunning   AgentRunStatus = "running"
-	AgentRunStatusCompleted AgentRunStatus = "completed"
-	AgentRunStatusFailed    AgentRunStatus = "failed"
-	AgentRunStatusCancelled AgentRunStatus = "cancelled"
+	AgentRunStatusQueued             AgentRunStatus = "queued"
+	AgentRunStatusRunning            AgentRunStatus = "running"
+	AgentRunStatusWaitingForChildren AgentRunStatus = "waiting_for_children"
+	AgentRunStatusAggregating        AgentRunStatus = "aggregating"
+	AgentRunStatusCompleted          AgentRunStatus = "completed"
+	AgentRunStatusFailed             AgentRunStatus = "failed"
+	AgentRunStatusCancelled          AgentRunStatus = "cancelled"
 )
 
 type AgentRun struct {
@@ -20,4 +22,6 @@ type AgentRun struct {
 	StartedAt   time.Time      `json:"started_at"`
 	CompletedAt *time.Time     `json:"completed_at,omitempty"`
 	Error       string         `json:"error,omitempty"`
+	ParentRunID string         `json:"parent_run_id,omitempty"`
+	ChildRunIDs []string       `json:"child_run_ids,omitempty"`
 }
