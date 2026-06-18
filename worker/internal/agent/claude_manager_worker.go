@@ -66,40 +66,31 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 
 		tasks, err := w.decomposeMission(ctx, request.MissionText)
 		if err != nil {
-			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Decomposition failed: %v", err), "", "")
-			return
+			// Planning is best-effort; fall back to the raw mission.
+			tasks = []subtask{{Role: "Engineer", Task: request.MissionText}}
 		}
 
-		msg := fmt.Sprintf("Mission decomposed into %d task(s): %s", len(tasks), taskSummary(tasks))
+		msg := fmt.Sprintf("Mission plan (%d task(s)): %s", len(tasks), taskSummary(tasks))
 		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRepoInspected, msg, "", "") {
 			return
 		}
 
-		var childRunIDs []string
-		for _, task := range tasks {
-			if ctx.Err() != nil {
-				sendCancelledEvent(events, request.RunID)
-				return
-			}
-
-			spawnMsg := fmt.Sprintf("Spawning %s: %s", task.Role, task.Task)
-			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, spawnMsg, "", "claude") {
-				return
-			}
-
-			childRun, err := w.spawner.SpawnChildRun(ctx, request.RunID, "claude-engineer", task.Task)
-			if err != nil {
-				sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Spawn failed: %v", err), "", "")
-				return
-			}
-			childRunIDs = append(childRunIDs, childRun.ID)
+		if ctx.Err() != nil {
+			sendCancelledEvent(events, request.RunID)
+			return
 		}
 
-		if len(childRunIDs) > 0 {
-			if _, err := w.spawner.MergePatches(childRunIDs); err != nil && !strings.Contains(err.Error(), "no pending patches") {
-				sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Merge failed: %v", err), "", "")
-				return
-			}
+		// Execute the whole plan as a single agentic engineering pass. Spawning
+		// multiple engineers on one working tree double-counts diffs; isolated
+		// git worktrees per agent come in a later milestone.
+		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Spawning Engineer to implement the plan.", "", "claude") {
+			return
+		}
+
+		engineerTask := fmt.Sprintf("%s\n\nPlan:\n%s", request.MissionText, taskList(tasks))
+		if _, err := w.spawner.SpawnChildRun(ctx, request.RunID, "claude-engineer", engineerTask); err != nil {
+			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Spawn failed: %v", err), "", "")
+			return
 		}
 
 		sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunCompleted, "Claude Manager completed orchestration.", "", "")
@@ -139,4 +130,12 @@ func taskSummary(tasks []subtask) string {
 		parts[i] = fmt.Sprintf("%s (%s)", t.Role, t.Task)
 	}
 	return strings.Join(parts, "; ")
+}
+
+func taskList(tasks []subtask) string {
+	parts := make([]string, len(tasks))
+	for i, t := range tasks {
+		parts[i] = fmt.Sprintf("%d. [%s] %s", i+1, t.Role, t.Task)
+	}
+	return strings.Join(parts, "\n")
 }

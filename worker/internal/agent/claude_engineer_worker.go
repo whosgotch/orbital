@@ -25,8 +25,8 @@ func (w *ClaudeEngineerWorker) Profile() WorkerProfile {
 		Mode:  "claude-cli",
 		Roles: []string{"Engineer"},
 		Capabilities: []string{
-			"read repository source files",
-			"generate unified diff patches via claude CLI",
+			"edit repository files via claude CLI",
+			"capture changes as a unified diff for review",
 		},
 	}
 }
@@ -54,44 +54,47 @@ func (w *ClaudeEngineerWorker) StartRun(ctx context.Context, request RunRequest)
 			return
 		}
 
-		repoContext, readFiles, err := readRepoContext(request.RepoPath)
-		if err != nil {
-			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Failed to read repo: %v", err), "", "")
+		if err := ensureGitRepo(ctx, request.RepoPath); err != nil {
+			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Git init failed: %v", err), "", "")
 			return
 		}
 
-		for _, f := range readFiles {
-			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventFileRead, fmt.Sprintf("Read %s", f), f, "") {
-				return
-			}
-		}
-
-		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Calling Claude to generate patch.", "", "claude") {
+		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Claude is editing the repository.", "", "claude") {
 			return
 		}
 
-		system := `You are an expert software engineer. Given a task and repository source files, produce a valid unified diff patch.
+		prompt := fmt.Sprintf(`You are an autonomous software engineer working in this repository.
 
-Rules:
-- Output ONLY the diff, starting with "diff --git a/..."
-- Use the exact file paths shown in the repository context
-- If no code change is needed, output an empty string
-- Never include explanations, markdown, or any text outside the diff`
+Task: %s
 
-		diff, err := callClaude(ctx, system, fmt.Sprintf("Task: %s\n\nRepository:\n%s", request.MissionText, repoContext))
+Make the necessary code changes directly by editing files. Keep the change focused and minimal. Do not commit. When done, briefly summarize what you changed.`, request.MissionText)
+
+		summary, err := callClaudeAgentic(ctx, request.RepoPath, prompt)
 		if err != nil {
 			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Claude error: %v", err), "", "")
 			return
 		}
 
+		if strings.TrimSpace(summary) != "" {
+			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, truncate(summary, 200), "", "claude") {
+				return
+			}
+		}
+
+		diff, err := captureGitDiff(ctx, request.RepoPath)
+		if err != nil {
+			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Capture diff failed: %v", err), "", "")
+			return
+		}
+
 		diff = strings.TrimSpace(diff)
-		if diff != "" && strings.HasPrefix(diff, "diff --git") {
+		if diff != "" {
 			patchPath := filepath.Join(request.RepoPath, ".orbital", "runs", request.RunID, "patch.diff")
 			if err := os.MkdirAll(filepath.Dir(patchPath), 0755); err != nil {
 				sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Failed to create patch dir: %v", err), "", "")
 				return
 			}
-			if err := os.WriteFile(patchPath, []byte(diff), 0644); err != nil {
+			if err := os.WriteFile(patchPath, []byte(diff+"\n"), 0644); err != nil {
 				sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Failed to write patch: %v", err), "", "")
 				return
 			}
@@ -101,7 +104,7 @@ Rules:
 				ID:        fmt.Sprintf("patch_%d", now.UnixNano()),
 				RunID:     request.RunID,
 				Status:    domain.PatchStatusPending,
-				Diff:      diff,
+				Diff:      diff + "\n",
 				CreatedAt: now,
 				UpdatedAt: now,
 			}
@@ -116,6 +119,10 @@ Rules:
 			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventPatchProposed, "Claude Engineer produced a patch.", patchPath, "") {
 				return
 			}
+		} else {
+			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "No file changes were produced.", "", "") {
+				return
+			}
 		}
 
 		sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunCompleted, "Claude Engineer completed.", "", "")
@@ -125,4 +132,12 @@ Rules:
 
 func (w *ClaudeEngineerWorker) CancelRun(ctx context.Context, runID string) error {
 	return nil
+}
+
+func truncate(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
