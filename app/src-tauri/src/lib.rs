@@ -1,5 +1,7 @@
+use std::io::{BufRead, BufReader, Read};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use tauri::Emitter;
 
 const DEMO_REPO_PATH: &str = "/private/tmp/orbital-demo-repo";
 const DEMO_VERIFICATION_COMMAND: &str = "node -e \"console.log('verified')\"";
@@ -35,32 +37,36 @@ fn queue_mission(repo_path: String, mission_text: String) -> Result<String, Stri
 
 #[tauri::command]
 fn start_agent_run(
+    app: tauri::AppHandle,
     repo_path: String,
     mission_id: String,
     worker_name: Option<String>,
     command: Option<String>,
 ) -> Result<String, String> {
     let worker_name = worker_name.unwrap_or_else(|| "mock".to_string());
-    if worker_name.trim() == "local-command" {
-        let command = command.unwrap_or_default();
-        return run_worker(&[
-            "start-run",
-            repo_path.trim(),
-            mission_id.trim(),
-            "--worker",
-            "local-command",
-            "--command",
-            command.trim(),
-        ]);
-    }
+    let args: Vec<String> = if worker_name.trim() == "local-command" {
+        let cmd = command.unwrap_or_default();
+        vec![
+            "start-run".into(),
+            repo_path.trim().to_string(),
+            mission_id.trim().to_string(),
+            "--worker".into(),
+            "local-command".into(),
+            "--command".into(),
+            cmd.trim().to_string(),
+        ]
+    } else {
+        vec![
+            "start-run".into(),
+            repo_path.trim().to_string(),
+            mission_id.trim().to_string(),
+            "--worker".into(),
+            worker_name.trim().to_string(),
+        ]
+    };
 
-    run_worker(&[
-        "start-run",
-        repo_path.trim(),
-        mission_id.trim(),
-        "--worker",
-        worker_name.trim(),
-    ])
+    let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    run_worker_streaming(&app, &arg_refs)
 }
 
 #[tauri::command]
@@ -86,6 +92,64 @@ fn verify_mission(
         mission_id.trim(),
         command.trim(),
     ])
+}
+
+fn run_worker_streaming(app: &tauri::AppHandle, args: &[&str]) -> Result<String, String> {
+    let mut child = Command::new("go")
+        .arg("run")
+        .arg("./cmd/orbital")
+        .args(args)
+        .current_dir(worker_dir()?)
+        .env("GOCACHE", GO_CACHE_PATH)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("failed to spawn worker: {e}"))?;
+
+    let stdout = child.stdout.take().expect("stdout is piped");
+    let stderr = child.stderr.take().expect("stderr is piped");
+
+    let stderr_handle = std::thread::spawn(move || {
+        let mut s = String::new();
+        BufReader::new(stderr).read_to_string(&mut s).ok();
+        s
+    });
+
+    let reader = BufReader::new(stdout);
+    let mut final_state = String::new();
+
+    for line in reader.lines() {
+        let line = line.map_err(|e| format!("failed to read worker output: {e}"))?;
+        if let Some(json_str) = line.strip_prefix("EVENT:") {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
+                let _ = app.emit("workflow_event", val);
+            }
+        } else if let Some(json_str) = line.strip_prefix("PATCH:") {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
+                let _ = app.emit("patch_proposal", val);
+            }
+        } else if let Some(json_str) = line.strip_prefix("STATE:") {
+            final_state = json_str.to_string();
+        }
+    }
+
+    let status = child.wait().map_err(|e| format!("failed to wait for worker: {e}"))?;
+    let stderr_output = stderr_handle.join().unwrap_or_default();
+
+    if !status.success() {
+        let err = stderr_output.trim().to_string();
+        return Err(if err.is_empty() {
+            format!("worker exited with status {}", status)
+        } else {
+            err
+        });
+    }
+
+    if final_state.is_empty() {
+        return Err("worker produced no final state".to_string());
+    }
+
+    Ok(final_state)
 }
 
 fn run_worker_status(repo_path: &str) -> Result<String, String> {
