@@ -30,6 +30,7 @@ func startAgentRun(ctx context.Context, args []string, stdout io.Writer) error {
 	service.SetEventOut(stdout)
 
 	service.RegisterWorker(agent.NewClaudeEngineerWorker())
+	service.RegisterWorker(agent.NewClaudeReviewerWorker())
 	service.RegisterWorker(agent.NewClaudeManagerWorker(service))
 
 	if _, err := service.StartAgentRun(ctx, missionID, options.workerName); err != nil {

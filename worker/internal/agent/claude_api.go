@@ -78,6 +78,70 @@ func callClaudeAgentic(ctx context.Context, repoPath, prompt string, onStep func
 	return summary, nil
 }
 
+// managerPlan is Claude's decomposition of a mission into the work each
+// specialized child agent should carry out.
+type managerPlan struct {
+	EngineerTask string `json:"engineer_task"`
+	ReviewerTask string `json:"reviewer_task"`
+}
+
+// callClaudePlan asks Claude to break a mission into an engineering task and a
+// review task. It returns the parsed plan, or an error if the CLI fails or the
+// response can't be parsed (callers fall back to delegating the raw mission).
+func callClaudePlan(ctx context.Context, repoPath, mission string) (managerPlan, error) {
+	prompt := fmt.Sprintf(`You are an engineering manager planning how to accomplish a mission in this repository.
+
+Mission: %s
+
+Decompose it into work for two agents that run in sequence on the same code:
+1. an Engineer who implements the change, and
+2. a Reviewer who refines the engineer's work for correctness, edge cases, and clarity.
+
+Respond with ONLY a JSON object and nothing else:
+{"engineer_task": "<what the engineer should implement>", "reviewer_task": "<what the reviewer should check and refine>"}`, mission)
+
+	cmd := exec.CommandContext(ctx, "claude", "--print", "--output-format", "json", prompt)
+	cmd.Dir = repoPath
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	out, err := cmd.Output()
+	if err != nil {
+		return managerPlan{}, fmt.Errorf("claude plan: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+
+	// `--output-format json` wraps the answer in a result envelope.
+	text := string(out)
+	var envelope struct {
+		Result string `json:"result"`
+	}
+	if json.Unmarshal(out, &envelope) == nil && strings.TrimSpace(envelope.Result) != "" {
+		text = envelope.Result
+	}
+
+	plan, err := parseManagerPlan(text)
+	if err != nil {
+		return managerPlan{}, err
+	}
+	return plan, nil
+}
+
+// parseManagerPlan extracts the JSON object from Claude's reply, tolerating
+// markdown fences or surrounding prose.
+func parseManagerPlan(text string) (managerPlan, error) {
+	start := strings.Index(text, "{")
+	end := strings.LastIndex(text, "}")
+	if start == -1 || end == -1 || end < start {
+		return managerPlan{}, fmt.Errorf("no JSON object in plan response")
+	}
+
+	var plan managerPlan
+	if err := json.Unmarshal([]byte(text[start:end+1]), &plan); err != nil {
+		return managerPlan{}, fmt.Errorf("parse plan: %w", err)
+	}
+	return plan, nil
+}
+
 // describeToolUse renders a concise, human-readable line for a Claude tool call.
 func describeToolUse(name string, input json.RawMessage) string {
 	var fields struct {
