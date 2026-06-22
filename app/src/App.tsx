@@ -76,6 +76,8 @@ export function App() {
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, mission.worker === "local-command" ? "local-command" : "mock"])),
   );
   const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
+  const [openPanel, setOpenPanel] = useState<null | "repo" | "mission">(null);
+  const togglePanel = (panel: "repo" | "mission") => setOpenPanel((current) => (current === panel ? null : panel));
 
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode?.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0]?.id;
@@ -457,19 +459,61 @@ export function App() {
   }, []);
 
   return (
-    <main className="control-deck">
-      <aside className="command-rail">
-        <div className="brand">
-          <div className="brand-mark" aria-hidden="true">
-            <CircleDot size={20} />
-          </div>
-          <div>
-            <h1>Orbital</h1>
-            <p>Local mission control</p>
-          </div>
-        </div>
+    <main className="canvas-shell">
+      <GraphMap
+        nodes={graphNodes}
+        edges={workspaceGraphEdges}
+        selectedNodeId={selectedGraphNode?.id ?? ""}
+        selectedMissionId={selectedMission?.id ?? ""}
+        runningMissionIds={runningMissionIds}
+        onSelectNode={setSelectedNodeId}
+      />
 
-        <section className="console-panel workspace-console" aria-label="Workspace">
+      <header className="topbar">
+        <div className="topbar-brand">
+          <CircleDot size={18} aria-hidden="true" />
+          <span>Orbital</span>
+        </div>
+        <div className="topbar-group">
+          <button
+            className={`chip ${openPanel === "repo" ? "active" : ""}`}
+            type="button"
+            onClick={() => togglePanel("repo")}
+            title={activeRepoPath}
+          >
+            <FolderOpen size={15} aria-hidden="true" />
+            <span>{repoLabel(selectedRepository?.name, activeRepoPath)}</span>
+          </button>
+          <button
+            className={`chip primary-chip ${openPanel === "mission" ? "active" : ""}`}
+            type="button"
+            onClick={() => togglePanel("mission")}
+          >
+            <Rocket size={15} aria-hidden="true" />
+            <span>Mission</span>
+          </button>
+          <button
+            className="chip icon"
+            type="button"
+            onClick={refreshMissionLoop}
+            disabled={refreshingMissionLoop}
+            aria-label="Refresh mission loop"
+            title="Refresh mission loop"
+          >
+            <RefreshCw size={15} aria-hidden="true" />
+          </button>
+        </div>
+        <div className="topbar-spacer" />
+        <div className="topbar-metrics">
+          <span><strong>{missionLoopState.repositories.length}</strong> repos</span>
+          <span><strong>{workspaceMissions.length}</strong> missions</span>
+          <span><strong>{visibleMissions.filter((mission) => isRunning(mission.runtime)).length}</strong> running</span>
+          <span><strong>{visibleMissions.filter((mission) => mission.runtime.verified).length}</strong> verified</span>
+        </div>
+      </header>
+
+      {openPanel === "repo" ? (
+        <section className="popover repo-popover" aria-label="Workspace">
           <div className="section-label">Workspace</div>
           <input
             aria-label="Repository path"
@@ -485,7 +529,15 @@ export function App() {
               <RefreshCw size={16} aria-hidden="true" />
               <span>Demo</span>
             </button>
-            <button className="primary" type="button" onClick={openWorkspace} disabled={!repoPathDraft.trim() || refreshingMissionLoop}>
+            <button
+              className="primary"
+              type="button"
+              onClick={() => {
+                void openWorkspace();
+                setOpenPanel(null);
+              }}
+              disabled={!repoPathDraft.trim() || refreshingMissionLoop}
+            >
               <FolderOpen size={16} aria-hidden="true" />
               <span>Open</span>
             </button>
@@ -494,124 +546,53 @@ export function App() {
             {activeRepoPath}
           </div>
         </section>
+      ) : null}
 
-        <section className="console-panel launch-console" aria-label="New mission">
+      {openPanel === "mission" ? (
+        <section className="popover mission-popover" aria-label="New mission">
           <div className="section-label">Mission intake</div>
           <textarea
             aria-label="Mission intent"
             value={missionDraft}
             onChange={(event) => setMissionDraft(event.target.value)}
           />
-          <button className="primary command-button" type="button" onClick={queueMission} disabled={!missionDraft.trim()}>
+          <button
+            className="primary command-button"
+            type="button"
+            onClick={() => {
+              void queueMission();
+              setOpenPanel(null);
+            }}
+            disabled={!missionDraft.trim()}
+          >
             <Rocket size={17} aria-hidden="true" />
             <span>Queue mission</span>
           </button>
         </section>
+      ) : null}
 
-        <section className="console-panel fleet-console" aria-label="Workspace telemetry">
-          <div className="section-label">Workspace telemetry</div>
-          <dl className="metric-grid">
-            <div>
-              <dt>Repos</dt>
-              <dd>{missionLoopState.repositories.length}</dd>
-            </div>
-            <div>
-              <dt>Missions</dt>
-              <dd>{workspaceMissions.length}</dd>
-            </div>
-            <div>
-              <dt>Review</dt>
-              <dd>{visibleMissions.filter((mission) => isReviewing(mission.runtime)).length}</dd>
-            </div>
-          </dl>
-          <div className="telemetry-stack">
-            <TelemetryLine label="Running" value={String(visibleMissions.filter((mission) => isRunning(mission.runtime)).length)} />
-            <TelemetryLine label="Blocked" value={String(visibleMissions.filter((mission) => mission.runtime.patchStatus === "rejected").length)} />
-            <TelemetryLine label="Verified" value={String(visibleMissions.filter((mission) => mission.runtime.verified).length)} />
-          </div>
-        </section>
+      {missionLoopError ? <div className="floating-error">{missionLoopError}</div> : null}
 
-        <section className="console-panel repo-scan-console" aria-label="Repository scan">
-          <div className="section-label">Repo scan</div>
-          <div className="scan-stack">
-            <ScanLine label="Stack" value={repositoryStack(selectedRepository)} />
-            <ScanLine label="Branch" value={selectedRepository?.branch || "unknown"} />
-            <ScanLine label="QA" value={selectedRepository?.verification_command || selectedVerificationCommand} />
-          </div>
-        </section>
-      </aside>
-
-      <section className="mission-stage" aria-label="Orbital command map">
-        <header className="stage-header">
-          <div>
-            <div className="section-label">Constellation map</div>
-            <h2>Mission intake, AI manager dispatch, workers, patch bay, and QA gate</h2>
-          </div>
-          <div className="stage-actions">
-            <button
-              className="secondary icon-button"
-              type="button"
-              onClick={refreshMissionLoop}
-              disabled={refreshingMissionLoop}
-              aria-label="Refresh mission loop"
-              title="Refresh mission loop"
-            >
-              <RefreshCw size={16} aria-hidden="true" />
-            </button>
-            <div className={`status-pill ${missionStatus.className}`}>{missionStatus.label}</div>
-          </div>
-        </header>
-        {missionLoopError ? <div className="stage-error">{missionLoopError}</div> : null}
-
-        <GraphMap
-          nodes={graphNodes}
-          edges={workspaceGraphEdges}
-          selectedNodeId={selectedGraphNode?.id ?? ""}
-          selectedMissionId={selectedMission?.id ?? ""}
-          runningMissionIds={runningMissionIds}
-          onSelectNode={setSelectedNodeId}
-        />
-        {workspaceMissions.length === 0 ? (
-          <div className="graph-empty-state">
-            <p>Open a workspace, then queue a mission to begin.</p>
-          </div>
-        ) : null}
-      </section>
-
-      <aside className="systems-rail">
-        {!selectedMission ? (
-          <section className="console-panel selected-console" aria-label="No mission selected">
+      {selectedMission ? (
+        <aside className="inspector" aria-label="Inspector">
+          <section className="console-panel selected-console" aria-label="Selected node">
             <div className="panel-head">
               <div>
                 <div className="section-label">Inspector</div>
-                <h2 className="quiet">No mission selected</h2>
+                <h2>{selectedGraphNode?.label ?? ""}</h2>
               </div>
+              <MissionGlyph status={statusFromRuntime(selectedRuntime)} />
             </div>
-            <p className="quiet" style={{ padding: "12px 16px", fontSize: 13 }}>
-              Open a workspace and queue a mission to get started.
-            </p>
+            <NodeInspector
+              node={selectedGraphNode}
+              mission={selectedMission}
+              missions={workspaceMissions}
+              repositories={missionLoopState.repositories}
+              runtime={selectedRuntime}
+            />
           </section>
-        ) : (
-        <section className="console-panel selected-console" aria-label="Selected node">
-          <div className="panel-head">
-            <div>
-              <div className="section-label">Inspector</div>
-              <h2>{selectedGraphNode?.label ?? ""}</h2>
-            </div>
-            <MissionGlyph status={statusFromRuntime(selectedRuntime)} />
-          </div>
-          <NodeInspector
-            node={selectedGraphNode}
-            mission={selectedMission}
-            missions={workspaceMissions}
-            repositories={missionLoopState.repositories}
-            runtime={selectedRuntime}
-          />
-        </section>
-        )}
 
-        {selectedMission && (<>
-        <section className="console-panel work-order-console" aria-label="Work order">
+          <section className="console-panel work-order-console" aria-label="Work order">
           <div className="panel-head">
             <div>
               <div className="section-label">Work order</div>
@@ -772,11 +753,26 @@ export function App() {
             }
           />
           <pre className="test-output">{verificationOutput(selectedRuntime, selectedVerificationOutput)}</pre>
-        </section>
-        </>)}
-      </aside>
+          </section>
+        </aside>
+      ) : null}
+
+      {workspaceMissions.length === 0 ? (
+        <div className="canvas-hint">
+          <p>Open a workspace, then queue a mission to begin.</p>
+        </div>
+      ) : null}
     </main>
   );
+}
+
+function repoLabel(name: string | undefined, path: string) {
+  if (name) {
+    return name;
+  }
+  const trimmed = path.replace(/\/+$/, "");
+  const base = trimmed.split("/").filter(Boolean).at(-1);
+  return base || "Open repo";
 }
 
 function MissionGlyph({ status }: { status: MissionNodeStatus }) {
@@ -786,24 +782,6 @@ function MissionGlyph({ status }: { status: MissionNodeStatus }) {
     <span className={`mission-glyph ${status}`}>
       <Icon size={15} aria-hidden="true" />
     </span>
-  );
-}
-
-function TelemetryLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="telemetry-line">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function ScanLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="scan-line">
-      <span>{label}</span>
-      <strong title={value}>{value}</strong>
-    </div>
   );
 }
 
@@ -1008,10 +986,6 @@ function isRunning(runtime: WorkspaceRuntime) {
   return statusFromRuntime(runtime) === "running";
 }
 
-function isReviewing(runtime: WorkspaceRuntime) {
-  return statusFromRuntime(runtime) === "review";
-}
-
 function patchStateLabel(runtime: WorkspaceRuntime, patchReady: boolean) {
   if (runtime.patchStatus === "approved") {
     return "Approved";
@@ -1030,17 +1004,6 @@ function patchStateClass(runtime: WorkspaceRuntime, patchReady: boolean) {
     return "rejected";
   }
   return patchReady ? "active" : "";
-}
-
-function repositoryStack(repository: Repository | undefined) {
-  const command = repository?.verification_command ?? "";
-  if (command.startsWith("npm ")) {
-    return "Node";
-  }
-  if (command.startsWith("go ")) {
-    return "Go";
-  }
-  return "Unknown";
 }
 
 function workerLabel(workerName: string) {
