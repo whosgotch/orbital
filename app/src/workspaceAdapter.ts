@@ -55,11 +55,7 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
     ]),
   ) as WorkspaceRuntimeMap;
   const patchDiffByMission = Object.fromEntries(
-    state.missions.map((mission) => {
-      const run = state.agent_runs.filter((item) => item.mission_id === mission.id).at(-1);
-      const patch = run ? state.patch_proposals.filter((proposal) => proposal.run_id === run.id).at(-1) : undefined;
-      return [mission.id, patch?.diff ?? ""];
-    }),
+    state.missions.map((mission) => [mission.id, latestPatchForMission(state, mission.id)?.diff ?? ""]),
   );
   const verificationOutputByMission = Object.fromEntries(
     state.missions.map((mission) => [mission.id, latestVerification(state, mission.id)?.output ?? ""]),
@@ -86,9 +82,8 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
 function workspaceMissionFromState(state: MissionLoopState, mission: Mission, index: number): WorkspaceMission {
   const runs = state.agent_runs.filter((run) => run.mission_id === mission.id);
   const latestRun = runs.at(-1);
-  const patch = latestRun
-    ? state.patch_proposals.filter((proposal) => proposal.run_id === latestRun.id).at(-1)
-    : undefined;
+  const topLevelRun = runs.filter((run) => !run.parent_run_id).at(-1) ?? latestRun;
+  const patch = latestPatchForMission(state, mission.id);
   const verification = latestVerification(state, mission.id);
   const events = state.workflow_events.filter((event) => event.mission_id === mission.id || event.run_id === latestRun?.id);
 
@@ -97,7 +92,7 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
     repository_id: mission.repository_id,
     title: mission.text,
     status: missionStatus(mission, patch?.status, verification),
-    worker: latestRun?.worker_name ?? "unassigned",
+    worker: topLevelRun?.worker_name ?? "unassigned",
     command: verification?.command ?? commandFromEvents(state, mission.id) ?? defaultVerificationCommand(state, mission),
     files: Array.from(new Set(events.map((event) => event.file_path).filter((path): path is string => Boolean(path)))),
     step: Math.max(events.length - 1, -1),
@@ -158,7 +153,7 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
           nodes.push({
             id: child.id,
             kind: "worker",
-            label: child.worker_name,
+            label: roleLabel(child.worker_name),
             detail: child.status,
             x: 49 + i * step,
             y: rowY + (i % 2 === 0 ? -4 : 4),
@@ -334,6 +329,20 @@ function patchStatus(status: WorkerPatchStatus | undefined): PatchStatus {
   return "pending";
 }
 
+// A mission can span several runs (an AI manager spawns child agents). Find the
+// latest patch from the most recent run that produced one, so the CEO gate shows
+// and approves the same patch the worker `approve` command resolves.
+function latestPatchForMission(state: MissionLoopState, missionId: string) {
+  const runs = state.agent_runs.filter((run) => run.mission_id === missionId);
+  for (let index = runs.length - 1; index >= 0; index--) {
+    const patch = state.patch_proposals.filter((proposal) => proposal.run_id === runs[index].id).at(-1);
+    if (patch) {
+      return patch;
+    }
+  }
+  return undefined;
+}
+
 function latestVerification(state: MissionLoopState, missionId: string) {
   return state.verification_runs.filter((verification) => verification.mission_id === missionId).at(-1);
 }
@@ -361,7 +370,10 @@ function stationActivityFromEvents(events: WorkflowEvent[]) {
       case "file_read":
         return "Architect pulled source context onto the belt.";
       case "command_executed":
-        return event.message.startsWith("Local command output:") ? event.message : "Local command started on the worker floor.";
+        // Preserve the agent's own narration (Claude's live actions, the
+        // manager's plan, local-command output) so the hydrated feed keeps the
+        // detail the live stream showed.
+        return event.message || "Work executed on the floor.";
       case "patch_proposed":
         return "Engineer delivered a patch to the approval bay.";
       case "patch_approved":
@@ -398,4 +410,17 @@ function stationActivityFromEvents(events: WorkflowEvent[]) {
 
 function compactLabel(title: string) {
   return title.split(/\s+/).filter(Boolean).slice(0, 3).join(" ");
+}
+
+function roleLabel(workerName: string) {
+  switch (workerName) {
+    case "claude-engineer":
+      return "Engineer";
+    case "claude-reviewer":
+      return "Reviewer";
+    case "claude-manager":
+      return "AI manager";
+    default:
+      return workerName;
+  }
 }

@@ -1065,7 +1065,7 @@ function workerLimitation(workerName: string) {
     return "Supports the demo Node CLI patch path while the real local worker interface is being built.";
   }
   if (workerName === "claude-manager") {
-    return "Requires ANTHROPIC_API_KEY in environment. Decomposes mission, spawns Claude Engineer agents, merges patches.";
+    return "Requires the claude CLI on PATH. Decomposes the mission, then runs a Claude Engineer and a Claude Reviewer in sequence on the same tree.";
   }
   if (workerName === "unassigned") {
     return "Dispatch the mission to assign a worker.";
