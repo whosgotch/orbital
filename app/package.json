@@ -14,9 +14,11 @@
     "worker-fixture:refresh": "cd ../worker && GOCACHE=/private/tmp/orbital-go-cache go run ./cmd/orbital demo-fixture /private/tmp/orbital-demo-repo && GOCACHE=/private/tmp/orbital-go-cache go run ./cmd/orbital run /private/tmp/orbital-demo-repo \"add a version command\" \"node -e \\\"console.log('verified')\\\"\" && GOCACHE=/private/tmp/orbital-go-cache go run ./cmd/orbital status --json /private/tmp/orbital-demo-repo > ../app/public/workerMissionFixture.json"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@vitejs/plugin-react": "^5.0.0",
+    "@xyflow/react": "^12.11.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
