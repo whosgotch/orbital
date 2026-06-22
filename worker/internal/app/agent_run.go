@@ -231,7 +231,28 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 		}
 	}
 
-	return s.finishAgentRun(childRun.ID, parentRun.MissionID)
+	childResult, err := s.finishAgentRun(childRun.ID, parentRun.MissionID)
+	if err != nil {
+		return nil, err
+	}
+
+	eventType := domain.WorkflowEventChildRunCompleted
+	message := fmt.Sprintf("%s agent completed.", workerName)
+	if childResult.Status == domain.AgentRunStatusFailed || childResult.Status == domain.AgentRunStatusCancelled {
+		eventType = domain.WorkflowEventChildRunFailed
+		message = fmt.Sprintf("%s agent did not complete (%s).", workerName, childResult.Status)
+	}
+	if err := s.saveRunEvent(parentRun.MissionID, agent.RunEvent{WorkflowEvent: &domain.WorkflowEvent{
+		ID:        fmt.Sprintf("event_%d", time.Now().UTC().UnixNano()),
+		RunID:     parentRunID,
+		Type:      eventType,
+		Message:   message,
+		CreatedAt: time.Now().UTC(),
+	}}); err != nil {
+		return nil, err
+	}
+
+	return childResult, nil
 }
 
 func (s *Service) streamRunEvent(event agent.RunEvent) {
