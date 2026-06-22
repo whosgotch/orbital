@@ -146,10 +146,7 @@ func TestStartRunCreatesWorkerRunAndPatch(t *testing.T) {
 		t.Fatalf("start-run run() error = %v", err)
 	}
 
-	var state store.State
-	if err := json.Unmarshal(startOutput.Bytes(), &state); err != nil {
-		t.Fatalf("Unmarshal(start-run JSON) error = %v; output = %q", err, startOutput.String())
-	}
+	state := unmarshalStreamedState(t, startOutput.String())
 
 	if len(state.AgentRuns) != 1 {
 		t.Fatalf("expected 1 agent run, got %d", len(state.AgentRuns))
@@ -196,10 +193,7 @@ func TestStartRunCanUseLocalCommandWorker(t *testing.T) {
 		t.Fatalf("start-run run() error = %v", err)
 	}
 
-	var state store.State
-	if err := json.Unmarshal(startOutput.Bytes(), &state); err != nil {
-		t.Fatalf("Unmarshal(start-run JSON) error = %v; output = %q", err, startOutput.String())
-	}
+	state := unmarshalStreamedState(t, startOutput.String())
 
 	if state.AgentRuns[0].WorkerName != "local-command" {
 		t.Fatalf("worker name = %q, want %q", state.AgentRuns[0].WorkerName, "local-command")
@@ -247,10 +241,7 @@ func TestStartRunCanUseLocalCommandWorkerPatchArtifact(t *testing.T) {
 		t.Fatalf("start-run run() error = %v", err)
 	}
 
-	var state store.State
-	if err := json.Unmarshal(startOutput.Bytes(), &state); err != nil {
-		t.Fatalf("Unmarshal(start-run JSON) error = %v; output = %q", err, startOutput.String())
-	}
+	state := unmarshalStreamedState(t, startOutput.String())
 
 	if len(state.PatchProposals) != 1 {
 		t.Fatalf("expected 1 patch proposal, got %d", len(state.PatchProposals))
@@ -468,6 +459,27 @@ func TestStatusPrintsSavedWorkflowState(t *testing.T) {
 	if output.String() != want {
 		t.Fatalf("status output = %q, want %q", output.String(), want)
 	}
+}
+
+// unmarshalStreamedState extracts the final state blob from the streamed
+// start-run output, which is EVENT:/PATCH:/STATE: prefixed NDJSON lines.
+func unmarshalStreamedState(t *testing.T, output string) store.State {
+	t.Helper()
+
+	for _, line := range strings.Split(output, "\n") {
+		payload, ok := strings.CutPrefix(line, "STATE:")
+		if !ok {
+			continue
+		}
+		var state store.State
+		if err := json.Unmarshal([]byte(payload), &state); err != nil {
+			t.Fatalf("Unmarshal(start-run STATE) error = %v; line = %q", err, payload)
+		}
+		return state
+	}
+
+	t.Fatalf("no STATE line in start-run output = %q", output)
+	return store.State{}
 }
 
 func prepareStartedDemoMission(t *testing.T) (string, string) {
