@@ -18,8 +18,6 @@ type GraphMapProps = {
 export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode }: GraphMapProps) {
   return (
     <section className="space-map" aria-label="Workspace graph map">
-      <div className="starfield" aria-hidden="true" />
-      <div className="scanline" aria-hidden="true" />
       <div className="factory-lanes" aria-hidden="true">
         <span>Source</span>
         <span>Intake</span>
