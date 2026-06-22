@@ -79,13 +79,18 @@ func latestPatchForMission(service *app.Service, missionID string) (*domain.Patc
 		return nil, fmt.Errorf("no agent run found for mission: %s", missionID)
 	}
 
-	patches, err := service.ListPatchesByRun(runs[len(runs)-1].ID)
-	if err != nil {
-		return nil, err
-	}
-	if len(patches) == 0 {
-		return nil, fmt.Errorf("no patch proposal found for mission: %s", missionID)
+	// A mission can span several runs (an AI manager spawns child agents). The
+	// patch lives on whichever run produced it, so search newest-first and
+	// return the latest patch from the most recent run that has one.
+	for i := len(runs) - 1; i >= 0; i-- {
+		patches, err := service.ListPatchesByRun(runs[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		if len(patches) > 0 {
+			return &patches[len(patches)-1], nil
+		}
 	}
 
-	return &patches[len(patches)-1], nil
+	return nil, fmt.Errorf("no patch proposal found for mission: %s", missionID)
 }
