@@ -2,7 +2,9 @@ package store
 
 import (
 	"bytes"
+	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -90,5 +92,35 @@ func TestJSONStoreSaveDoesNotLeaveTempFiles(t *testing.T) {
 		if entry.Name() != stateFileName {
 			t.Fatalf("unexpected state directory entry after save: %s", entry.Name())
 		}
+	}
+}
+
+func TestUpdateSerializesConcurrentWritersWithoutLostWrites(t *testing.T) {
+	store := NewJSONStore(t.TempDir())
+
+	const writers = 24
+	var wg sync.WaitGroup
+	wg.Add(writers)
+	for i := 0; i < writers; i++ {
+		go func(n int) {
+			defer wg.Done()
+			if _, err := store.Update(func(state *State) error {
+				state.WorkflowEvents = append(state.WorkflowEvents, domain.WorkflowEvent{
+					ID: fmt.Sprintf("event_%d", n),
+				})
+				return nil
+			}); err != nil {
+				t.Errorf("Update(%d) error = %v", n, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	state, err := store.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(state.WorkflowEvents) != writers {
+		t.Fatalf("WorkflowEvents = %d, want %d (lost writes under concurrency)", len(state.WorkflowEvents), writers)
 	}
 }
