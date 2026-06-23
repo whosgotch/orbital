@@ -156,19 +156,30 @@ export function App() {
       })),
     [runtimeByMission, workspaceMissions],
   );
+  // Overview + focus: keep the canvas calm by collapsing every mission to a
+  // single node, and only expanding the focused mission's agent pipeline.
   const graphNodes = useMemo(
     () =>
-      workspaceGraphNodes.map((node) => {
-        const status = node.mission_id ? statusFromRuntime(runtimeByMission[node.mission_id]) : undefined;
-        // Surface each mission's assigned worker on its node so the per-mission
-        // choice is visible on the canvas (blocked missions keep their warning).
-        if (node.kind === "mission" && node.mission_id && status !== "blocked") {
-          return { ...node, status, detail: workerModeLabel(workerModeByMission[node.mission_id] ?? "mock") };
-        }
-        return { ...node, status };
-      }),
-    [runtimeByMission, workspaceGraphNodes, workerModeByMission],
+      workspaceGraphNodes
+        .filter((node) => node.kind === "repo" || node.kind === "mission" || node.mission_id === selectedMissionId)
+        .map((node) => {
+          const status = node.mission_id ? statusFromRuntime(runtimeByMission[node.mission_id]) : undefined;
+          // Surface each mission's assigned worker on its node so the per-mission
+          // choice is visible on the canvas (blocked missions keep their warning).
+          if (node.kind === "mission" && node.mission_id && status !== "blocked") {
+            return { ...node, status, detail: workerModeLabel(workerModeByMission[node.mission_id] ?? "mock") };
+          }
+          return { ...node, status };
+        }),
+    [runtimeByMission, workspaceGraphNodes, workerModeByMission, selectedMissionId],
   );
+
+  // Drop edges whose endpoints were collapsed away, so only the focused
+  // mission's pipeline edges remain alongside the repo→mission links.
+  const graphEdges = useMemo(() => {
+    const visible = new Set(graphNodes.map((node) => node.id));
+    return workspaceGraphEdges.filter((edge) => visible.has(edge.from) && visible.has(edge.to));
+  }, [graphNodes, workspaceGraphEdges]);
 
   const runningMissionIds = useMemo(
     () => new Set(workspaceMissions.filter((m) => runtimeByMission[m.id]?.status === "running").map((m) => m.id)),
@@ -581,7 +592,7 @@ export function App() {
     <main className="canvas-shell">
       <GraphMap
         nodes={graphNodes}
-        edges={workspaceGraphEdges}
+        edges={graphEdges}
         selectedNodeId={selectedGraphNode?.id ?? ""}
         selectedMissionId={selectedMission?.id ?? ""}
         runningMissionIds={runningMissionIds}
