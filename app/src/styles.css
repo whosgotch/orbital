@@ -380,6 +380,152 @@ select:focus {
   flex: 1;
 }
 
+.chip-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  margin-left: 2px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #0b1020;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.control-popover {
+  width: 380px;
+}
+
+.control-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.control-head h2 {
+  margin-top: 2px;
+}
+
+.control-head .primary {
+  flex: 0 0 auto;
+}
+
+.control-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.control-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.control-list li.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+.control-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  text-align: left;
+}
+
+.control-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.control-repo {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.control-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 5px;
+}
+
+button.mini {
+  min-height: 28px;
+  width: 30px;
+  padding: 0;
+  border-radius: 5px;
+}
+
+.control-state {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 0 6px;
+}
+
+.control-state.running {
+  color: var(--accent);
+}
+
+.control-state.verified {
+  color: #4fbf7b;
+}
+
+.control-state.blocked {
+  color: #e2615f;
+}
+
+.status-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #39414f;
+}
+
+.status-dot.running {
+  background: #d9a441;
+  box-shadow: 0 0 0 3px rgba(217, 164, 65, 0.18);
+}
+
+.status-dot.review,
+.status-dot.approved {
+  background: var(--accent);
+}
+
+.status-dot.verified {
+  background: #4fbf7b;
+}
+
+.status-dot.blocked {
+  background: #e2615f;
+}
+
 .workspace-repos {
   margin: 12px 0 0;
   padding: 0;

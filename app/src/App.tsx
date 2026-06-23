@@ -4,6 +4,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Check,
   CircleDot,
+  Gauge,
   Network,
   Play,
   RadioTower,
@@ -130,8 +131,8 @@ export function App() {
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, workerModeFromName(mission.worker)])),
   );
   const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
-  const [openPanel, setOpenPanel] = useState<null | "repo" | "mission">(null);
-  const togglePanel = (panel: "repo" | "mission") => setOpenPanel((current) => (current === panel ? null : panel));
+  const [openPanel, setOpenPanel] = useState<null | "repo" | "mission" | "control">(null);
+  const togglePanel = (panel: "repo" | "mission" | "control") => setOpenPanel((current) => (current === panel ? null : panel));
 
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode?.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0]?.id;
@@ -174,6 +175,15 @@ export function App() {
     [workspaceMissions, runtimeByMission],
   );
 
+  const missionAwaitsApproval = (missionId: string) =>
+    (patchDiffByMission[missionId] ?? "") !== "" && runtimeByMission[missionId]?.patchStatus === "pending";
+  const missionIsLaunchable = (missionId: string) => {
+    const status = runtimeByMission[missionId]?.status;
+    return status === undefined || status === "queued" || status === "draft";
+  };
+  const pendingApprovalCount = workspaceMissions.filter((m) => missionAwaitsApproval(m.id)).length;
+  const launchableCount = workspaceMissions.filter((m) => missionIsLaunchable(m.id)).length;
+
   const updateSelectedRuntime = (next: (runtime: WorkspaceRuntime) => WorkspaceRuntime) => {
     setRuntimeByMission((current) => ({
       ...current,
@@ -181,11 +191,38 @@ export function App() {
     }));
   };
 
-  const startMission = async () => {
+  const repoPathForMission = (missionId: string) => {
+    const mission = workspaceMissions.find((item) => item.id === missionId);
+    const repository = mission ? missionLoopState.repositories.find((repo) => repo.id === mission.repository_id) : undefined;
+    return repository?.path ?? activeRepoPath;
+  };
+
+  const startMission = () => dispatchMission(selectedMission.id);
+
+  // Launch every draft/queued mission at once. Each runs in its own worker
+  // process and git worktree, so the backlog burns down in parallel.
+  const launchAllMissions = () => {
+    const pending = workspaceMissions.filter((mission) => {
+      const status = runtimeByMission[mission.id]?.status;
+      return status === undefined || status === "queued" || status === "draft";
+    });
+    pending.forEach((mission) => void dispatchMission(mission.id));
+  };
+
+  // dispatchMission starts one mission by id, independent of the current
+  // selection, so several can be fired concurrently.
+  const dispatchMission = async (missionId: string) => {
     setMissionLoopError("");
-    const missionId = selectedMission.id;
-    const repoPath = selectedRepository?.path ?? activeRepoPath;
-    console.log("[orbital] dispatch start", { missionId, worker: selectedWorkerMode, repo: repoPath, tauri: isTauriRuntime() });
+    const repoPath = repoPathForMission(missionId);
+    const mission = workspaceMissions.find((item) => item.id === missionId);
+    const workerMode = workerModeByMission[missionId] ?? workerModeFromName(mission?.worker);
+    const localCommand = localCommandByMission[missionId] ?? defaultLocalCommand();
+
+    // Optimistically mark it running so the canvas pulses immediately.
+    setRuntimeByMission((current) => ({
+      ...current,
+      [missionId]: { ...(current[missionId] ?? { step: -1, patchStatus: "pending", verified: false, status: "queued" }), status: "running", step: Math.max(current[missionId]?.step ?? -1, 0) },
+    }));
 
     let unlistenEvent: (() => void) | undefined;
     let unlistenPatch: (() => void) | undefined;
@@ -193,7 +230,8 @@ export function App() {
     if (isTauriRuntime()) {
       unlistenEvent = await listen<WorkflowEvent>("workflow_event", (e) => {
         const event = e.payload;
-        console.log("[orbital] workflow_event", event.type, event.message);
+        // Parallel runs share one event channel; keep each mission's stream its own.
+        if (event.mission_id && event.mission_id !== missionId) return;
         if (!event.message) return;
         setActivityByMission((current) => ({
           ...current,
@@ -211,7 +249,6 @@ export function App() {
 
       unlistenPatch = await listen<PatchProposal>("patch_proposal", (e) => {
         const patch = e.payload;
-        console.log("[orbital] patch_proposal received", { runId: patch.run_id, diffLength: patch.diff?.length });
         setPatchDiffByMission((current) => ({ ...current, [missionId]: patch.diff }));
         setRuntimeByMission((current) => ({
           ...current,
@@ -226,19 +263,12 @@ export function App() {
     }
 
     try {
-      console.log("[orbital] invoking start_agent_run…");
       const nextMissionLoopState = await startAgentRunMissionLoopState(
         repoPath,
         missionId,
-        selectedWorkerMode,
-        selectedWorkerMode === "local-command" ? selectedLocalCommand : undefined,
+        workerMode,
+        workerMode === "local-command" ? localCommand : undefined,
       );
-      console.log("[orbital] start_agent_run returned", {
-        hasState: !!nextMissionLoopState,
-        missions: nextMissionLoopState?.missions?.length,
-        runs: nextMissionLoopState?.agent_runs?.length,
-        patches: nextMissionLoopState?.patch_proposals?.length,
-      });
       if (nextMissionLoopState) {
         applyRepoState(nextMissionLoopState, missionId);
         return;
@@ -251,35 +281,45 @@ export function App() {
       unlistenEvent?.();
       unlistenPatch?.();
     }
-
-    updateSelectedRuntime(() => ({ step: 0, patchStatus: "pending", verified: false, status: "running" }));
   };
 
+  // Queue a backlog: one mission per non-empty line, so several can be lined up
+  // at once and then launched in parallel.
   const queueMission = async () => {
-    const title = missionDraft.trim();
-    if (!title) {
+    const titles = missionDraft.split("\n").map((line) => line.trim()).filter(Boolean);
+    if (titles.length === 0) {
       return;
     }
 
     setMissionLoopError("");
     const repoPath = selectedRepository?.path ?? activeRepoPath;
 
-    try {
-      const nextMissionLoopState = await queueMissionLoopState(repoPath, title);
-      if (nextMissionLoopState) {
-        const missionId = nextMissionLoopState.missions.at(-1)?.id;
-        applyRepoState(nextMissionLoopState, missionId);
-        return;
+    if (isTauriRuntime()) {
+      try {
+        let nextMissionLoopState: MissionLoopState | undefined;
+        let lastMissionId: string | undefined;
+        for (const title of titles) {
+          nextMissionLoopState = await queueMissionLoopState(repoPath, title);
+          lastMissionId = nextMissionLoopState?.missions.at(-1)?.id;
+        }
+        if (nextMissionLoopState) {
+          applyRepoState(nextMissionLoopState, lastMissionId);
+        }
+      } catch (error) {
+        setMissionLoopError(errorMessage(error, "Failed to queue mission."));
       }
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to queue mission."));
       return;
     }
 
     if (!selectedRepository) return;
-    const missionId = `mission_${Date.now()}`;
+    titles.forEach((title, index) => addLocalMission(title, index));
+  };
+
+  // Optimistic, non-Tauri-only mission so the browser demo can line up a backlog.
+  const addLocalMission = (title: string, offset: number) => {
+    if (!selectedRepository) return;
+    const missionId = `mission_${Date.now()}_${offset}`;
     const targetRepositoryId = selectedRepository.id;
-    const targetMissionCount = workspaceMissions.filter((mission) => mission.repository_id === targetRepositoryId).length;
     const mission: WorkspaceMission = {
       id: missionId,
       repository_id: targetRepositoryId,
@@ -299,7 +339,7 @@ export function App() {
       label: missionLabel(title),
       detail: "mission",
       x: 27,
-      y: Math.min(92, 22 + targetMissionCount * 12),
+      y: 0,
       mission_id: missionId,
       repository_id: targetRepositoryId,
     };
@@ -315,12 +355,7 @@ export function App() {
     setWorkspaceGraphEdges((current) => [...current, edge]);
     setRuntimeByMission((current) => ({
       ...current,
-      [missionId]: {
-        step: mission.step,
-        patchStatus: mission.patch_status,
-        verified: mission.verified,
-        status: mission.status,
-      },
+      [missionId]: { step: mission.step, patchStatus: mission.patch_status, verified: mission.verified, status: mission.status },
     }));
     setPatchDiffByMission((current) => ({ ...current, [missionId]: "" }));
     setVerificationOutputByMission((current) => ({ ...current, [missionId]: "" }));
@@ -336,14 +371,23 @@ export function App() {
     }));
   };
 
-  const approvePatch = async () => {
+  const setMissionRuntime = (missionId: string, next: (runtime: WorkspaceRuntime) => WorkspaceRuntime) => {
+    setRuntimeByMission((current) => ({
+      ...current,
+      [missionId]: next(current[missionId] ?? { step: -1, patchStatus: "pending", verified: false, status: "queued" }),
+    }));
+  };
+
+  const approvePatch = () => approveMission(selectedMission.id);
+  const rejectPatch = () => rejectMission(selectedMission.id);
+
+  const approveMission = async (missionId: string) => {
     setMissionLoopError("");
 
     try {
-      const repoPath = selectedRepository?.path ?? activeRepoPath;
-      const nextMissionLoopState = await approvePatchMissionLoopState(repoPath, selectedMission.id);
+      const nextMissionLoopState = await approvePatchMissionLoopState(repoPathForMission(missionId), missionId);
       if (nextMissionLoopState) {
-        applyRepoState(nextMissionLoopState, selectedMission.id);
+        applyRepoState(nextMissionLoopState, missionId);
         return;
       }
     } catch (error) {
@@ -351,17 +395,16 @@ export function App() {
       return;
     }
 
-    updateSelectedRuntime((current) => ({ ...current, patchStatus: "approved", status: "approved" }));
+    setMissionRuntime(missionId, (current) => ({ ...current, patchStatus: "approved", status: "approved" }));
   };
 
-  const rejectPatch = async () => {
+  const rejectMission = async (missionId: string) => {
     setMissionLoopError("");
 
     try {
-      const repoPath = selectedRepository?.path ?? activeRepoPath;
-      const nextMissionLoopState = await rejectPatchMissionLoopState(repoPath, selectedMission.id);
+      const nextMissionLoopState = await rejectPatchMissionLoopState(repoPathForMission(missionId), missionId);
       if (nextMissionLoopState) {
-        applyRepoState(nextMissionLoopState, selectedMission.id);
+        applyRepoState(nextMissionLoopState, missionId);
         return;
       }
     } catch (error) {
@@ -369,7 +412,7 @@ export function App() {
       return;
     }
 
-    updateSelectedRuntime((current) => ({ ...current, patchStatus: "rejected", status: "blocked" }));
+    setMissionRuntime(missionId, (current) => ({ ...current, patchStatus: "rejected", status: "blocked" }));
   };
 
   const runVerification = async () => {
@@ -569,6 +612,16 @@ export function App() {
             <span>Mission</span>
           </button>
           <button
+            className={`chip ${openPanel === "control" ? "active" : ""}`}
+            type="button"
+            onClick={() => togglePanel("control")}
+            title="Mission control"
+          >
+            <Gauge size={15} aria-hidden="true" />
+            <span>Control</span>
+            {pendingApprovalCount > 0 ? <span className="chip-badge">{pendingApprovalCount}</span> : null}
+          </button>
+          <button
             className="chip icon"
             type="button"
             onClick={refreshMissionLoop}
@@ -654,6 +707,7 @@ export function App() {
           <div className="section-label">Mission intake</div>
           <textarea
             aria-label="Mission intent"
+            placeholder={"One mission per line — queue a whole backlog at once.\nadd a healthcheck endpoint\nupgrade the logging library\n…"}
             value={missionDraft}
             onChange={(event) => setMissionDraft(event.target.value)}
           />
@@ -667,8 +721,64 @@ export function App() {
             disabled={!missionDraft.trim()}
           >
             <Rocket size={17} aria-hidden="true" />
-            <span>Queue mission</span>
+            <span>Queue {missionDraft.split("\n").filter((line) => line.trim()).length > 1 ? "backlog" : "mission"}</span>
           </button>
+        </section>
+      ) : null}
+
+      {openPanel === "control" ? (
+        <section className="popover control-popover" aria-label="Mission control">
+          <div className="control-head">
+            <div>
+              <div className="section-label">Mission control</div>
+              <h2>Backlog &amp; triage</h2>
+            </div>
+            <button
+              className="primary"
+              type="button"
+              onClick={launchAllMissions}
+              disabled={launchableCount === 0}
+              title="Launch every queued mission in parallel"
+            >
+              <Rocket size={15} aria-hidden="true" />
+              <span>Launch all{launchableCount > 0 ? ` (${launchableCount})` : ""}</span>
+            </button>
+          </div>
+          <ul className="control-list">
+            {workspaceMissions.length === 0 ? <li className="quiet">No missions yet — queue some from Mission.</li> : null}
+            {workspaceMissions.map((mission) => {
+              const runtime = runtimeByMission[mission.id];
+              const status = runtime ? statusFromRuntime(runtime) : undefined;
+              const repo = missionLoopState.repositories.find((item) => item.id === mission.repository_id);
+              return (
+                <li key={mission.id} className={mission.id === selectedMission?.id ? "selected" : ""}>
+                  <button type="button" className="control-row" onClick={() => setSelectedNodeId(mission.id)}>
+                    <span className={`status-dot ${status ?? ""}`} aria-hidden="true" />
+                    <span className="control-title">{mission.title}</span>
+                    <span className="control-repo">{repo?.name}</span>
+                  </button>
+                  <div className="control-actions">
+                    {missionAwaitsApproval(mission.id) ? (
+                      <>
+                        <button className="secondary mini" type="button" onClick={() => void rejectMission(mission.id)} title="Reject">
+                          <X size={14} aria-hidden="true" />
+                        </button>
+                        <button className="primary mini" type="button" onClick={() => void approveMission(mission.id)} title="Approve + apply">
+                          <Check size={14} aria-hidden="true" />
+                        </button>
+                      </>
+                    ) : missionIsLaunchable(mission.id) ? (
+                      <button className="primary mini" type="button" onClick={() => void dispatchMission(mission.id)} title="Launch">
+                        <Play size={14} aria-hidden="true" />
+                      </button>
+                    ) : (
+                      <span className={`control-state ${status ?? ""}`}>{controlStateLabel(status)}</span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       ) : null}
 
@@ -1061,6 +1171,23 @@ function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus {
     return "queued";
   }
   return "draft";
+}
+
+function controlStateLabel(status: MissionNodeStatus | undefined): string {
+  switch (status) {
+    case "running":
+      return "Running";
+    case "review":
+      return "In review";
+    case "approved":
+      return "Approved";
+    case "verified":
+      return "Verified";
+    case "blocked":
+      return "Blocked";
+    default:
+      return "Idle";
+  }
 }
 
 function missionStatusFor(runtime: WorkspaceRuntime, patchReady: boolean) {
