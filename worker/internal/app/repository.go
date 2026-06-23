@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
+	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
 func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
@@ -26,49 +27,40 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 		return nil, fmt.Errorf("repository path is not a directory: %s", cleanPath)
 	}
 
-	state, err := s.store.Load()
+	var result domain.Repository
+	_, err = s.store.Update(func(state *store.State) error {
+		for index, repository := range state.Repositories {
+			if repository.Path == cleanPath {
+				if repository.Branch == "" {
+					state.Repositories[index].Branch = currentGitBranch(cleanPath)
+				}
+				if repository.VerificationCommand == "" {
+					state.Repositories[index].VerificationCommand = defaultVerificationCommand(cleanPath)
+				}
+				result = state.Repositories[index]
+				return nil
+			}
+		}
+
+		now := time.Now().UTC()
+		repository := domain.Repository{
+			ID:                  fmt.Sprintf("repo_%d", now.UnixNano()),
+			Path:                cleanPath,
+			Name:                filepath.Base(cleanPath),
+			Branch:              currentGitBranch(cleanPath),
+			VerificationCommand: defaultVerificationCommand(cleanPath),
+			CreatedAt:           now,
+		}
+
+		state.Repositories = append(state.Repositories, repository)
+		result = repository
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	for index, repository := range state.Repositories {
-		if repository.Path == cleanPath {
-			changed := false
-			if repository.Branch == "" {
-				state.Repositories[index].Branch = currentGitBranch(cleanPath)
-				changed = true
-			}
-			if repository.VerificationCommand == "" {
-				state.Repositories[index].VerificationCommand = defaultVerificationCommand(cleanPath)
-				changed = true
-			}
-			if changed {
-				if err := s.store.Save(state); err != nil {
-					return nil, err
-				}
-			}
-
-			return &state.Repositories[index], nil
-		}
-	}
-
-	now := time.Now().UTC()
-	repository := domain.Repository{
-		ID:                  fmt.Sprintf("repo_%d", now.UnixNano()),
-		Path:                cleanPath,
-		Name:                filepath.Base(cleanPath),
-		Branch:              currentGitBranch(cleanPath),
-		VerificationCommand: defaultVerificationCommand(cleanPath),
-		CreatedAt:           now,
-	}
-
-	state.Repositories = append(state.Repositories, repository)
-
-	if err := s.store.Save(state); err != nil {
-		return nil, err
-	}
-
-	return &repository, nil
+	return &result, nil
 }
 
 func defaultVerificationCommand(repoPath string) string {

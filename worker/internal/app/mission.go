@@ -6,29 +6,13 @@ import (
 	"time"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
+	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
 func (s *Service) CreateMission(repoID string, text string) (*domain.Mission, error) {
 	missionText := strings.TrimSpace(text)
 	if missionText == "" {
 		return nil, fmt.Errorf("mission text is required")
-	}
-
-	state, err := s.store.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	repositoryExists := false
-	for _, repository := range state.Repositories {
-		if repository.ID == repoID {
-			repositoryExists = true
-			break
-		}
-	}
-
-	if !repositoryExists {
-		return nil, fmt.Errorf("repository not found: %s", repoID)
 	}
 
 	now := time.Now().UTC()
@@ -41,9 +25,23 @@ func (s *Service) CreateMission(repoID string, text string) (*domain.Mission, er
 		UpdatedAt:    now,
 	}
 
-	state.Missions = append(state.Missions, mission)
+	_, err := s.store.Update(func(state *store.State) error {
+		repositoryExists := false
+		for _, repository := range state.Repositories {
+			if repository.ID == repoID {
+				repositoryExists = true
+				break
+			}
+		}
 
-	if err := s.store.Save(state); err != nil {
+		if !repositoryExists {
+			return fmt.Errorf("repository not found: %s", repoID)
+		}
+
+		state.Missions = append(state.Missions, mission)
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 

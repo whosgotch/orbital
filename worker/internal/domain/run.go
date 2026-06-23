@@ -24,4 +24,7 @@ type AgentRun struct {
 	Error       string         `json:"error,omitempty"`
 	ParentRunID string         `json:"parent_run_id,omitempty"`
 	ChildRunIDs []string       `json:"child_run_ids,omitempty"`
+	// WorktreePath is the isolated git worktree this run works in, so parallel
+	// runs on the same repo don't collide. Empty when the run uses the repo root.
+	WorktreePath string `json:"worktree_path,omitempty"`
 }

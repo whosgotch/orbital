@@ -9,32 +9,10 @@ import (
 	"time"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
+	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
 func (s *Service) RunVerification(ctx context.Context, repoID string, missionID string, command string) (*domain.VerificationRun, error) {
-	state, err := s.store.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	repositoryIndex := findRepositoryIndex(state.Repositories, repoID)
-	if repositoryIndex == -1 {
-		return nil, fmt.Errorf("repository not found: %s", repoID)
-	}
-
-	missionIndex := findMissionIndex(state.Missions, missionID)
-	if missionIndex == -1 {
-		return nil, fmt.Errorf("mission not found: %s", missionID)
-	}
-
-	if state.Missions[missionIndex].RepositoryID != repoID {
-		return nil, fmt.Errorf("mission %s does not belong to repository %s", missionID, repoID)
-	}
-
-	if state.Missions[missionIndex].Status != domain.MissionStatusApplied {
-		return nil, fmt.Errorf("mission must be applied before verification: %s", missionID)
-	}
-
 	startedAt := time.Now().UTC()
 	verification := domain.VerificationRun{
 		ID:           fmt.Sprintf("verification_%d", startedAt.UnixNano()),
@@ -44,24 +22,49 @@ func (s *Service) RunVerification(ctx context.Context, repoID string, missionID 
 		Status:       domain.VerificationStatusRunning,
 		StartedAt:    startedAt,
 	}
-	state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
-		missionID,
-		"",
-		domain.WorkflowEventVerificationRun,
-		"Verification started.",
-		command,
-		startedAt,
-	))
+
+	// First transaction: validate, record the running verification, and capture
+	// the repo path. The lock is released before the command runs so it never
+	// blocks other missions' writes for the duration of the verification.
+	var repoPath string
+	if _, err := s.store.Update(func(state *store.State) error {
+		repositoryIndex := findRepositoryIndex(state.Repositories, repoID)
+		if repositoryIndex == -1 {
+			return fmt.Errorf("repository not found: %s", repoID)
+		}
+
+		missionIndex := findMissionIndex(state.Missions, missionID)
+		if missionIndex == -1 {
+			return fmt.Errorf("mission not found: %s", missionID)
+		}
+
+		if state.Missions[missionIndex].RepositoryID != repoID {
+			return fmt.Errorf("mission %s does not belong to repository %s", missionID, repoID)
+		}
+
+		if state.Missions[missionIndex].Status != domain.MissionStatusApplied {
+			return fmt.Errorf("mission must be applied before verification: %s", missionID)
+		}
+
+		repoPath = state.Repositories[repositoryIndex].Path
+		state.VerificationRuns = append(state.VerificationRuns, verification)
+		state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+			missionID, "", domain.WorkflowEventVerificationRun, "Verification started.", command, startedAt,
+		))
+		return nil
+	}); err != nil {
+		return nil, err
+	}
 
 	shell, shellFlag := verificationShell()
 	cmd := exec.CommandContext(ctx, shell, shellFlag, command)
-	cmd.Dir = state.Repositories[repositoryIndex].Path
+	cmd.Dir = repoPath
 
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 
-	err = cmd.Run()
+	runErr := cmd.Run()
 
 	completedAt := time.Now().UTC()
 	if cmd.ProcessState != nil {
@@ -69,40 +72,46 @@ func (s *Service) RunVerification(ctx context.Context, repoID string, missionID 
 		verification.ExitCode = &exitCode
 	}
 	verification.Output = output.String()
-	if verification.Output == "" && err != nil {
-		verification.Output = err.Error()
+	if verification.Output == "" && runErr != nil {
+		verification.Output = runErr.Error()
 	}
 	verification.CompletedAt = &completedAt
-
-	if err == nil {
+	if runErr == nil {
 		verification.Status = domain.VerificationStatusPassed
-		state.Missions[missionIndex].Status = domain.MissionStatusVerified
-		state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
-			missionID,
-			"",
-			domain.WorkflowEventVerificationPassed,
-			"Verification passed.",
-			command,
-			completedAt,
-		))
 	} else {
 		verification.Status = domain.VerificationStatusFailed
-		state.Missions[missionIndex].Status = domain.MissionStatusFailed
-		state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
-			missionID,
-			"",
-			domain.WorkflowEventVerificationFailed,
-			"Verification failed.",
-			command,
-			completedAt,
-		))
 	}
-	state.Missions[missionIndex].UpdatedAt = completedAt
 
-	state.VerificationRuns = append(state.VerificationRuns, verification)
+	// Second transaction: record the outcome on the verification run, advance
+	// the mission, and emit the pass/fail event.
+	if _, err := s.store.Update(func(state *store.State) error {
+		for index := range state.VerificationRuns {
+			if state.VerificationRuns[index].ID == verification.ID {
+				state.VerificationRuns[index] = verification
+				break
+			}
+		}
 
-	if saveErr := s.store.Save(state); saveErr != nil {
-		return nil, saveErr
+		missionIndex := findMissionIndex(state.Missions, missionID)
+		if missionIndex == -1 {
+			return fmt.Errorf("mission not found: %s", missionID)
+		}
+
+		if runErr == nil {
+			state.Missions[missionIndex].Status = domain.MissionStatusVerified
+			state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+				missionID, "", domain.WorkflowEventVerificationPassed, "Verification passed.", command, completedAt,
+			))
+		} else {
+			state.Missions[missionIndex].Status = domain.MissionStatusFailed
+			state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+				missionID, "", domain.WorkflowEventVerificationFailed, "Verification failed.", command, completedAt,
+			))
+		}
+		state.Missions[missionIndex].UpdatedAt = completedAt
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	return &verification, nil

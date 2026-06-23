@@ -8,25 +8,10 @@ import (
 
 	"github.com/whosgotch/orbital/worker/internal/agent"
 	"github.com/whosgotch/orbital/worker/internal/domain"
+	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
 func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerName string) (*domain.AgentRun, error) {
-	state, err := s.store.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	missionIndex := findMissionIndex(state.Missions, missionID)
-	if missionIndex == -1 {
-		return nil, fmt.Errorf("mission not found: %s", missionID)
-	}
-
-	mission := state.Missions[missionIndex]
-	repositoryIndex := findRepositoryIndex(state.Repositories, mission.RepositoryID)
-	if repositoryIndex == -1 {
-		return nil, fmt.Errorf("repository not found: %s", mission.RepositoryID)
-	}
-
 	worker, err := s.workerRegistry.Lookup(workerName)
 	if err != nil {
 		return nil, err
@@ -41,19 +26,52 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		StartedAt:  now,
 	}
 
-	state.AgentRuns = append(state.AgentRuns, run)
-	state.Missions[missionIndex].Status = domain.MissionStatusRunning
-	state.Missions[missionIndex].UpdatedAt = now
+	// Record the run and mark the mission running. Capture the repo path and
+	// mission text so the rest of the run works without holding the lock.
+	var repoPath, missionText string
+	if _, err := s.store.Update(func(state *store.State) error {
+		missionIndex := findMissionIndex(state.Missions, missionID)
+		if missionIndex == -1 {
+			return fmt.Errorf("mission not found: %s", missionID)
+		}
 
-	if err := s.store.Save(state); err != nil {
+		repositoryIndex := findRepositoryIndex(state.Repositories, state.Missions[missionIndex].RepositoryID)
+		if repositoryIndex == -1 {
+			return fmt.Errorf("repository not found: %s", state.Missions[missionIndex].RepositoryID)
+		}
+
+		repoPath = state.Repositories[repositoryIndex].Path
+		missionText = state.Missions[missionIndex].Text
+		state.AgentRuns = append(state.AgentRuns, run)
+		state.Missions[missionIndex].Status = domain.MissionStatusRunning
+		state.Missions[missionIndex].UpdatedAt = now
+		return nil
+	}); err != nil {
 		return nil, err
+	}
+
+	// Give this mission its own git worktree so it can run alongside others
+	// without sharing a working tree. Fall back to the repo root if the repo
+	// can't host a worktree.
+	workdir := repoPath
+	if worktreePath := createRunWorktree(ctx, repoPath, run.ID); worktreePath != "" {
+		workdir = worktreePath
+		run.WorktreePath = worktreePath
+		if _, err := s.store.Update(func(state *store.State) error {
+			if runIndex := findRunIndex(state.AgentRuns, run.ID); runIndex != -1 {
+				state.AgentRuns[runIndex].WorktreePath = worktreePath
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	runRequest := agent.RunRequest{
 		RunID:       run.ID,
-		MissionID:   mission.ID,
-		RepoPath:    state.Repositories[repositoryIndex].Path,
-		MissionText: mission.Text,
+		MissionID:   missionID,
+		RepoPath:    workdir,
+		MissionText: missionText,
 	}
 
 	if support := worker.Supports(ctx, runRequest); !support.Supported {
@@ -69,6 +87,7 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 			return nil, err
 		}
 
+		removeRunWorktree(repoPath, run)
 		return s.finishAgentRun(run.ID, missionID)
 	}
 
@@ -78,14 +97,21 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		run.Status = domain.AgentRunStatusFailed
 		run.CompletedAt = &failedAt
 		run.Error = err.Error()
-		state.AgentRuns[len(state.AgentRuns)-1] = run
-		state.Missions[missionIndex].Status = domain.MissionStatusFailed
-		state.Missions[missionIndex].UpdatedAt = failedAt
 
-		if saveErr := s.store.Save(state); saveErr != nil {
+		if _, saveErr := s.store.Update(func(state *store.State) error {
+			if runIndex := findRunIndex(state.AgentRuns, run.ID); runIndex != -1 {
+				state.AgentRuns[runIndex] = run
+			}
+			if missionIndex := findMissionIndex(state.Missions, missionID); missionIndex != -1 {
+				state.Missions[missionIndex].Status = domain.MissionStatusFailed
+				state.Missions[missionIndex].UpdatedAt = failedAt
+			}
+			return nil
+		}); saveErr != nil {
 			return nil, saveErr
 		}
 
+		removeRunWorktree(repoPath, run)
 		return &run, err
 	}
 
@@ -99,60 +125,58 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 }
 
 func (s *Service) finishAgentRun(runID string, missionID string) (*domain.AgentRun, error) {
-	state, err := s.store.Load()
+	var result domain.AgentRun
+	_, err := s.store.Update(func(state *store.State) error {
+		runIndex := findRunIndex(state.AgentRuns, runID)
+		if runIndex == -1 {
+			return fmt.Errorf("agent run not found: %s", runID)
+		}
+
+		missionIndex := findMissionIndex(state.Missions, missionID)
+		if missionIndex == -1 {
+			return fmt.Errorf("mission not found: %s", missionID)
+		}
+
+		completedAt := time.Now().UTC()
+		finalStatus := finalRunStatus(state.WorkflowEvents, runID)
+		state.AgentRuns[runIndex].Status = finalStatus
+		state.AgentRuns[runIndex].CompletedAt = &completedAt
+		if finalStatus == domain.AgentRunStatusFailed || finalStatus == domain.AgentRunStatusCancelled {
+			state.Missions[missionIndex].Status = domain.MissionStatusFailed
+			state.Missions[missionIndex].UpdatedAt = completedAt
+		}
+
+		result = state.AgentRuns[runIndex]
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	runIndex := findRunIndex(state.AgentRuns, runID)
-	if runIndex == -1 {
-		return nil, fmt.Errorf("agent run not found: %s", runID)
-	}
-
-	missionIndex := findMissionIndex(state.Missions, missionID)
-	if missionIndex == -1 {
-		return nil, fmt.Errorf("mission not found: %s", missionID)
-	}
-
-	completedAt := time.Now().UTC()
-	finalStatus := finalRunStatus(state.WorkflowEvents, runID)
-	state.AgentRuns[runIndex].Status = finalStatus
-	state.AgentRuns[runIndex].CompletedAt = &completedAt
-	if finalStatus == domain.AgentRunStatusFailed || finalStatus == domain.AgentRunStatusCancelled {
-		state.Missions[missionIndex].Status = domain.MissionStatusFailed
-		state.Missions[missionIndex].UpdatedAt = completedAt
-	}
-
-	if err := s.store.Save(state); err != nil {
-		return nil, err
-	}
-
-	return &state.AgentRuns[runIndex], nil
+	return &result, nil
 }
 
 func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
-	state, err := s.store.Load()
+	_, err := s.store.Update(func(state *store.State) error {
+		missionIndex := findMissionIndex(state.Missions, missionID)
+		if missionIndex == -1 {
+			return fmt.Errorf("mission not found: %s", missionID)
+		}
+
+		if event.WorkflowEvent != nil {
+			event.WorkflowEvent.MissionID = missionID
+			state.WorkflowEvents = append(state.WorkflowEvents, *event.WorkflowEvent)
+		}
+
+		if event.PatchProposal != nil {
+			state.PatchProposals = append(state.PatchProposals, *event.PatchProposal)
+			state.Missions[missionIndex].Status = domain.MissionStatusWaitingApproval
+			state.Missions[missionIndex].UpdatedAt = event.PatchProposal.UpdatedAt
+		}
+
+		return nil
+	})
 	if err != nil {
-		return err
-	}
-
-	missionIndex := findMissionIndex(state.Missions, missionID)
-	if missionIndex == -1 {
-		return fmt.Errorf("mission not found: %s", missionID)
-	}
-
-	if event.WorkflowEvent != nil {
-		event.WorkflowEvent.MissionID = missionID
-		state.WorkflowEvents = append(state.WorkflowEvents, *event.WorkflowEvent)
-	}
-
-	if event.PatchProposal != nil {
-		state.PatchProposals = append(state.PatchProposals, *event.PatchProposal)
-		state.Missions[missionIndex].Status = domain.MissionStatusWaitingApproval
-		state.Missions[missionIndex].UpdatedAt = event.PatchProposal.UpdatedAt
-	}
-
-	if err := s.store.Save(state); err != nil {
 		return err
 	}
 
@@ -161,27 +185,6 @@ func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
 }
 
 func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerName string, task string) (*domain.AgentRun, error) {
-	state, err := s.store.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	parentIndex := findRunIndex(state.AgentRuns, parentRunID)
-	if parentIndex == -1 {
-		return nil, fmt.Errorf("parent run not found: %s", parentRunID)
-	}
-
-	parentRun := state.AgentRuns[parentIndex]
-	missionIndex := findMissionIndex(state.Missions, parentRun.MissionID)
-	if missionIndex == -1 {
-		return nil, fmt.Errorf("mission not found: %s", parentRun.MissionID)
-	}
-
-	repositoryIndex := findRepositoryIndex(state.Repositories, state.Missions[missionIndex].RepositoryID)
-	if repositoryIndex == -1 {
-		return nil, fmt.Errorf("repository not found: %s", state.Missions[missionIndex].RepositoryID)
-	}
-
 	worker, err := s.workerRegistry.Lookup(workerName)
 	if err != nil {
 		return nil, err
@@ -190,33 +193,60 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 	now := time.Now().UTC()
 	childRun := domain.AgentRun{
 		ID:          fmt.Sprintf("run_%d", now.UnixNano()),
-		MissionID:   parentRun.MissionID,
 		WorkerName:  workerName,
 		Status:      domain.AgentRunStatusRunning,
 		StartedAt:   now,
 		ParentRunID: parentRunID,
 	}
 
-	state.AgentRuns[parentIndex].ChildRunIDs = append(state.AgentRuns[parentIndex].ChildRunIDs, childRun.ID)
-	state.AgentRuns[parentIndex].Status = domain.AgentRunStatusWaitingForChildren
-	state.AgentRuns = append(state.AgentRuns, childRun)
-	state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
-		parentRun.MissionID, parentRunID, domain.WorkflowEventChildRunSpawned,
-		fmt.Sprintf("Manager spawned %s agent.", workerName), "", now,
-	))
+	// Children share the parent run's worktree, so the manager's agents (e.g.
+	// engineer then reviewer) refine one another's changes in a single tree.
+	var missionID, workdir, missionText string
+	if _, err := s.store.Update(func(state *store.State) error {
+		parentIndex := findRunIndex(state.AgentRuns, parentRunID)
+		if parentIndex == -1 {
+			return fmt.Errorf("parent run not found: %s", parentRunID)
+		}
 
-	if err := s.store.Save(state); err != nil {
+		parentRun := state.AgentRuns[parentIndex]
+		missionID = parentRun.MissionID
+		missionIndex := findMissionIndex(state.Missions, missionID)
+		if missionIndex == -1 {
+			return fmt.Errorf("mission not found: %s", missionID)
+		}
+
+		repositoryIndex := findRepositoryIndex(state.Repositories, state.Missions[missionIndex].RepositoryID)
+		if repositoryIndex == -1 {
+			return fmt.Errorf("repository not found: %s", state.Missions[missionIndex].RepositoryID)
+		}
+
+		workdir = state.Repositories[repositoryIndex].Path
+		if parentRun.WorktreePath != "" {
+			workdir = parentRun.WorktreePath
+		}
+		missionText = state.Missions[missionIndex].Text
+		if task != "" {
+			missionText = task
+		}
+
+		childRun.MissionID = missionID
+		childRun.WorktreePath = parentRun.WorktreePath
+		state.AgentRuns[parentIndex].ChildRunIDs = append(state.AgentRuns[parentIndex].ChildRunIDs, childRun.ID)
+		state.AgentRuns[parentIndex].Status = domain.AgentRunStatusWaitingForChildren
+		state.AgentRuns = append(state.AgentRuns, childRun)
+		state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+			missionID, parentRunID, domain.WorkflowEventChildRunSpawned,
+			fmt.Sprintf("Manager spawned %s agent.", workerName), "", now,
+		))
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
-	missionText := state.Missions[missionIndex].Text
-	if task != "" {
-		missionText = task
-	}
 	runRequest := agent.RunRequest{
 		RunID:       childRun.ID,
-		MissionID:   parentRun.MissionID,
-		RepoPath:    state.Repositories[repositoryIndex].Path,
+		MissionID:   missionID,
+		RepoPath:    workdir,
 		MissionText: missionText,
 	}
 
@@ -226,12 +256,12 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 	}
 
 	for event := range events {
-		if err := s.saveRunEvent(parentRun.MissionID, event); err != nil {
+		if err := s.saveRunEvent(missionID, event); err != nil {
 			return nil, err
 		}
 	}
 
-	childResult, err := s.finishAgentRun(childRun.ID, parentRun.MissionID)
+	childResult, err := s.finishAgentRun(childRun.ID, missionID)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +272,7 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 		eventType = domain.WorkflowEventChildRunFailed
 		message = fmt.Sprintf("%s agent did not complete (%s).", workerName, childResult.Status)
 	}
-	if err := s.saveRunEvent(parentRun.MissionID, agent.RunEvent{WorkflowEvent: &domain.WorkflowEvent{
+	if err := s.saveRunEvent(missionID, agent.RunEvent{WorkflowEvent: &domain.WorkflowEvent{
 		ID:        fmt.Sprintf("event_%d", time.Now().UTC().UnixNano()),
 		RunID:     parentRunID,
 		Type:      eventType,
