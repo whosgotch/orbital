@@ -54,6 +54,20 @@ const emptyMissionLoopState: MissionLoopState = {
 const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState);
 type WorkerMode = "mock" | "local-command" | "claude-manager";
 
+// Map a mission's actual worker name to the selectable mode, so the per-mission
+// dropdown reflects whoever last ran it (any claude-* agent reads as Claude).
+function workerModeFromName(workerName: string | undefined): WorkerMode {
+  if (workerName === "local-command") return "local-command";
+  if (workerName?.startsWith("claude")) return "claude-manager";
+  return "mock";
+}
+
+function workerModeLabel(mode: WorkerMode): string {
+  if (mode === "local-command") return "Local cmd";
+  if (mode === "claude-manager") return "Claude AI";
+  return "Demo worker";
+}
+
 // Merge every open repository's state into one MissionLoopState. The adapter
 // already keys nodes by repository_id / mission_id, so the union renders each
 // repo as its own cluster on the shared canvas.
@@ -113,7 +127,7 @@ export function App() {
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, mission.command])),
   );
   const [workerModeByMission, setWorkerModeByMission] = useState<Record<string, WorkerMode>>(
-    Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, mission.worker === "local-command" ? "local-command" : "mock"])),
+    Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, workerModeFromName(mission.worker)])),
   );
   const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
   const [openPanel, setOpenPanel] = useState<null | "repo" | "mission">(null);
@@ -127,7 +141,7 @@ export function App() {
   const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationOutput = (selectedMission ? verificationOutputByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
-  const selectedWorkerMode = (selectedMission ? workerModeByMission[selectedMission.id] : undefined) ?? (selectedMission?.worker === "local-command" ? "local-command" : "mock");
+  const selectedWorkerMode = (selectedMission ? workerModeByMission[selectedMission.id] : undefined) ?? workerModeFromName(selectedMission?.worker);
   const selectedLocalCommand = localCommandByMission[selectedMission?.id ?? ""] ?? defaultLocalCommand();
   const patchReady = (selectedPatchDiff ?? "") !== "";
   const selectedActivity = activityByMission[selectedMission?.id ?? ""] ?? [];
@@ -143,11 +157,16 @@ export function App() {
   );
   const graphNodes = useMemo(
     () =>
-      workspaceGraphNodes.map((node) => ({
-        ...node,
-        status: node.mission_id ? statusFromRuntime(runtimeByMission[node.mission_id]) : undefined,
-      })),
-    [runtimeByMission, workspaceGraphNodes],
+      workspaceGraphNodes.map((node) => {
+        const status = node.mission_id ? statusFromRuntime(runtimeByMission[node.mission_id]) : undefined;
+        // Surface each mission's assigned worker on its node so the per-mission
+        // choice is visible on the canvas (blocked missions keep their warning).
+        if (node.kind === "mission" && node.mission_id && status !== "blocked") {
+          return { ...node, status, detail: workerModeLabel(workerModeByMission[node.mission_id] ?? "mock") };
+        }
+        return { ...node, status };
+      }),
+    [runtimeByMission, workspaceGraphNodes, workerModeByMission],
   );
 
   const runningMissionIds = useMemo(
@@ -400,10 +419,7 @@ export function App() {
     }));
     setWorkerModeByMission((current) => ({
       ...Object.fromEntries(
-        nextWorkspaceView.missions.map((mission) => [
-          mission.id,
-          current[mission.id] ?? (mission.worker === "local-command" ? "local-command" : "mock"),
-        ]),
+        nextWorkspaceView.missions.map((mission) => [mission.id, current[mission.id] ?? workerModeFromName(mission.worker)]),
       ),
     }));
     setSelectedNodeId((current) => {
