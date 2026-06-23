@@ -6,6 +6,13 @@
       "name": "orbital-demo-repo",
       "branch": "",
       "created_at": "2026-06-12T11:53:26.288741Z"
+    },
+    {
+      "id": "repo_2781265300000000000",
+      "path": "/private/tmp/orbital-payments-api",
+      "name": "payments-api",
+      "branch": "main",
+      "created_at": "2026-06-20T10:00:00Z"
     }
   ],
   "missions": [
@@ -16,6 +23,14 @@
       "status": "verified",
       "created_at": "2026-06-12T11:53:26.289009Z",
       "updated_at": "2026-06-12T11:53:26.322352Z"
+    },
+    {
+      "id": "mission_2781265300000000000",
+      "repository_id": "repo_2781265300000000000",
+      "text": "add idempotency keys to charges",
+      "status": "waiting_approval",
+      "created_at": "2026-06-20T10:00:00Z",
+      "updated_at": "2026-06-20T10:05:00Z"
     }
   ],
   "agent_runs": [
@@ -26,6 +41,33 @@
       "status": "completed",
       "started_at": "2026-06-12T11:53:26.289083Z",
       "completed_at": "2026-06-12T11:53:26.28968Z"
+    },
+    {
+      "id": "run_2781265300000000000",
+      "mission_id": "mission_2781265300000000000",
+      "worker_name": "claude-manager",
+      "status": "completed",
+      "started_at": "2026-06-20T10:00:00Z",
+      "completed_at": "2026-06-20T10:05:00Z",
+      "child_run_ids": ["run_2781265300000000001", "run_2781265300000000002"]
+    },
+    {
+      "id": "run_2781265300000000001",
+      "mission_id": "mission_2781265300000000000",
+      "worker_name": "claude-engineer",
+      "status": "completed",
+      "started_at": "2026-06-20T10:01:00Z",
+      "completed_at": "2026-06-20T10:03:00Z",
+      "parent_run_id": "run_2781265300000000000"
+    },
+    {
+      "id": "run_2781265300000000002",
+      "mission_id": "mission_2781265300000000000",
+      "worker_name": "claude-reviewer",
+      "status": "completed",
+      "started_at": "2026-06-20T10:03:00Z",
+      "completed_at": "2026-06-20T10:05:00Z",
+      "parent_run_id": "run_2781265300000000000"
     }
   ],
   "workflow_events": [
@@ -110,6 +152,55 @@
       "message": "Verification passed.",
       "command": "node -e \"console.log('verified')\"",
       "created_at": "2026-06-12T11:53:26.322352Z"
+    },
+    {
+      "id": "event_2781265300000000000",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000000",
+      "type": "run_started",
+      "message": "Claude Manager accepted the mission.",
+      "created_at": "2026-06-20T10:00:00Z"
+    },
+    {
+      "id": "event_2781265300000000001",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000000",
+      "type": "child_run_spawned",
+      "message": "Manager spawned claude-engineer agent.",
+      "created_at": "2026-06-20T10:01:00Z"
+    },
+    {
+      "id": "event_2781265300000000002",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000002",
+      "type": "file_read",
+      "message": "Read the charge handler.",
+      "file_path": "src/charges.ts",
+      "created_at": "2026-06-20T10:02:00Z"
+    },
+    {
+      "id": "event_2781265300000000003",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000000",
+      "type": "child_run_spawned",
+      "message": "Manager spawned claude-reviewer agent.",
+      "created_at": "2026-06-20T10:03:00Z"
+    },
+    {
+      "id": "event_2781265300000000004",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000000",
+      "type": "patch_proposed",
+      "message": "Reviewer delivered a patch to the approval bay.",
+      "created_at": "2026-06-20T10:05:00Z"
+    },
+    {
+      "id": "event_2781265300000000005",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000000",
+      "type": "run_completed",
+      "message": "Claude Manager completed orchestration.",
+      "created_at": "2026-06-20T10:05:00Z"
     }
   ],
   "patch_proposals": [
@@ -120,6 +211,14 @@
       "diff": "diff --git a/package.json b/package.json\nindex 2b13a1c..91d44fd 100644\n--- a/package.json\n+++ b/package.json\n@@ -4,6 +4,7 @@\n   \"bin\": {\n     \"demo\": \"./dist/cli.js\"\n   },\n+  \"version\": \"0.1.0\",\n   \"scripts\": {\n     \"build\": \"tsc\",\n     \"test\": \"vitest run\"\ndiff --git a/src/cli.ts b/src/cli.ts\nindex 8b891fa..7f1c0db 100644\n--- a/src/cli.ts\n+++ b/src/cli.ts\n@@ -1,5 +1,10 @@\n import pkg from \"../package.json\";\n\n const command = process.argv[2];\n\n+if (command === \"version\" || command === \"--version\") {\n+  console.log(pkg.version);\n+  process.exit(0);\n+}\n+\n console.log(\"Usage: demo \u003ccommand\u003e\");\n",
       "created_at": "2026-06-12T11:53:26.289361Z",
       "updated_at": "2026-06-12T11:53:26.300289Z"
+    },
+    {
+      "id": "patch_2781265300000000000",
+      "run_id": "run_2781265300000000002",
+      "status": "pending",
+      "diff": "diff --git a/src/charges.ts b/src/charges.ts\nindex 1a2b3c4..5d6e7f8 100644\n--- a/src/charges.ts\n+++ b/src/charges.ts\n@@ -1,6 +1,11 @@\n export async function createCharge(input: ChargeInput) {\n+  if (input.idempotencyKey) {\n+    const existing = await charges.findByKey(input.idempotencyKey);\n+    if (existing) return existing;\n+  }\n   const charge = await gateway.charge(input);\n   return charge;\n }\n",
+      "created_at": "2026-06-20T10:05:00Z",
+      "updated_at": "2026-06-20T10:05:00Z"
     }
   ],
   "verification_runs": [
