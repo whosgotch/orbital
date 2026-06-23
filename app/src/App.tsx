@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
@@ -54,8 +54,48 @@ const emptyMissionLoopState: MissionLoopState = {
 const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState);
 type WorkerMode = "mock" | "local-command" | "claude-manager";
 
+// Merge every open repository's state into one MissionLoopState. The adapter
+// already keys nodes by repository_id / mission_id, so the union renders each
+// repo as its own cluster on the shared canvas.
+function combineRepoStates(states: Record<string, MissionLoopState>): MissionLoopState {
+  const all = Object.values(states);
+  return {
+    repositories: all.flatMap((state) => state.repositories),
+    missions: all.flatMap((state) => state.missions),
+    agent_runs: all.flatMap((state) => state.agent_runs),
+    workflow_events: all.flatMap((state) => state.workflow_events),
+    patch_proposals: all.flatMap((state) => state.patch_proposals),
+    verification_runs: all.flatMap((state) => state.verification_runs),
+  };
+}
+
+// Normalize a loaded state into one slice per repository, keyed by repo id. The
+// worker returns a single repo per call, but the browser fixture bundles
+// several — splitting lets each repo be added, updated, or closed on its own.
+function splitByRepository(state: MissionLoopState): Record<string, MissionLoopState> {
+  const out: Record<string, MissionLoopState> = {};
+  for (const repo of state.repositories) {
+    const missionIds = new Set(state.missions.filter((mission) => mission.repository_id === repo.id).map((mission) => mission.id));
+    const runIds = new Set(state.agent_runs.filter((run) => missionIds.has(run.mission_id)).map((run) => run.id));
+    out[repo.id] = {
+      repositories: [repo],
+      missions: state.missions.filter((mission) => mission.repository_id === repo.id),
+      agent_runs: state.agent_runs.filter((run) => missionIds.has(run.mission_id)),
+      workflow_events: state.workflow_events.filter(
+        (event) => (event.mission_id != null && missionIds.has(event.mission_id)) || (event.run_id != null && runIds.has(event.run_id)),
+      ),
+      patch_proposals: state.patch_proposals.filter((patch) => runIds.has(patch.run_id)),
+      verification_runs: state.verification_runs.filter((run) => run.repository_id === repo.id || missionIds.has(run.mission_id)),
+    };
+  }
+  return out;
+}
+
 export function App() {
   const [missionLoopState, setMissionLoopState] = useState(emptyMissionLoopState);
+  // Each opened repository keeps its own worker state; the canvas renders the
+  // union of them all. Keyed by repository id.
+  const repoStatesRef = useRef<Record<string, MissionLoopState>>({});
   const [refreshingMissionLoop, setRefreshingMissionLoop] = useState(false);
   const [missionLoopError, setMissionLoopError] = useState("");
   const [repoPathDraft, setRepoPathDraft] = useState(demoRepoPath);
@@ -125,7 +165,8 @@ export function App() {
   const startMission = async () => {
     setMissionLoopError("");
     const missionId = selectedMission.id;
-    console.log("[orbital] dispatch start", { missionId, worker: selectedWorkerMode, repo: activeRepoPath, tauri: isTauriRuntime() });
+    const repoPath = selectedRepository?.path ?? activeRepoPath;
+    console.log("[orbital] dispatch start", { missionId, worker: selectedWorkerMode, repo: repoPath, tauri: isTauriRuntime() });
 
     let unlistenEvent: (() => void) | undefined;
     let unlistenPatch: (() => void) | undefined;
@@ -168,7 +209,7 @@ export function App() {
     try {
       console.log("[orbital] invoking start_agent_run…");
       const nextMissionLoopState = await startAgentRunMissionLoopState(
-        activeRepoPath,
+        repoPath,
         missionId,
         selectedWorkerMode,
         selectedWorkerMode === "local-command" ? selectedLocalCommand : undefined,
@@ -180,7 +221,7 @@ export function App() {
         patches: nextMissionLoopState?.patch_proposals?.length,
       });
       if (nextMissionLoopState) {
-        hydrateMissionLoop(nextMissionLoopState, missionId);
+        applyRepoState(nextMissionLoopState, missionId);
         return;
       }
     } catch (error) {
@@ -202,12 +243,13 @@ export function App() {
     }
 
     setMissionLoopError("");
+    const repoPath = selectedRepository?.path ?? activeRepoPath;
 
     try {
-      const nextMissionLoopState = await queueMissionLoopState(activeRepoPath, title);
+      const nextMissionLoopState = await queueMissionLoopState(repoPath, title);
       if (nextMissionLoopState) {
         const missionId = nextMissionLoopState.missions.at(-1)?.id;
-        hydrateMissionLoop(nextMissionLoopState, missionId);
+        applyRepoState(nextMissionLoopState, missionId);
         return;
       }
     } catch (error) {
@@ -279,9 +321,10 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      const nextMissionLoopState = await approvePatchMissionLoopState(activeRepoPath, selectedMission.id);
+      const repoPath = selectedRepository?.path ?? activeRepoPath;
+      const nextMissionLoopState = await approvePatchMissionLoopState(repoPath, selectedMission.id);
       if (nextMissionLoopState) {
-        hydrateMissionLoop(nextMissionLoopState, selectedMission.id);
+        applyRepoState(nextMissionLoopState, selectedMission.id);
         return;
       }
     } catch (error) {
@@ -296,9 +339,10 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      const nextMissionLoopState = await rejectPatchMissionLoopState(activeRepoPath, selectedMission.id);
+      const repoPath = selectedRepository?.path ?? activeRepoPath;
+      const nextMissionLoopState = await rejectPatchMissionLoopState(repoPath, selectedMission.id);
       if (nextMissionLoopState) {
-        hydrateMissionLoop(nextMissionLoopState, selectedMission.id);
+        applyRepoState(nextMissionLoopState, selectedMission.id);
         return;
       }
     } catch (error) {
@@ -319,9 +363,10 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      const nextMissionLoopState = await verifyMissionLoopState(activeRepoPath, selectedMission.id, command);
+      const repoPath = selectedRepository?.path ?? activeRepoPath;
+      const nextMissionLoopState = await verifyMissionLoopState(repoPath, selectedMission.id, command);
       if (nextMissionLoopState) {
-        hydrateMissionLoop(nextMissionLoopState, selectedMission.id);
+        applyRepoState(nextMissionLoopState, selectedMission.id);
         return;
       }
     } catch (error) {
@@ -372,6 +417,21 @@ export function App() {
     });
   };
 
+  // applyRepoState folds a loaded state (one repo from the worker, or several
+  // from the fixture) into the open set keyed by repo id, then re-hydrates the
+  // canvas from the union — so adding or updating a repo keeps the others.
+  const applyRepoState = (state: MissionLoopState, preferredNodeId?: string) => {
+    const next = { ...repoStatesRef.current, ...splitByRepository(state) };
+    repoStatesRef.current = next;
+    hydrateMissionLoop(combineRepoStates(next), preferredNodeId);
+  };
+
+  const closeRepo = (repositoryId: string) => {
+    const { [repositoryId]: _removed, ...next } = repoStatesRef.current;
+    repoStatesRef.current = next;
+    hydrateMissionLoop(combineRepoStates(next));
+  };
+
   const openWorkspace = async () => {
     const repoPath = repoPathDraft.trim();
     if (!repoPath) {
@@ -385,7 +445,7 @@ export function App() {
       const nextMissionLoopState = await openMissionLoopRepository(repoPath);
       if (nextMissionLoopState) {
         setActiveRepoPath(repoPath);
-        hydrateMissionLoop(nextMissionLoopState);
+        applyRepoState(nextMissionLoopState, nextMissionLoopState.repositories[0]?.id);
       }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to open repository."));
@@ -413,7 +473,7 @@ export function App() {
       const nextMissionLoopState = await openMissionLoopRepository(repoPath);
       if (nextMissionLoopState) {
         setActiveRepoPath(repoPath);
-        hydrateMissionLoop(nextMissionLoopState);
+        applyRepoState(nextMissionLoopState, nextMissionLoopState.repositories[0]?.id);
       }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to choose repository folder."));
@@ -433,7 +493,7 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      hydrateMissionLoop(activeRepoPath === demoRepoPath ? await refreshMissionLoopState() : await loadMissionLoopState(activeRepoPath));
+      applyRepoState(activeRepoPath === demoRepoPath ? await refreshMissionLoopState() : await loadMissionLoopState(activeRepoPath));
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to load mission loop state."));
     } finally {
@@ -447,7 +507,7 @@ export function App() {
       setMissionLoopError("");
 
       try {
-        hydrateMissionLoop(await loadMissionLoopState(activeRepoPath));
+        applyRepoState(await loadMissionLoopState(activeRepoPath));
       } catch (error) {
         setMissionLoopError(errorMessage(error, "Failed to load mission loop state."));
       } finally {
@@ -548,12 +608,28 @@ export function App() {
               disabled={!repoPathDraft.trim() || refreshingMissionLoop}
             >
               <FolderOpen size={16} aria-hidden="true" />
-              <span>Open</span>
+              <span>Add</span>
             </button>
           </div>
-          <div className="workspace-path" title={activeRepoPath}>
-            {activeRepoPath}
-          </div>
+          {missionLoopState.repositories.length > 0 ? (
+            <ul className="workspace-repos">
+              {missionLoopState.repositories.map((repo) => (
+                <li key={repo.id}>
+                  <Network size={14} aria-hidden="true" />
+                  <span className="workspace-repo-name" title={repo.path}>{repo.name}</span>
+                  <button
+                    className="repo-close"
+                    type="button"
+                    onClick={() => closeRepo(repo.id)}
+                    title="Close repository"
+                    aria-label={`Close ${repo.name}`}
+                  >
+                    <X size={13} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </section>
       ) : null}
 

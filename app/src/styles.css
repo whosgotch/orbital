@@ -380,13 +380,53 @@ select:focus {
   flex: 1;
 }
 
-.workspace-path {
-  margin-top: 10px;
-  overflow: hidden;
+.workspace-repos {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.workspace-repos li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.workspace-repos li svg {
   color: var(--muted);
-  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.workspace-repo-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--soft);
+  font-size: 13px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.repo-close {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 5px;
+  color: var(--muted);
+  background: transparent;
+}
+
+.repo-close:hover {
+  color: var(--text);
+  background: var(--line);
 }
 
 .icon-button {
