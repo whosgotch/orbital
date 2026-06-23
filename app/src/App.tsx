@@ -683,8 +683,8 @@ export function App() {
           </div>
           <ol className="activity-list">
             {activity.length === 0 ? <li className="quiet">Mission is queued outside the active lane.</li> : null}
-            {activity.map((step) => (
-              <li key={step}>{step}</li>
+            {activity.map((step, index) => (
+              <li key={`${index}-${step}`}>{step}</li>
             ))}
           </ol>
         </section>
