@@ -391,7 +391,18 @@ select:focus {
 
 .icon-button {
   width: 38px;
+  flex: 0 0 38px;
   padding: 0;
+}
+
+.workspace-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.workspace-input-row input {
+  flex: 1;
+  min-width: 0;
 }
 
 .metric-grid {

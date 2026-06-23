@@ -515,16 +515,25 @@ export function App() {
       {openPanel === "repo" ? (
         <section className="popover repo-popover" aria-label="Workspace">
           <div className="section-label">Workspace</div>
-          <input
-            aria-label="Repository path"
-            value={repoPathDraft}
-            onChange={(event) => setRepoPathDraft(event.target.value)}
-          />
-          <div className="actions workspace-actions">
-            <button className="secondary" type="button" onClick={chooseWorkspaceFolder} disabled={refreshingMissionLoop}>
+          <div className="workspace-input-row">
+            <input
+              aria-label="Repository path"
+              placeholder="/path/to/repository"
+              value={repoPathDraft}
+              onChange={(event) => setRepoPathDraft(event.target.value)}
+            />
+            <button
+              className="secondary icon-button"
+              type="button"
+              onClick={chooseWorkspaceFolder}
+              disabled={refreshingMissionLoop}
+              title="Browse for a folder"
+              aria-label="Browse for a folder"
+            >
               <FolderOpen size={16} aria-hidden="true" />
-              <span>Choose</span>
             </button>
+          </div>
+          <div className="actions workspace-actions">
             <button className="secondary" type="button" onClick={loadDemoFactory} disabled={refreshingMissionLoop}>
               <RefreshCw size={16} aria-hidden="true" />
               <span>Demo</span>
