@@ -2,32 +2,54 @@ import dagre from "@dagrejs/dagre";
 import type { WorkspaceGraphEdge, WorkspaceGraphNode } from "./mockMission";
 
 export type NodePosition = { x: number; y: number };
+export type LaneBox = { missionId: string; label: string; x: number; y: number; width: number; height: number };
+export type GraphLayout = { positions: Record<string, NodePosition>; lanes: LaneBox[] };
 
 // Dagre is fed a single uniform node footprint. Mixing per-kind sizes makes its
 // rank assignment collapse multiple ranks onto the same coordinate, so layout
 // uses one size for spacing while the rendered nodes keep their real CSS sizes.
 const NODE_WIDTH = 150;
 const NODE_HEIGHT = 86;
-const COL_GAP = 96; // horizontal gap between pipeline stages within a lane
-const ROW_GAP = 34; // vertical gap between branches inside one lane
-const LANE_GAP = 60; // vertical gap between mission lanes
-const REPO_COL = NODE_WIDTH + COL_GAP; // x of the mission column (repo sits left of it)
+const COL_GAP = 96; // horizontal gap between pipeline stages
+const ROW_GAP = 30; // vertical gap between branches inside one lane
+const LANE_GAP = 52; // vertical gap between mission lanes
+const COL_STEP = NODE_WIDTH + COL_GAP; // distance between aligned columns
+const LANE_PAD_X = 26;
+const LANE_PAD_Y = 22;
 
-// layoutGraph arranges the graph as swimlanes: every mission is its own lane,
-// laid out left-to-right with dagre, and the lanes are stacked vertically and
-// grouped by repository. The repository node anchors the left of its lanes.
-// This keeps a large, fully-expanded multi-mission workflow legible instead of
-// letting one global dagre pass scatter the nodes. Returns top-left positions
-// keyed by node id (React Flow positions nodes by their top-left corner).
-export function layoutGraph(
-  nodes: WorkspaceGraphNode[],
-  edges: WorkspaceGraphEdge[],
-): Record<string, NodePosition> {
-  const centers: Record<string, NodePosition> = {};
+// layoutGraph arranges the graph as aligned swimlanes: every mission is its own
+// lane, and each node snaps to a GLOBAL column (its longest-path depth from the
+// repo) so the same pipeline stage lines up vertically across every lane — a
+// crisp grid for a large multi-mission workflow. Vertical placement within a
+// lane still comes from a dagre pass, which keeps branches (files, parallel
+// agents) tidy. Returns top-left positions plus a band box per lane.
+export function layoutGraph(nodes: WorkspaceGraphNode[], edges: WorkspaceGraphEdge[]): GraphLayout {
+  const present = new Set(nodes.map((node) => node.id));
+  const parents = new Map<string, string[]>();
+  nodes.forEach((node) => parents.set(node.id, []));
+  edges.forEach((edge) => {
+    if (present.has(edge.from) && present.has(edge.to)) parents.get(edge.to)!.push(edge.from);
+  });
+
+  // Global column = longest path from a root (repo). Memoized, guarded against
+  // accidental cycles so layout never hangs.
+  const columnCache = new Map<string, number>();
+  const inFlight = new Set<string>();
+  const columnOf = (id: string): number => {
+    if (columnCache.has(id)) return columnCache.get(id)!;
+    if (inFlight.has(id)) return 0;
+    inFlight.add(id);
+    const ps = parents.get(id) ?? [];
+    const value = ps.length === 0 ? 0 : 1 + Math.max(...ps.map(columnOf));
+    inFlight.delete(id);
+    columnCache.set(id, value);
+    return value;
+  };
+  nodes.forEach((node) => columnOf(node.id));
 
   const repoNodes = nodes.filter((node) => node.kind === "repo");
 
-  // Bucket every non-repo node into its mission's lane.
+  // Bucket non-repo nodes into mission lanes, keeping a repo's missions adjacent.
   const laneOrder: string[] = [];
   const laneNodes = new Map<string, WorkspaceGraphNode[]>();
   for (const node of nodes) {
@@ -38,8 +60,6 @@ export function layoutGraph(
     }
     laneNodes.get(node.mission_id)!.push(node);
   }
-
-  // Keep a repository's missions adjacent, so lanes read as grouped clusters.
   const repoOfLane = (missionId: string) => laneNodes.get(missionId)?.[0]?.repository_id ?? "";
   laneOrder.sort((a, b) => {
     const ra = repoOfLane(a);
@@ -48,6 +68,8 @@ export function layoutGraph(
     return a < b ? -1 : 1;
   });
 
+  const centers: Record<string, NodePosition> = {};
+  const lanes: LaneBox[] = [];
   const repoMissionYs = new Map<string, number[]>();
   let laneTop = 0;
 
@@ -55,6 +77,7 @@ export function layoutGraph(
     const lane = laneNodes.get(missionId)!;
     const laneSet = new Set(lane.map((node) => node.id));
 
+    // Dagre gives the vertical arrangement; we ignore its x and use columns.
     const graph = new dagre.graphlib.Graph();
     graph.setGraph({ rankdir: "LR", nodesep: ROW_GAP, ranksep: COL_GAP, marginx: 0, marginy: 0 });
     graph.setDefaultEdgeLabel(() => ({}));
@@ -64,23 +87,21 @@ export function layoutGraph(
     });
     dagre.layout(graph);
 
-    let minX = Infinity;
     let minY = Infinity;
     let maxY = -Infinity;
+    let maxCol = 0;
     lane.forEach((node) => {
       const laid = graph.node(node.id);
-      minX = Math.min(minX, laid.x);
       minY = Math.min(minY, laid.y);
       maxY = Math.max(maxY, laid.y);
+      maxCol = Math.max(maxCol, columnOf(node.id));
     });
 
-    // Place this lane: its leftmost stage sits at the mission column, and the
-    // whole lane drops into the next vertical band.
     const laneCenterTop = laneTop + NODE_HEIGHT / 2;
     lane.forEach((node) => {
       const laid = graph.node(node.id);
       centers[node.id] = {
-        x: REPO_COL + (laid.x - minX),
+        x: columnOf(node.id) * COL_STEP + NODE_WIDTH / 2,
         y: laneCenterTop + (laid.y - minY),
       };
     });
@@ -92,10 +113,21 @@ export function layoutGraph(
       repoMissionYs.set(missionNode.repository_id, ys);
     }
 
-    laneTop += maxY - minY + NODE_HEIGHT + LANE_GAP;
+    // Lane band spans from the mission column to the last stage column.
+    const laneHeight = maxY - minY + NODE_HEIGHT;
+    const startCol = Math.min(...lane.map((node) => columnOf(node.id)));
+    lanes.push({
+      missionId,
+      label: missionNode?.label ?? "",
+      x: startCol * COL_STEP - LANE_PAD_X,
+      y: laneTop - LANE_PAD_Y,
+      width: (maxCol - startCol) * COL_STEP + NODE_WIDTH + LANE_PAD_X * 2,
+      height: laneHeight + LANE_PAD_Y * 2,
+    });
+
+    laneTop += laneHeight + LANE_GAP;
   }
 
-  // Anchor each repository node to the left, vertically centered on its lanes.
   repoNodes.forEach((repo, index) => {
     const ys = repoMissionYs.get(repo.id);
     const y = ys && ys.length > 0 ? ys.reduce((sum, value) => sum + value, 0) / ys.length : index * (NODE_HEIGHT + LANE_GAP);
@@ -107,5 +139,5 @@ export function layoutGraph(
     const center = centers[node.id] ?? { x: 0, y: 0 };
     positions[node.id] = { x: center.x - NODE_WIDTH / 2, y: center.y - NODE_HEIGHT / 2 };
   }
-  return positions;
+  return { positions, lanes };
 }

@@ -16,7 +16,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Code2, Crown, Eye, FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
-import { layoutGraph, type NodePosition } from "../graphLayout";
+import { layoutGraph, type LaneBox, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../mockMission";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
@@ -56,7 +56,21 @@ function edgeDash(kind: string) {
   return undefined;
 }
 
-const nodeTypes = { orbital: OrbitalNode };
+const nodeTypes = { orbital: OrbitalNode, lane: LaneNode };
+
+function laneToRfNode(lane: LaneBox): Node {
+  return {
+    id: `lane:${lane.missionId}`,
+    type: "lane",
+    position: { x: lane.x, y: lane.y },
+    data: { label: lane.label, width: lane.width, height: lane.height },
+    draggable: false,
+    selectable: false,
+    focusable: false,
+    zIndex: 0,
+    style: { width: lane.width, height: lane.height },
+  };
+}
 
 export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
@@ -79,22 +93,25 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   );
 
   useEffect(() => {
-    const laidOut = layoutGraph(nodes, edges);
+    const { positions: laidOut, lanes } = layoutGraph(nodes, edges);
     const merged: Record<string, NodePosition> = {};
     nodes.forEach((node) => {
       merged[node.id] = positionsRef.current[node.id] ?? laidOut[node.id];
     });
     positionsRef.current = merged;
 
-    setRfNodes(
-      nodes.map((node) => ({
+    // Lane bands render first (behind), then the mission/agent nodes on top.
+    const laneNodes = lanes.map(laneToRfNode);
+    setRfNodes([
+      ...laneNodes,
+      ...nodes.map((node) => ({
         id: node.id,
         type: "orbital",
         position: merged[node.id],
         data: { kind: node.kind, label: node.label, detail: node.detail, status: node.status },
         selected: node.id === selectedNodeId,
       })),
-    );
+    ] as Node<OrbitalNodeData>[]);
     setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topologyKey]);
@@ -122,6 +139,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
 
   const onNodeClick = useCallback(
     (_event: unknown, node: Node) => {
+      if (node.type === "lane") return;
       onSelectNode(node.id);
     },
     [onSelectNode],
@@ -200,6 +218,15 @@ function OrbitalNode({ data, selected }: NodeProps) {
       <span>{node.label}</span>
       <small>{node.detail}</small>
       <Handle type="source" position={Position.Right} className="rf-handle" isConnectable={false} />
+    </div>
+  );
+}
+
+function LaneNode({ data }: NodeProps) {
+  const lane = data as { label: string; width: number; height: number };
+  return (
+    <div className="graph-lane" style={{ width: lane.width, height: lane.height }}>
+      <span className="graph-lane-label">{lane.label}</span>
     </div>
   );
 }

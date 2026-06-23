@@ -380,6 +380,26 @@ select:focus {
   flex: 1;
 }
 
+.graph-lane {
+  box-sizing: border-box;
+  border: 1px solid rgba(139, 147, 161, 0.16);
+  border-radius: 14px;
+  background: rgba(139, 147, 161, 0.045);
+  pointer-events: none;
+}
+
+.graph-lane-label {
+  position: absolute;
+  top: 7px;
+  left: 14px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  opacity: 0.75;
+}
+
 .chip-badge {
   display: inline-flex;
   align-items: center;
