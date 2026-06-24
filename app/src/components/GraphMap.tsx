@@ -73,7 +73,10 @@ const nodeTypes = { orbital: OrbitalNode };
 export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const positionsRef = useRef<Record<string, NodePosition>>({});
+  // Only nodes the user explicitly dragged are pinned here. Everything else is
+  // re-laid-out fresh on every topology change, so adding a repo never collides
+  // with an existing one's stale coordinates.
+  const manualPositionsRef = useRef<Record<string, NodePosition>>({});
 
   const missionByNode = useMemo(() => {
     const map: Record<string, string | undefined> = {};
@@ -92,17 +95,11 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
 
   useEffect(() => {
     const laidOut = layoutGraph(nodes, edges);
-    const merged: Record<string, NodePosition> = {};
-    nodes.forEach((node) => {
-      merged[node.id] = positionsRef.current[node.id] ?? laidOut[node.id];
-    });
-    positionsRef.current = merged;
-
     setRfNodes(
       nodes.map((node) => ({
         id: node.id,
         type: "orbital",
-        position: merged[node.id],
+        position: manualPositionsRef.current[node.id] ?? laidOut[node.id],
         data: { kind: node.kind, label: node.label, detail: node.detail, status: node.status, missionId: node.mission_id },
         selected: node.id === selectedNodeId,
       })) as Node<OrbitalNodeData>[],
@@ -129,14 +126,14 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds]);
 
   const onNodeDragStop = useCallback((_event: unknown, node: Node) => {
-    positionsRef.current[node.id] = node.position;
+    manualPositionsRef.current[node.id] = node.position;
   }, []);
 
   // Persist positions for every node moved as part of a marquee selection, so a
   // dragged project lane keeps its new spot across re-layouts.
   const onSelectionDragStop = useCallback((_event: unknown, draggedNodes: Node[]) => {
     draggedNodes.forEach((node) => {
-      positionsRef.current[node.id] = node.position;
+      manualPositionsRef.current[node.id] = node.position;
     });
   }, []);
 
