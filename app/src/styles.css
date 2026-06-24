@@ -740,6 +740,14 @@ dd {
   background: #0c0f13;
 }
 
+/* Marquee-dragging across the canvas must not trigger the browser's native
+   text-selection highlight (a big blue flicker over the node labels). */
+.graph-canvas,
+.graph-canvas * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .react-flow {
   background: transparent;
 }
