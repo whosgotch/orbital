@@ -424,7 +424,7 @@ function compactLabel(title: string) {
   return title.split(/\s+/).filter(Boolean).slice(0, 3).join(" ");
 }
 
-function roleLabel(workerName: string) {
+export function roleLabel(workerName: string) {
   switch (workerName) {
     case "claude-engineer":
       return "Engineer";

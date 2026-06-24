@@ -47,6 +47,8 @@ export type WorkflowEventType =
   | "repo_inspected"
   | "file_read"
   | "command_executed"
+  | "agent_thought"
+  | "agent_action"
   | "patch_proposed"
   | "patch_approved"
   | "patch_rejected"

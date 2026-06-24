@@ -222,6 +222,70 @@
       "type": "run_completed",
       "message": "Claude Manager completed orchestration.",
       "created_at": "2026-06-20T10:05:00Z"
+    },
+    {
+      "id": "event_seed_0",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000001",
+      "type": "agent_thought",
+      "message": "createCharge calls the gateway unconditionally, so a retried request would double-charge. I'll guard on input.idempotencyKey and return the existing charge if one is already recorded.",
+      "created_at": "2026-06-12T12:00:00Z"
+    },
+    {
+      "id": "event_seed_1",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000001",
+      "type": "agent_action",
+      "message": "Read src/charges.ts",
+      "created_at": "2026-06-12T12:00:01Z"
+    },
+    {
+      "id": "event_seed_2",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000001",
+      "type": "agent_thought",
+      "message": "I'll add an early lookup: if a charge already exists for the key, return it before calling gateway.charge \u2014 keeping retries safe.",
+      "created_at": "2026-06-12T12:00:02Z"
+    },
+    {
+      "id": "event_seed_3",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000001",
+      "type": "agent_action",
+      "message": "Edit src/charges.ts (+4 lines)",
+      "created_at": "2026-06-12T12:00:03Z"
+    },
+    {
+      "id": "event_seed_4",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000001",
+      "type": "agent_action",
+      "message": "Ran: npm test",
+      "created_at": "2026-06-12T12:00:04Z"
+    },
+    {
+      "id": "event_seed_5",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000002",
+      "type": "agent_thought",
+      "message": "The guard is correct. findByKey could in theory race under heavy concurrency, but that's out of scope here. I want to confirm the early return preserves the original response shape.",
+      "created_at": "2026-06-12T12:00:05Z"
+    },
+    {
+      "id": "event_seed_6",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000002",
+      "type": "agent_action",
+      "message": "Read src/charges.ts",
+      "created_at": "2026-06-12T12:00:06Z"
+    },
+    {
+      "id": "event_seed_7",
+      "mission_id": "mission_2781265300000000000",
+      "run_id": "run_2781265300000000002",
+      "type": "agent_thought",
+      "message": "Confirmed the returned existing charge matches the gateway's ChargeResult type, so callers see no difference. The change is minimal and correct \u2014 approving.",
+      "created_at": "2026-06-12T12:00:07Z"
     }
   ],
   "patch_proposals": [

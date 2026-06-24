@@ -9,6 +9,8 @@ const (
 	WorkflowEventRepoInspected      WorkflowEventType = "repo_inspected"
 	WorkflowEventFileRead           WorkflowEventType = "file_read"
 	WorkflowEventCommandExecuted    WorkflowEventType = "command_executed"
+	WorkflowEventAgentThought       WorkflowEventType = "agent_thought"
+	WorkflowEventAgentAction        WorkflowEventType = "agent_action"
 	WorkflowEventPatchProposed      WorkflowEventType = "patch_proposed"
 	WorkflowEventPatchApproved      WorkflowEventType = "patch_approved"
 	WorkflowEventPatchRejected      WorkflowEventType = "patch_rejected"

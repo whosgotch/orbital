@@ -275,11 +275,83 @@ h3 {
 }
 
 .review-changes,
-.review-activity {
+.review-activity,
+.review-agent {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Agent transcript: the agent's thoughts + actions stream. */
+.transcript {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.transcript-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.transcript-agent {
+  margin: 10px 0 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.transcript-entry {
+  display: flex;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.transcript-glyph {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--muted);
+}
+
+.transcript-entry.thought {
+  background: rgba(91, 139, 255, 0.08);
+  border: 1px solid rgba(91, 139, 255, 0.16);
+  color: var(--soft);
+  font-style: italic;
+}
+
+.transcript-entry.thought .transcript-glyph {
+  color: #6f9bff;
+}
+
+.transcript-entry.action {
+  color: var(--soft);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.transcript-entry.action .transcript-glyph {
+  color: #d9a441;
+}
+
+.transcript-entry.status {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 /* Verification result bar: a compact pass/fail pill that expands the log. */

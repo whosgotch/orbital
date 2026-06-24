@@ -31,7 +31,9 @@ type streamJSONLine struct {
 // modify files directly. It streams Claude's actions (text, tool use) to onStep
 // as they happen, and returns Claude's final summary. The actual file changes
 // are captured separately via git diff.
-func callClaudeAgentic(ctx context.Context, repoPath, prompt string, onStep func(msg string)) (string, error) {
+// onStep receives each streamed step as ("thought", reasoning text) for Claude's
+// own narration or ("action", tool description) for an edit/command it runs.
+func callClaudeAgentic(ctx context.Context, repoPath, prompt string, onStep func(kind, msg string)) (string, error) {
 	cmd := exec.CommandContext(ctx, "claude", "--print",
 		"--permission-mode", "acceptEdits",
 		"--output-format", "stream-json", "--verbose",
@@ -61,10 +63,12 @@ func callClaudeAgentic(ctx context.Context, repoPath, prompt string, onStep func
 		case "assistant":
 			for _, block := range line.Message.Content {
 				if block.Type == "text" && strings.TrimSpace(block.Text) != "" {
-					onStep(truncate(block.Text, 220))
+					// Preserve Claude's full reasoning so the Agent transcript can
+					// show how it thinks, not a clipped one-liner.
+					onStep("thought", strings.TrimSpace(block.Text))
 				}
 				if block.Type == "tool_use" {
-					onStep(describeToolUse(block.Name, block.Input))
+					onStep("action", describeToolUse(block.Name, block.Input))
 				}
 			}
 		case "result":

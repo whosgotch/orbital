@@ -98,9 +98,14 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 			return
 		}
 
-		// Stream each of Claude's actions (reads, edits, commands) into the feed.
-		summary, err := callClaudeAgentic(ctx, request.RepoPath, w.buildPrompt(request.MissionText), func(msg string) {
-			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, msg, "", "claude")
+		// Stream Claude's reasoning (thoughts) and actions (edits, commands) into
+		// the feed, tagged so the Agent transcript can render them distinctly.
+		summary, err := callClaudeAgentic(ctx, request.RepoPath, w.buildPrompt(request.MissionText), func(kind, msg string) {
+			eventType := domain.WorkflowEventAgentAction
+			if kind == "thought" {
+				eventType = domain.WorkflowEventAgentThought
+			}
+			sendWorkflowEvent(ctx, events, request.RunID, eventType, msg, "", "claude")
 		})
 		if err != nil {
 			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Claude error: %v", err), "", "")

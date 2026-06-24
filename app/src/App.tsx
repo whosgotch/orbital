@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import { DiffView } from "./components/DiffView";
+import { AgentTranscript, type TranscriptEntry } from "./components/AgentTranscript";
 import {
   type MissionNodeStatus,
   type WorkspaceGraphEdge,
@@ -26,6 +27,7 @@ import {
 } from "./mockMission";
 import type { MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
 import {
+  roleLabel,
   workspaceViewFromMissionLoop,
   type WorkspaceRuntime,
   type WorkspaceRuntimeMap,
@@ -135,7 +137,7 @@ export function App() {
   );
   const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
   // Review panel: which tab is shown and whether the verification log is expanded.
-  const [reviewTab, setReviewTab] = useState<"changes" | "activity">("changes");
+  const [reviewTab, setReviewTab] = useState<"changes" | "activity" | "agent">("changes");
   const [verifyOpen, setVerifyOpen] = useState(false);
   // Whether the diff is popped out into a wide full-screen modal.
   const [diffModalOpen, setDiffModalOpen] = useState(false);
@@ -172,7 +174,7 @@ export function App() {
         setFocusedDiffFile(node.label);
         break;
       case "worker":
-        setReviewTab("activity");
+        setReviewTab("agent");
         break;
       default:
         break;
@@ -188,6 +190,25 @@ export function App() {
   const selectedVerificationOutput = (selectedMission ? verificationOutputByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
   const patchReady = (selectedPatchDiff ?? "") !== "";
+
+  // The agent run the transcript is scoped to: a clicked child agent uses its own
+  // run id; the manager node uses the mission's top-level run; otherwise the
+  // whole mission's agents are shown together.
+  const selectedAgentRunId = useMemo(() => {
+    if (!selectedGraphNode || selectedGraphNode.kind !== "worker") return undefined;
+    if (selectedGraphNode.id.endsWith("_manager")) {
+      return missionLoopState.agent_runs.filter((run) => run.mission_id === selectedMissionId && !run.parent_run_id).at(-1)?.id;
+    }
+    return selectedGraphNode.id;
+  }, [selectedGraphNode, missionLoopState.agent_runs, selectedMissionId]);
+
+  const agentTranscript = useMemo(
+    () => buildAgentTranscript(missionLoopState, selectedMissionId, selectedAgentRunId),
+    [missionLoopState, selectedMissionId, selectedAgentRunId],
+  );
+  const transcriptAgentLabel = selectedAgentRunId
+    ? roleLabel(missionLoopState.agent_runs.find((run) => run.id === selectedAgentRunId)?.worker_name ?? "")
+    : "All agents";
   const selectedActivity = activityByMission[selectedMission?.id ?? ""] ?? [];
   const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
@@ -980,6 +1001,15 @@ export function App() {
               >
                 Activity{activity.length > 0 ? <span className="tab-count">{activity.length}</span> : null}
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={reviewTab === "agent"}
+                className={`review-tab ${reviewTab === "agent" ? "active" : ""}`}
+                onClick={() => setReviewTab("agent")}
+              >
+                Agent
+              </button>
               {reviewTab === "changes" && patchReady ? (
                 <button
                   className="secondary icon-button mini review-expand"
@@ -1066,7 +1096,7 @@ export function App() {
                   </button>
                 </div>
               </div>
-            ) : (
+            ) : reviewTab === "activity" ? (
               <div className="review-activity">
                 <div className="activity-toolbar">
                   <span className="activity-worker">
@@ -1090,6 +1120,19 @@ export function App() {
                     <li key={`${index}-${step}`}>{step}</li>
                   ))}
                 </ol>
+              </div>
+            ) : (
+              <div className="review-agent">
+                <div className="activity-toolbar">
+                  <span className="activity-worker">
+                    <RadioTower size={13} aria-hidden="true" />
+                    {transcriptAgentLabel} · thinking
+                  </span>
+                </div>
+                <AgentTranscript
+                  entries={agentTranscript}
+                  emptyLabel="No reasoning captured yet — run this mission with an AI worker to see how it thinks."
+                />
               </div>
             )}
           </section>
@@ -1268,6 +1311,39 @@ function workerLabel(workerName: string) {
 
 function defaultLocalCommand() {
   return `printf 'diff --git a/orbital-local-worker.txt b/orbital-local-worker.txt\nnew file mode 100644\n--- /dev/null\n+++ b/orbital-local-worker.txt\n@@ -0,0 +1 @@\n+local worker completed\n' > "$ORBITAL_PATCH_PATH"`;
+}
+
+// buildAgentTranscript turns persisted workflow events into the agent's
+// thoughts + actions stream, scoped to one run when a specific agent is
+// selected, otherwise the whole mission's agents in order.
+function buildAgentTranscript(state: MissionLoopState, missionId: string, runId: string | undefined): TranscriptEntry[] {
+  const runById = new Map(state.agent_runs.map((run) => [run.id, run]));
+  const labelForRun = (rid: string | undefined) => {
+    const run = rid ? runById.get(rid) : undefined;
+    return run ? roleLabel(run.worker_name) : "";
+  };
+  // Cluster each agent's events together by ordering on when its run started,
+  // then chronologically within the run — so the mission-wide view reads
+  // manager → engineer → reviewer rather than interleaving them.
+  const runStart = (rid: string | undefined) => (rid ? runById.get(rid)?.started_at ?? "" : "");
+
+  return state.workflow_events
+    .filter((event) => {
+      if (runId) return event.run_id === runId;
+      return event.mission_id === missionId;
+    })
+    .slice()
+    .sort((a, b) => runStart(a.run_id).localeCompare(runStart(b.run_id)) || a.created_at.localeCompare(b.created_at))
+    .map((event) => {
+      const kind =
+        event.type === "agent_thought"
+          ? "thought"
+          : event.type === "agent_action" || event.type === "command_executed" || event.type === "file_read"
+            ? "action"
+            : "status";
+      return { id: event.id, kind, text: event.message, agent: labelForRun(event.run_id) } as TranscriptEntry;
+    })
+    .filter((entry) => entry.text.trim() !== "");
 }
 
 function verifyPillLabel(runtime: WorkspaceRuntime) {
