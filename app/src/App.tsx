@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Check,
+  ChevronDown,
   CircleDot,
   Gauge,
   Network,
@@ -132,6 +133,11 @@ export function App() {
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, workerModeFromName(mission.worker)])),
   );
   const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
+  // Review panel: which tab is shown and whether the verification log is expanded.
+  const [reviewTab, setReviewTab] = useState<"changes" | "activity">("changes");
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  // Worker chosen at launch time (intake), applied to every mission queued.
+  const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-manager");
   const [openPanel, setOpenPanel] = useState<null | "repo" | "mission" | "control">(null);
   const togglePanel = (panel: "repo" | "mission" | "control") =>
     setOpenPanel((current) => {
@@ -149,8 +155,6 @@ export function App() {
   const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationOutput = (selectedMission ? verificationOutputByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
-  const selectedWorkerMode = (selectedMission ? workerModeByMission[selectedMission.id] : undefined) ?? workerModeFromName(selectedMission?.worker);
-  const selectedLocalCommand = localCommandByMission[selectedMission?.id ?? ""] ?? defaultLocalCommand();
   const patchReady = (selectedPatchDiff ?? "") !== "";
   const selectedActivity = activityByMission[selectedMission?.id ?? ""] ?? [];
   const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
@@ -319,6 +323,11 @@ export function App() {
             if (nextMissionLoopState) {
               lastMissionId = nextMissionLoopState.missions.at(-1)?.id;
               applyRepoState(nextMissionLoopState, lastMissionId);
+              // Worker is chosen once at intake; stamp it so dispatch uses it.
+              if (lastMissionId) {
+                const newId = lastMissionId;
+                setWorkerModeByMission((current) => ({ ...current, [newId]: intakeWorkerMode }));
+              }
             }
           }
         }
@@ -372,7 +381,7 @@ export function App() {
       repository_id: targetRepositoryId,
       title,
       status: "queued",
-      worker: selectedWorkerMode,
+      worker: intakeWorkerMode,
       command: "npm run build",
       files: [],
       step: -1,
@@ -407,7 +416,7 @@ export function App() {
     setPatchDiffByMission((current) => ({ ...current, [missionId]: "" }));
     setVerificationOutputByMission((current) => ({ ...current, [missionId]: "" }));
     setActivityByMission((current) => ({ ...current, [missionId]: [] }));
-    setWorkerModeByMission((current) => ({ ...current, [missionId]: selectedWorkerMode }));
+    setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
     setSelectedNodeId(missionId);
     return missionId;
   };
@@ -804,6 +813,18 @@ export function App() {
               </ul>
             </div>
           ) : null}
+          <label className="intake-worker">
+            <span>Worker</span>
+            <select
+              aria-label="Worker mode"
+              value={intakeWorkerMode}
+              onChange={(event) => setIntakeWorkerMode(event.target.value as WorkerMode)}
+            >
+              <option value="claude-manager">Claude Manager (AI)</option>
+              <option value="mock">Demo worker</option>
+              <option value="local-command">Local command</option>
+            </select>
+          </label>
           <button
             className="primary command-button"
             type="button"
@@ -855,6 +876,20 @@ export function App() {
                     <span className="control-repo">{repo?.name}</span>
                   </button>
                   <div className="control-actions">
+                    {missionIsLaunchable(mission.id) ? (
+                      <select
+                        className="control-worker"
+                        aria-label="Worker"
+                        value={workerModeByMission[mission.id] ?? workerModeFromName(mission.worker)}
+                        onChange={(event) =>
+                          setWorkerModeByMission((current) => ({ ...current, [mission.id]: event.target.value as WorkerMode }))
+                        }
+                      >
+                        <option value="claude-manager">Claude</option>
+                        <option value="mock">Demo</option>
+                        <option value="local-command">Local</option>
+                      </select>
+                    ) : null}
                     {missionAwaitsApproval(mission.id) ? (
                       <>
                         <button className="secondary mini" type="button" onClick={() => void rejectMission(mission.id)} title="Reject">
@@ -882,160 +917,137 @@ export function App() {
       {missionLoopError ? <div className="floating-error">{missionLoopError}</div> : null}
 
       {selectedMission ? (
-        <aside className="inspector" aria-label="Inspector">
-          <section className="console-panel work-order-console" aria-label="Work order">
-          <div className="panel-head">
-            <div>
-              <div className="section-label">Work order</div>
-              <h2 className="work-order-title">{selectedMission.title}</h2>
+        <aside className="inspector" aria-label="Review">
+          <section className="console-panel review-panel" aria-label="Mission review">
+            <div className="panel-head review-head">
+              <div>
+                <div className="section-label">
+                  {selectedRepository?.name ?? "workspace"} · review
+                </div>
+                <h2 className="work-order-title">{selectedMission.title}</h2>
+              </div>
+              <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
             </div>
-            <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
-          </div>
-          <div className="work-order-meta">
-            <span title={selectedRepository?.path ?? activeRepoPath}>
-              <Network size={13} aria-hidden="true" />
-              {selectedRepository?.name ?? "workspace"}
-            </span>
-            <span title={workerLimitation(selectedMission.worker)}>
-              <RadioTower size={13} aria-hidden="true" />
-              {workerLabel(selectedMission.worker)}
-            </span>
-            <span title={selectedVerificationCommand}>
-              <Terminal size={13} aria-hidden="true" />
-              {selectedVerificationCommand}
-            </span>
-          </div>
-          <div className="worker-controls">
-            <label>
-              <span>Worker</span>
-              <select
-                aria-label="Worker mode"
-                value={selectedWorkerMode}
-                onChange={(event) =>
-                  setWorkerModeByMission((current) => ({
-                    ...current,
-                    [selectedMission.id]: event.target.value as WorkerMode,
-                  }))
-                }
+
+            <div className="review-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={reviewTab === "changes"}
+                className={`review-tab ${reviewTab === "changes" ? "active" : ""}`}
+                onClick={() => setReviewTab("changes")}
               >
-                <option value="mock">Demo worker</option>
-                <option value="local-command">Local command</option>
-                <option value="claude-manager">Claude Manager (AI)</option>
-              </select>
-            </label>
-            {selectedWorkerMode === "local-command" ? (
-              <label>
-                <span>Command</span>
-                <textarea
-                  className="local-command-input"
-                  aria-label="Local worker command"
-                  value={selectedLocalCommand}
-                  onChange={(event) =>
-                    setLocalCommandByMission((current) => ({
-                      ...current,
-                      [selectedMission.id]: event.target.value,
-                    }))
+                Changes
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={reviewTab === "activity"}
+                className={`review-tab ${reviewTab === "activity" ? "active" : ""}`}
+                onClick={() => setReviewTab("activity")}
+              >
+                Activity{activity.length > 0 ? <span className="tab-count">{activity.length}</span> : null}
+              </button>
+            </div>
+
+            {reviewTab === "changes" ? (
+              <div className="review-changes">
+                <DiffView
+                  diff={patchReady ? selectedPatchDiff : ""}
+                  emptyLabel={
+                    patchReady
+                      ? "No patch proposal captured for this mission."
+                      : "No changes yet — this mission hasn't reached review."
                   }
                 />
-              </label>
-            ) : null}
-          </div>
-        </section>
 
-        <section className="console-panel activity-console" aria-label="Agent activity">
-          <div className="panel-head">
-            <div>
-              <div className="section-label">Agent</div>
-              <h2>Run stream</h2>
-            </div>
-            <button
-              className="secondary icon-button"
-              type="button"
-              onClick={selectedRuntime.step < 0 ? startMission : advanceStep}
-              disabled={selectedRuntime.status === "running" || (patchReady && selectedRuntime.patchStatus !== "pending")}
-              aria-label="Advance run"
-              title="Advance run"
-            >
-              <Play size={16} aria-hidden="true" />
-            </button>
-          </div>
-          <ol className="activity-list">
-            {activity.length === 0 ? <li className="quiet">Mission is queued outside the active lane.</li> : null}
-            {activity.map((step, index) => (
-              <li key={`${index}-${step}`}>{step}</li>
-            ))}
-          </ol>
-        </section>
+                <div className="verify-bar">
+                  <button
+                    type="button"
+                    className="verify-status-toggle"
+                    onClick={() => setVerifyOpen((open) => !open)}
+                    aria-expanded={verifyOpen}
+                  >
+                    <span className={`verify-pill ${verifyPillClass(selectedRuntime)}`}>
+                      {verifyPillLabel(selectedRuntime)}
+                    </span>
+                    <ChevronDown size={14} className={`verify-chevron ${verifyOpen ? "open" : ""}`} aria-hidden="true" />
+                  </button>
+                  <button
+                    className="secondary mini"
+                    type="button"
+                    disabled={selectedRuntime.patchStatus !== "approved" || selectedRuntime.verified || !selectedVerificationCommand.trim()}
+                    onClick={runVerification}
+                    title="Run verification"
+                  >
+                    <Terminal size={14} aria-hidden="true" />
+                    <span>Verify</span>
+                  </button>
+                </div>
+                {verifyOpen ? (
+                  <div className="verify-detail">
+                    <input
+                      className="command-line"
+                      aria-label="Verification command"
+                      value={selectedVerificationCommand}
+                      onChange={(event) =>
+                        setVerificationCommandByMission((current) => ({
+                          ...current,
+                          [selectedMission.id]: event.target.value,
+                        }))
+                      }
+                    />
+                    <pre className="test-output">{verificationOutput(selectedRuntime, selectedVerificationOutput)}</pre>
+                  </div>
+                ) : null}
 
-        <section className="console-panel patch-console" aria-label="Patch">
-          <div className="panel-head">
-            <div>
-              <div className="section-label">CEO gate</div>
-              <h2>Patch approval</h2>
-            </div>
-            <div className={`mini-state ${patchStateClass(selectedRuntime, patchReady)}`}>
-              {patchStateLabel(selectedRuntime, patchReady)}
-            </div>
-          </div>
-          <DiffView
-            diff={patchReady ? selectedPatchDiff : ""}
-            emptyLabel={
-              patchReady
-                ? "No patch proposal captured for this mission."
-                : "Patch stream locked until this mission reaches review."
-            }
-          />
-          <div className="actions">
-            <button
-              className="secondary"
-              type="button"
-              disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
-              onClick={rejectPatch}
-            >
-              <X size={16} aria-hidden="true" />
-              <span>Reject</span>
-            </button>
-            <button
-              className="primary"
-              type="button"
-              disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
-              onClick={approvePatch}
-            >
-              <Check size={16} aria-hidden="true" />
-              <span>Approve + apply</span>
-            </button>
-          </div>
-        </section>
-
-        <section className="console-panel verify-console" aria-label="Verification">
-          <div className="panel-head">
-            <div>
-              <div className="section-label">QA</div>
-              <h2>Verification gate</h2>
-            </div>
-            <button
-              className="secondary icon-button"
-              type="button"
-              disabled={selectedRuntime.patchStatus !== "approved" || selectedRuntime.verified || !selectedVerificationCommand.trim()}
-              onClick={runVerification}
-              aria-label="Run verification"
-              title="Run verification"
-            >
-              <Terminal size={16} aria-hidden="true" />
-            </button>
-          </div>
-          <input
-            className="command-line"
-            aria-label="Verification command"
-            value={selectedVerificationCommand}
-            onChange={(event) =>
-              setVerificationCommandByMission((current) => ({
-                ...current,
-                [selectedMission.id]: event.target.value,
-              }))
-            }
-          />
-          <pre className="test-output">{verificationOutput(selectedRuntime, selectedVerificationOutput)}</pre>
+                <div className="actions">
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
+                    onClick={rejectPatch}
+                  >
+                    <X size={16} aria-hidden="true" />
+                    <span>Reject</span>
+                  </button>
+                  <button
+                    className="primary"
+                    type="button"
+                    disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
+                    onClick={approvePatch}
+                  >
+                    <Check size={16} aria-hidden="true" />
+                    <span>Approve + apply</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="review-activity">
+                <div className="activity-toolbar">
+                  <span className="activity-worker">
+                    <RadioTower size={13} aria-hidden="true" />
+                    {workerLabel(selectedMission.worker)}
+                  </span>
+                  <button
+                    className="secondary icon-button"
+                    type="button"
+                    onClick={selectedRuntime.step < 0 ? startMission : advanceStep}
+                    disabled={selectedRuntime.status === "running" || (patchReady && selectedRuntime.patchStatus !== "pending")}
+                    aria-label="Advance run"
+                    title="Advance run"
+                  >
+                    <Play size={16} aria-hidden="true" />
+                  </button>
+                </div>
+                <ol className="activity-list">
+                  {activity.length === 0 ? <li className="quiet">Mission is queued outside the active lane.</li> : null}
+                  {activity.map((step, index) => (
+                    <li key={`${index}-${step}`}>{step}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </section>
         </aside>
       ) : null}
@@ -1146,26 +1158,6 @@ function isRunning(runtime: WorkspaceRuntime) {
   return statusFromRuntime(runtime) === "running";
 }
 
-function patchStateLabel(runtime: WorkspaceRuntime, patchReady: boolean) {
-  if (runtime.patchStatus === "approved") {
-    return "Approved";
-  }
-  if (runtime.patchStatus === "rejected") {
-    return "Rejected";
-  }
-  return patchReady ? "Ready" : "Cold";
-}
-
-function patchStateClass(runtime: WorkspaceRuntime, patchReady: boolean) {
-  if (runtime.patchStatus === "approved") {
-    return "done";
-  }
-  if (runtime.patchStatus === "rejected") {
-    return "rejected";
-  }
-  return patchReady ? "active" : "";
-}
-
 function workerLabel(workerName: string) {
   if (workerName === "mock") {
     return "Demo worker: limited patch generator";
@@ -1183,22 +1175,22 @@ function workerLabel(workerName: string) {
   return workerName;
 }
 
-function workerLimitation(workerName: string) {
-  if (workerName === "mock") {
-    return "Supports the demo Node CLI patch path while the real local worker interface is being built.";
-  }
-  if (workerName === "claude-manager") {
-    return "Requires the claude CLI on PATH. Decomposes the mission, then runs a Claude Engineer and a Claude Reviewer in sequence on the same tree.";
-  }
-  if (workerName === "unassigned") {
-    return "Dispatch the mission to assign a worker.";
-  }
-
-  return workerName;
-}
-
 function defaultLocalCommand() {
   return `printf 'diff --git a/orbital-local-worker.txt b/orbital-local-worker.txt\nnew file mode 100644\n--- /dev/null\n+++ b/orbital-local-worker.txt\n@@ -0,0 +1 @@\n+local worker completed\n' > "$ORBITAL_PATCH_PATH"`;
+}
+
+function verifyPillLabel(runtime: WorkspaceRuntime) {
+  if (runtime.verified) return "Verification passed";
+  if (runtime.status === "blocked") return "Verification failed";
+  if (runtime.patchStatus === "approved") return "Not verified yet";
+  return "Awaiting verification";
+}
+
+function verifyPillClass(runtime: WorkspaceRuntime) {
+  if (runtime.verified) return "passed";
+  if (runtime.status === "blocked") return "failed";
+  if (runtime.patchStatus === "approved") return "ready";
+  return "pending";
 }
 
 function verificationOutput(runtime: WorkspaceRuntime, output: string) {
