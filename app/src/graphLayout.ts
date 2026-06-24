@@ -2,8 +2,6 @@ import dagre from "@dagrejs/dagre";
 import type { WorkspaceGraphEdge, WorkspaceGraphNode } from "./mockMission";
 
 export type NodePosition = { x: number; y: number };
-export type LaneBox = { missionId: string; label: string; x: number; y: number; width: number; height: number };
-export type GraphLayout = { positions: Record<string, NodePosition>; lanes: LaneBox[] };
 
 // Dagre is fed a single uniform node footprint. Mixing per-kind sizes makes its
 // rank assignment collapse multiple ranks onto the same coordinate, so layout
@@ -14,16 +12,14 @@ const COL_GAP = 96; // horizontal gap between pipeline stages
 const ROW_GAP = 30; // vertical gap between branches inside one lane
 const LANE_GAP = 52; // vertical gap between mission lanes
 const COL_STEP = NODE_WIDTH + COL_GAP; // distance between aligned columns
-const LANE_PAD_X = 26;
-const LANE_PAD_Y = 22;
 
 // layoutGraph arranges the graph as aligned swimlanes: every mission is its own
 // lane, and each node snaps to a GLOBAL column (its longest-path depth from the
 // repo) so the same pipeline stage lines up vertically across every lane — a
 // crisp grid for a large multi-mission workflow. Vertical placement within a
 // lane still comes from a dagre pass, which keeps branches (files, parallel
-// agents) tidy. Returns top-left positions plus a band box per lane.
-export function layoutGraph(nodes: WorkspaceGraphNode[], edges: WorkspaceGraphEdge[]): GraphLayout {
+// agents) tidy. Returns top-left positions keyed by node id.
+export function layoutGraph(nodes: WorkspaceGraphNode[], edges: WorkspaceGraphEdge[]): Record<string, NodePosition> {
   const present = new Set(nodes.map((node) => node.id));
   const parents = new Map<string, string[]>();
   nodes.forEach((node) => parents.set(node.id, []));
@@ -69,7 +65,6 @@ export function layoutGraph(nodes: WorkspaceGraphNode[], edges: WorkspaceGraphEd
   });
 
   const centers: Record<string, NodePosition> = {};
-  const lanes: LaneBox[] = [];
   const repoMissionYs = new Map<string, number[]>();
   let laneTop = 0;
 
@@ -89,12 +84,10 @@ export function layoutGraph(nodes: WorkspaceGraphNode[], edges: WorkspaceGraphEd
 
     let minY = Infinity;
     let maxY = -Infinity;
-    let maxCol = 0;
     lane.forEach((node) => {
       const laid = graph.node(node.id);
       minY = Math.min(minY, laid.y);
       maxY = Math.max(maxY, laid.y);
-      maxCol = Math.max(maxCol, columnOf(node.id));
     });
 
     const laneCenterTop = laneTop + NODE_HEIGHT / 2;
@@ -113,18 +106,7 @@ export function layoutGraph(nodes: WorkspaceGraphNode[], edges: WorkspaceGraphEd
       repoMissionYs.set(missionNode.repository_id, ys);
     }
 
-    // Lane band spans from the mission column to the last stage column.
     const laneHeight = maxY - minY + NODE_HEIGHT;
-    const startCol = Math.min(...lane.map((node) => columnOf(node.id)));
-    lanes.push({
-      missionId,
-      label: missionNode?.label ?? "",
-      x: startCol * COL_STEP - LANE_PAD_X,
-      y: laneTop - LANE_PAD_Y,
-      width: (maxCol - startCol) * COL_STEP + NODE_WIDTH + LANE_PAD_X * 2,
-      height: laneHeight + LANE_PAD_Y * 2,
-    });
-
     laneTop += laneHeight + LANE_GAP;
   }
 
@@ -139,5 +121,5 @@ export function layoutGraph(nodes: WorkspaceGraphNode[], edges: WorkspaceGraphEd
     const center = centers[node.id] ?? { x: 0, y: 0 };
     positions[node.id] = { x: center.x - NODE_WIDTH / 2, y: center.y - NODE_HEIGHT / 2 };
   }
-  return { positions, lanes };
+  return positions;
 }

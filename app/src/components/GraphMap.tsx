@@ -8,15 +8,18 @@ import {
   MiniMap,
   Position,
   ReactFlow,
+  SelectionMode,
   useEdgesState,
+  useNodes,
   useNodesState,
+  ViewportPortal,
   type Edge,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Code2, Crown, Eye, FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
-import { layoutGraph, type LaneBox, type NodePosition } from "../graphLayout";
+import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../mockMission";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
@@ -26,7 +29,15 @@ type OrbitalNodeData = {
   label: string;
   detail: string;
   status?: MissionNodeStatus;
+  missionId?: string;
 };
+
+// Fallback node footprint for the lane bounding box before React Flow has
+// measured the real DOM nodes. Matches graphLayout's spacing constants.
+const NODE_WIDTH = 150;
+const NODE_HEIGHT = 86;
+const LANE_PAD_X = 26;
+const LANE_PAD_Y = 22;
 
 type GraphMapProps = {
   nodes: GraphNode[];
@@ -56,21 +67,7 @@ function edgeDash(kind: string) {
   return undefined;
 }
 
-const nodeTypes = { orbital: OrbitalNode, lane: LaneNode };
-
-function laneToRfNode(lane: LaneBox): Node {
-  return {
-    id: `lane:${lane.missionId}`,
-    type: "lane",
-    position: { x: lane.x, y: lane.y },
-    data: { label: lane.label, width: lane.width, height: lane.height },
-    draggable: false,
-    selectable: false,
-    focusable: false,
-    zIndex: 0,
-    style: { width: lane.width, height: lane.height },
-  };
-}
+const nodeTypes = { orbital: OrbitalNode };
 
 export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
@@ -93,25 +90,22 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   );
 
   useEffect(() => {
-    const { positions: laidOut, lanes } = layoutGraph(nodes, edges);
+    const laidOut = layoutGraph(nodes, edges);
     const merged: Record<string, NodePosition> = {};
     nodes.forEach((node) => {
       merged[node.id] = positionsRef.current[node.id] ?? laidOut[node.id];
     });
     positionsRef.current = merged;
 
-    // Lane bands render first (behind), then the mission/agent nodes on top.
-    const laneNodes = lanes.map(laneToRfNode);
-    setRfNodes([
-      ...laneNodes,
-      ...nodes.map((node) => ({
+    setRfNodes(
+      nodes.map((node) => ({
         id: node.id,
         type: "orbital",
         position: merged[node.id],
-        data: { kind: node.kind, label: node.label, detail: node.detail, status: node.status },
+        data: { kind: node.kind, label: node.label, detail: node.detail, status: node.status, missionId: node.mission_id },
         selected: node.id === selectedNodeId,
-      })),
-    ] as Node<OrbitalNodeData>[]);
+      })) as Node<OrbitalNodeData>[],
+    );
     setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topologyKey]);
@@ -124,7 +118,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         if (!source) return rfNode;
         return {
           ...rfNode,
-          data: { kind: source.kind, label: source.label, detail: source.detail, status: source.status },
+          data: { kind: source.kind, label: source.label, detail: source.detail, status: source.status, missionId: source.mission_id },
           selected: source.id === selectedNodeId,
         };
       }),
@@ -137,9 +131,16 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     positionsRef.current[node.id] = node.position;
   }, []);
 
+  // Persist positions for every node moved as part of a marquee selection, so a
+  // dragged project lane keeps its new spot across re-layouts.
+  const onSelectionDragStop = useCallback((_event: unknown, draggedNodes: Node[]) => {
+    draggedNodes.forEach((node) => {
+      positionsRef.current[node.id] = node.position;
+    });
+  }, []);
+
   const onNodeClick = useCallback(
     (_event: unknown, node: Node) => {
-      if (node.type === "lane") return;
       onSelectNode(node.id);
     },
     [onSelectNode],
@@ -154,6 +155,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDragStop={onNodeDragStop}
+        onSelectionDragStop={onSelectionDragStop}
         onNodeClick={onNodeClick}
         fitView
         fitViewOptions={{ padding: 0.2 }}
@@ -162,7 +164,16 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         proOptions={{ hideAttribution: true }}
         nodesConnectable={false}
         edgesFocusable={false}
+        // Finder-style marquee: left-drag the canvas draws a selection box;
+        // hold Space (or middle/right mouse) to pan instead. Selected nodes
+        // drag together so a whole project lane moves as one.
+        selectionOnDrag
+        selectionMode={SelectionMode.Partial}
+        panOnDrag={[1, 2]}
+        panActivationKeyCode="Space"
+        selectNodesOnDrag
       >
+        <LaneBands />
         <Background variant={BackgroundVariant.Dots} gap={26} size={1} color="rgba(139, 147, 161, 0.16)" />
         <MiniMap
           position="bottom-left"
@@ -222,12 +233,67 @@ function OrbitalNode({ data, selected }: NodeProps) {
   );
 }
 
-function LaneNode({ data }: NodeProps) {
-  const lane = data as { label: string; width: number; height: number };
+// LaneBands draws a labeled band behind every mission's nodes, computed from
+// their LIVE positions so a band always wraps its project — including after the
+// project is marquee-selected and dragged to a new spot. It renders inside a
+// ViewportPortal so the bands pan and zoom with the graph.
+function LaneBands() {
+  const nodes = useNodes();
+  const lanes = useMemo(() => {
+    const groups = new Map<string, Node[]>();
+    nodes.forEach((node) => {
+      const missionId = (node.data as OrbitalNodeData)?.missionId;
+      if (!missionId) return;
+      if (!groups.has(missionId)) groups.set(missionId, []);
+      groups.get(missionId)!.push(node);
+    });
+
+    const result: { missionId: string; label: string; x: number; y: number; width: number; height: number }[] = [];
+    groups.forEach((group, missionId) => {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      let label = "";
+      group.forEach((node) => {
+        const width = node.measured?.width ?? NODE_WIDTH;
+        const height = node.measured?.height ?? NODE_HEIGHT;
+        minX = Math.min(minX, node.position.x);
+        minY = Math.min(minY, node.position.y);
+        maxX = Math.max(maxX, node.position.x + width);
+        maxY = Math.max(maxY, node.position.y + height);
+        const data = node.data as OrbitalNodeData;
+        if (data.kind === "mission") label = data.label;
+      });
+      result.push({
+        missionId,
+        label,
+        x: minX - LANE_PAD_X,
+        y: minY - LANE_PAD_Y,
+        width: maxX - minX + LANE_PAD_X * 2,
+        height: maxY - minY + LANE_PAD_Y * 2,
+      });
+    });
+    return result;
+  }, [nodes]);
+
   return (
-    <div className="graph-lane" style={{ width: lane.width, height: lane.height }}>
-      <span className="graph-lane-label">{lane.label}</span>
-    </div>
+    <ViewportPortal>
+      {lanes.map((lane) => (
+        <div
+          key={lane.missionId}
+          className="graph-lane"
+          style={{
+            position: "absolute",
+            transform: `translate(${lane.x}px, ${lane.y}px)`,
+            width: lane.width,
+            height: lane.height,
+          }}
+        >
+          <span className="graph-lane-label">{lane.label}</span>
+        </div>
+      ))}
+    </ViewportPortal>
   );
 }
 
