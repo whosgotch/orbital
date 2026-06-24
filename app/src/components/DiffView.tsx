@@ -139,7 +139,7 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
   return files;
 }
 
-export function DiffView({ diff, emptyLabel }: { diff: string; emptyLabel: string }) {
+export function DiffView({ diff, emptyLabel, focusPath }: { diff: string; emptyLabel: string; focusPath?: string }) {
   const files = useMemo(() => (diff.trim() ? parseUnifiedDiff(diff) : []), [diff]);
   const signature = files.map((file) => file.path).join("|");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -148,6 +148,14 @@ export function DiffView({ diff, emptyLabel }: { diff: string; emptyLabel: strin
   useEffect(() => {
     setActiveIndex(0);
   }, [signature]);
+
+  // Jump to a specific file when a file node is clicked (match by path suffix,
+  // since event file paths and diff paths can differ in their leading segments).
+  useEffect(() => {
+    if (!focusPath) return;
+    const index = files.findIndex((file) => file.path === focusPath || file.path.endsWith(focusPath) || focusPath.endsWith(file.path));
+    if (index >= 0) setActiveIndex(index);
+  }, [focusPath, signature]);
 
   if (files.length === 0) {
     return <div className="diff-empty">{emptyLabel}</div>;

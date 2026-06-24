@@ -115,13 +115,18 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
     repository_id: repository.id,
   }));
 
+  // Data-driven: a node exists only once the thing it represents is real — an
+  // agent that ran, a file that was read, a patch that was proposed, a
+  // verification that executed. No synthetic pipeline placeholders.
   const missionNodes = missions.flatMap((mission, index) => {
     const rowY = 24 + index * 15;
     const topLevelRun = state.agent_runs.filter((run) => run.mission_id === mission.id && !run.parent_run_id).at(-1);
-    const hasRun = Boolean(topLevelRun);
     const childRuns = topLevelRun
       ? state.agent_runs.filter((run) => run.parent_run_id === topLevelRun.id)
       : [];
+    const hasPatch = Boolean(latestPatchForMission(state, mission.id));
+    const hasVerify = Boolean(latestVerification(state, mission.id));
+    const base = { mission_id: mission.id, repository_id: mission.repository_id };
 
     const nodes: WorkspaceGraphNode[] = [
       {
@@ -131,71 +136,32 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
         detail: mission.status === "blocked" ? "blocked" : "mission order",
         x: 24,
         y: rowY,
-        mission_id: mission.id,
-        repository_id: mission.repository_id,
+        ...base,
       },
     ];
 
-    if (hasRun) {
+    if (topLevelRun) {
       nodes.push({
         id: `${mission.id}_manager`,
         kind: "worker",
-        label: "AI manager",
-        detail: topLevelRun?.worker_name ?? "dispatch",
+        label: childRuns.length > 0 ? "AI manager" : roleLabel(topLevelRun.worker_name),
+        detail: topLevelRun.worker_name,
         x: 36,
         y: rowY,
-        mission_id: mission.id,
-        repository_id: mission.repository_id,
+        ...base,
       });
 
-      if (childRuns.length > 0) {
-        // Real child agents: space them evenly in the workers zone (x 49–72)
-        const step = childRuns.length > 1 ? 18 / (childRuns.length - 1) : 0;
-        childRuns.forEach((child, i) => {
-          nodes.push({
-            id: child.id,
-            kind: "worker",
-            label: roleLabel(child.worker_name),
-            detail: child.status,
-            x: 49 + i * step,
-            y: rowY + (i % 2 === 0 ? -4 : 4),
-            mission_id: mission.id,
-            repository_id: mission.repository_id,
-          });
-        });
-      } else {
-        // Mock pipeline nodes when no real child runs yet
+      childRuns.forEach((child, i) => {
         nodes.push({
-          id: `${mission.id}_architect`,
+          id: child.id,
           kind: "worker",
-          label: "Architect",
-          detail: "system map",
+          label: roleLabel(child.worker_name),
+          detail: child.status,
           x: 49,
-          y: rowY - 5,
-          mission_id: mission.id,
-          repository_id: mission.repository_id,
+          y: rowY + (i % 2 === 0 ? -4 : 4),
+          ...base,
         });
-        nodes.push({
-          id: `${mission.id}_engineer`,
-          kind: "worker",
-          label: "Engineer",
-          detail: "patch line",
-          x: 61,
-          y: rowY,
-          mission_id: mission.id,
-          repository_id: mission.repository_id,
-        });
-        nodes.push({
-          id: `${mission.id}_qa`,
-          kind: "worker",
-          label: "QA",
-          detail: "test gate",
-          x: 83,
-          y: rowY,
-          mission_id: mission.id,
-          repository_id: mission.repository_id,
-        });
-      }
+      });
     }
 
     mission.files.slice(0, 2).forEach((file, fileIndex) => {
@@ -206,31 +172,32 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
         detail: "context",
         x: 49,
         y: rowY + 5 + fileIndex * 7,
-        mission_id: mission.id,
-        repository_id: mission.repository_id,
+        ...base,
       });
     });
 
-    nodes.push({
-      id: `${mission.id}_patch`,
-      kind: "patch",
-      label: "Patch bay",
-      detail: "approval gate",
-      x: 72,
-      y: rowY,
-      mission_id: mission.id,
-      repository_id: mission.repository_id,
-    });
-    nodes.push({
-      id: `${mission.id}_verify`,
-      kind: "verification",
-      label: "Ship gate",
-      detail: mission.command,
-      x: 93,
-      y: rowY,
-      mission_id: mission.id,
-      repository_id: mission.repository_id,
-    });
+    if (hasPatch) {
+      nodes.push({
+        id: `${mission.id}_patch`,
+        kind: "patch",
+        label: "Patch",
+        detail: "review gate",
+        x: 72,
+        y: rowY,
+        ...base,
+      });
+    }
+    if (hasVerify) {
+      nodes.push({
+        id: `${mission.id}_verify`,
+        kind: "verification",
+        label: "Ship gate",
+        detail: mission.command,
+        x: 93,
+        y: rowY,
+        ...base,
+      });
+    }
 
     return nodes;
   });
@@ -238,12 +205,11 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
   return [...repoNodes, ...missionNodes];
 }
 
+// Edges connect only the nodes that actually exist (see graphNodesFromState),
+// so the graph never draws a line to a stage that hasn't happened yet.
 function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopState): WorkspaceGraphEdge[] {
   return missions.flatMap((mission) => {
     const managerID = `${mission.id}_manager`;
-    const architectID = `${mission.id}_architect`;
-    const engineerID = `${mission.id}_engineer`;
-    const qaID = `${mission.id}_qa`;
     const patchID = `${mission.id}_patch`;
     const verifyID = `${mission.id}_verify`;
     const edges: WorkspaceGraphEdge[] = [
@@ -254,41 +220,35 @@ function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopSta
     const childRuns = topLevelRun
       ? state.agent_runs.filter((run) => run.parent_run_id === topLevelRun.id)
       : [];
+    const hasPatch = Boolean(latestPatchForMission(state, mission.id));
+    const hasVerify = Boolean(latestVerification(state, mission.id));
 
-    if (mission.step >= 0) {
+    // The node the patch hangs off: the child agents if any, else the manager,
+    // else the mission itself.
+    const patchSources = childRuns.length > 0 ? childRuns.map((child) => child.id) : topLevelRun ? [managerID] : [mission.id];
+    const fileSource = topLevelRun ? managerID : mission.id;
+
+    if (topLevelRun) {
       edges.push({ id: `${mission.id}_manager`, from: mission.id, to: managerID, kind: "runs" });
-
-      if (childRuns.length > 0) {
-        // Spawns edges from manager to each real child agent
-        childRuns.forEach((child) => {
-          edges.push({ id: `${managerID}_${child.id}`, from: managerID, to: child.id, kind: "spawns" });
-          edges.push({ id: `${child.id}_patch`, from: child.id, to: patchID, kind: "proposes" });
-        });
-      } else {
-        // Mock pipeline edges
-        edges.push(
-          { id: `${mission.id}_architect`, from: managerID, to: architectID, kind: "runs" },
-          { id: `${mission.id}_engineer`, from: architectID, to: engineerID, kind: "runs" },
-          { id: `${mission.id}_patch`, from: engineerID, to: patchID, kind: "proposes" },
-          { id: `${mission.id}_qa`, from: patchID, to: qaID, kind: "runs" },
-          { id: `${mission.id}_verify`, from: qaID, to: verifyID, kind: "verifies" },
-        );
-      }
-    } else {
-      edges.push(
-        { id: `${mission.id}_patch`, from: mission.id, to: patchID, kind: "proposes" },
-        { id: `${mission.id}_verify`, from: patchID, to: verifyID, kind: "verifies" },
-      );
+      childRuns.forEach((child) => {
+        edges.push({ id: `${managerID}_${child.id}`, from: managerID, to: child.id, kind: "spawns" });
+      });
     }
 
-    if (childRuns.length > 0) {
-      edges.push({ id: `${mission.id}_verify`, from: patchID, to: verifyID, kind: "verifies" });
+    if (hasPatch) {
+      patchSources.forEach((source) => {
+        edges.push({ id: `${source}_patch`, from: source, to: patchID, kind: "proposes" });
+      });
+    }
+
+    if (hasVerify) {
+      edges.push({ id: `${mission.id}_verify`, from: hasPatch ? patchID : mission.id, to: verifyID, kind: "verifies" });
     }
 
     mission.files.slice(0, 2).forEach((_, index) => {
       edges.push({
         id: `${mission.id}_file_${index}`,
-        from: mission.step >= 0 ? architectID : mission.id,
+        from: fileSource,
         to: `${mission.id}_file_${index}`,
         kind: "reads",
       });
@@ -472,6 +432,10 @@ function roleLabel(workerName: string) {
       return "Reviewer";
     case "claude-manager":
       return "AI manager";
+    case "mock":
+      return "Demo agent";
+    case "local-command":
+      return "Local agent";
     default:
       return workerName;
   }

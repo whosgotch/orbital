@@ -139,6 +139,8 @@ export function App() {
   const [verifyOpen, setVerifyOpen] = useState(false);
   // Whether the diff is popped out into a wide full-screen modal.
   const [diffModalOpen, setDiffModalOpen] = useState(false);
+  // File path to focus in the diff when a file node is clicked.
+  const [focusedDiffFile, setFocusedDiffFile] = useState<string | undefined>(undefined);
   // Worker chosen at launch time (intake), applied to every mission queued.
   const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-manager");
   const [openPanel, setOpenPanel] = useState<null | "repo" | "mission" | "control">(null);
@@ -149,6 +151,33 @@ export function App() {
       if (next === "mission") setCampaignRepoIds([]);
       return next;
     });
+
+  // Selecting a node also deep-links into the relevant review section, so each
+  // node does something specific instead of just opening the same panel.
+  const handleSelectNode = (nodeId: string) => {
+    setSelectedNodeId(nodeId);
+    const node = workspaceGraphNodes.find((item) => item.id === nodeId);
+    if (!node) return;
+    switch (node.kind) {
+      case "patch":
+        setReviewTab("changes");
+        break;
+      case "verification":
+      case "test":
+        setReviewTab("changes");
+        setVerifyOpen(true);
+        break;
+      case "file":
+        setReviewTab("changes");
+        setFocusedDiffFile(node.label);
+        break;
+      case "worker":
+        setReviewTab("activity");
+        break;
+      default:
+        break;
+    }
+  };
 
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode?.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0]?.id;
@@ -668,7 +697,7 @@ export function App() {
         selectedNodeId={selectedGraphNode?.id ?? ""}
         selectedMissionId={selectedMission?.id ?? ""}
         runningMissionIds={runningMissionIds}
-        onSelectNode={setSelectedNodeId}
+        onSelectNode={handleSelectNode}
       />
 
       <header className="topbar">
@@ -968,6 +997,7 @@ export function App() {
               <div className="review-changes">
                 <DiffView
                   diff={patchReady ? selectedPatchDiff : ""}
+                  focusPath={focusedDiffFile}
                   emptyLabel={
                     patchReady
                       ? "No patch proposal captured for this mission."
@@ -1086,6 +1116,7 @@ export function App() {
             </div>
             <DiffView
               diff={patchReady ? selectedPatchDiff : ""}
+              focusPath={focusedDiffFile}
               emptyLabel="No changes yet — this mission hasn't reached review."
             />
             <div className="actions">
