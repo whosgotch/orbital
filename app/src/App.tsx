@@ -6,6 +6,7 @@ import {
   ChevronDown,
   CircleDot,
   Gauge,
+  Maximize2,
   Network,
   Play,
   RadioTower,
@@ -136,6 +137,8 @@ export function App() {
   // Review panel: which tab is shown and whether the verification log is expanded.
   const [reviewTab, setReviewTab] = useState<"changes" | "activity">("changes");
   const [verifyOpen, setVerifyOpen] = useState(false);
+  // Whether the diff is popped out into a wide full-screen modal.
+  const [diffModalOpen, setDiffModalOpen] = useState(false);
   // Worker chosen at launch time (intake), applied to every mission queued.
   const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-manager");
   const [openPanel, setOpenPanel] = useState<null | "repo" | "mission" | "control">(null);
@@ -926,7 +929,20 @@ export function App() {
                 </div>
                 <h2 className="work-order-title">{selectedMission.title}</h2>
               </div>
-              <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
+              <div className="review-head-actions">
+                <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
+                {reviewTab === "changes" && patchReady ? (
+                  <button
+                    className="secondary icon-button mini"
+                    type="button"
+                    onClick={() => setDiffModalOpen(true)}
+                    title="Expand diff"
+                    aria-label="Expand diff"
+                  >
+                    <Maximize2 size={14} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             <div className="review-tabs" role="tablist">
@@ -1055,6 +1071,52 @@ export function App() {
       {workspaceMissions.length === 0 ? (
         <div className="canvas-hint">
           <p>Open a workspace, then queue a mission to begin.</p>
+        </div>
+      ) : null}
+
+      {diffModalOpen && selectedMission ? (
+        <div className="diff-modal-backdrop" onClick={() => setDiffModalOpen(false)}>
+          <div className="diff-modal" role="dialog" aria-label="Diff" onClick={(event) => event.stopPropagation()}>
+            <div className="diff-modal-head">
+              <div>
+                <div className="section-label">{selectedRepository?.name ?? "workspace"} · review</div>
+                <h2>{selectedMission.title}</h2>
+              </div>
+              <button className="secondary icon-button" type="button" onClick={() => setDiffModalOpen(false)} aria-label="Close">
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+            <DiffView
+              diff={patchReady ? selectedPatchDiff : ""}
+              emptyLabel="No changes yet — this mission hasn't reached review."
+            />
+            <div className="actions">
+              <button
+                className="secondary"
+                type="button"
+                disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
+                onClick={() => {
+                  void rejectPatch();
+                  setDiffModalOpen(false);
+                }}
+              >
+                <X size={16} aria-hidden="true" />
+                <span>Reject</span>
+              </button>
+              <button
+                className="primary"
+                type="button"
+                disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
+                onClick={() => {
+                  void approvePatch();
+                  setDiffModalOpen(false);
+                }}
+              >
+                <Check size={16} aria-hidden="true" />
+                <span>Approve + apply</span>
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </main>

@@ -365,6 +365,7 @@ h3 {
 .review-activity .activity-list {
   flex: 1 1 auto;
   min-height: 0;
+  max-height: none;
   overflow-y: auto;
 }
 
@@ -1498,6 +1499,53 @@ dd {
   flex: 1;
   padding-right: 12px;
   color: var(--soft);
+}
+
+/* Popped-out wide diff. */
+.diff-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(6, 8, 11, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.diff-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1180px, 94vw);
+  height: min(860px, 90vh);
+  padding: 18px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.diff-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.diff-modal-head h2 {
+  margin: 2px 0 0;
+}
+
+.diff-modal .diff-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  font-size: 13px;
+}
+
+.diff-modal .actions {
+  margin-top: 14px;
 }
 
 /* File switcher tabs (multi-file diffs). */
