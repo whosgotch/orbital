@@ -1017,11 +1017,21 @@ dd {
   line-height: 1.4;
 }
 
+/* Full mission intent now lives in the heading; let it wrap to two lines
+   instead of being clipped to a 3-word label. */
+.work-order-title {
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .work-order-meta {
   display: grid;
   grid-template-columns: 1fr;
   gap: 7px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .work-order-meta span {

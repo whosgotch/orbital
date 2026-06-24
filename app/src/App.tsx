@@ -10,12 +10,9 @@ import {
   RadioTower,
   RefreshCw,
   Rocket,
-  ShieldCheck,
   Terminal,
   FolderOpen,
   X,
-  Zap,
-  UserCheck,
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import { DiffView } from "./components/DiffView";
@@ -886,32 +883,14 @@ export function App() {
 
       {selectedMission ? (
         <aside className="inspector" aria-label="Inspector">
-          <section className="console-panel selected-console" aria-label="Selected node">
-            <div className="panel-head">
-              <div>
-                <div className="section-label">Inspector</div>
-                <h2>{selectedGraphNode?.label ?? ""}</h2>
-              </div>
-              <MissionGlyph status={statusFromRuntime(selectedRuntime)} />
-            </div>
-            <NodeInspector
-              node={selectedGraphNode}
-              mission={selectedMission}
-              missions={workspaceMissions}
-              repositories={missionLoopState.repositories}
-              runtime={selectedRuntime}
-            />
-          </section>
-
           <section className="console-panel work-order-console" aria-label="Work order">
           <div className="panel-head">
             <div>
               <div className="section-label">Work order</div>
-              <h2>{missionLabel(selectedMission.title)}</h2>
+              <h2 className="work-order-title">{selectedMission.title}</h2>
             </div>
             <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
           </div>
-          <p className="mission-intent">{selectedMission.title}</p>
           <div className="work-order-meta">
             <span title={selectedRepository?.path ?? activeRepoPath}>
               <Network size={13} aria-hidden="true" />
@@ -960,18 +939,6 @@ export function App() {
                 />
               </label>
             ) : null}
-          </div>
-          <div className="role-stack">
-            {workOrderRoles(selectedRuntime, patchReady).map((role) => (
-              <div className="role-row" key={role.name}>
-                <span className={`role-light ${role.state}`} aria-hidden="true" />
-                <UserCheck size={14} aria-hidden="true" />
-                <div>
-                  <strong>{role.name}</strong>
-                  <small>{role.detail}</small>
-                </div>
-              </div>
-            ))}
           </div>
         </section>
 
@@ -1091,146 +1058,6 @@ function repoLabel(name: string | undefined, path: string) {
   return base || "Open repo";
 }
 
-function MissionGlyph({ status }: { status: MissionNodeStatus }) {
-  const Icon = status === "verified" ? ShieldCheck : status === "review" || status === "approved" ? Zap : RadioTower;
-
-  return (
-    <span className={`mission-glyph ${status}`}>
-      <Icon size={15} aria-hidden="true" />
-    </span>
-  );
-}
-
-function NodeInspector({
-  node,
-  mission,
-  missions,
-  repositories,
-  runtime,
-}: {
-  node: WorkspaceGraphNode;
-  mission: WorkspaceMission;
-  missions: WorkspaceMission[];
-  repositories: Repository[];
-  runtime: WorkspaceRuntime;
-}) {
-  const repository = node.repository_id
-    ? repositories.find((repo) => repo.id === node.repository_id)
-    : repositoryFor(mission, repositories);
-
-  if (node.kind === "repo") {
-    const missionCount = missions.filter((item) => item.repository_id === node.repository_id).length;
-    return (
-      <div className="selected-meta">
-        <span>
-          <Network size={14} aria-hidden="true" />
-          {repository?.path ?? "Unknown repository"}
-        </span>
-        <span>
-          <RadioTower size={14} aria-hidden="true" />
-          {missionCount} missions
-        </span>
-        <span>
-          <Terminal size={14} aria-hidden="true" />
-          branch {repository?.branch ?? "unknown"}
-        </span>
-      </div>
-    );
-  }
-
-  if (node.kind === "worker") {
-    return (
-      <div className="selected-meta">
-        <span>
-          <RadioTower size={14} aria-hidden="true" />
-          {node.label}
-        </span>
-        <span>
-          <Network size={14} aria-hidden="true" />
-          assigned to {mission.title}
-        </span>
-        <span>
-          <Terminal size={14} aria-hidden="true" />
-          {node.detail}
-        </span>
-      </div>
-    );
-  }
-
-  if (node.kind === "file") {
-    return (
-      <div className="selected-meta">
-        <span>
-          <Network size={14} aria-hidden="true" />
-          {repository?.name ?? "workspace"}
-        </span>
-        <span>
-          <RadioTower size={14} aria-hidden="true" />
-          context for {mission.title}
-        </span>
-        <span>
-          <Terminal size={14} aria-hidden="true" />
-          {node.label}
-        </span>
-      </div>
-    );
-  }
-
-  if (node.kind === "patch") {
-    return (
-      <div className="selected-meta">
-        <span>
-          <Network size={14} aria-hidden="true" />
-          {mission.title}
-        </span>
-        <span>
-          <RadioTower size={14} aria-hidden="true" />
-          patch {runtime.patchStatus}
-        </span>
-        <span>
-          <Terminal size={14} aria-hidden="true" />
-          approval gate
-        </span>
-      </div>
-    );
-  }
-
-  if (node.kind === "verification" || node.kind === "test") {
-    return (
-      <div className="selected-meta">
-        <span>
-          <Network size={14} aria-hidden="true" />
-          {repository?.name ?? mission.title}
-        </span>
-        <span>
-          <RadioTower size={14} aria-hidden="true" />
-          {runtime.verified ? "verified" : "waiting"}
-        </span>
-        <span>
-          <Terminal size={14} aria-hidden="true" />
-          {mission.command}
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="selected-meta">
-      <span>
-        <Network size={14} aria-hidden="true" />
-        {repository?.name ?? "workspace"}
-      </span>
-      <span>
-        <RadioTower size={14} aria-hidden="true" />
-        {mission.worker}
-      </span>
-      <span>
-        <Terminal size={14} aria-hidden="true" />
-        {mission.command}
-      </span>
-    </div>
-  );
-}
 
 function repositoryFor(mission: WorkspaceMission, repositories: Repository[]) {
   return repositories.find((repository) => repository.id === mission.repository_id) ?? repositories[0];
@@ -1372,45 +1199,6 @@ function workerLimitation(workerName: string) {
 
 function defaultLocalCommand() {
   return `printf 'diff --git a/orbital-local-worker.txt b/orbital-local-worker.txt\nnew file mode 100644\n--- /dev/null\n+++ b/orbital-local-worker.txt\n@@ -0,0 +1 @@\n+local worker completed\n' > "$ORBITAL_PATCH_PATH"`;
-}
-
-function workOrderRoles(runtime: WorkspaceRuntime, patchReady: boolean) {
-  return [
-    {
-      name: "AI Manager",
-      detail: runtime.step >= 0 ? "Mission dispatched to the floor." : "Waiting for launch order.",
-      state: runtime.step >= 0 ? "done" : "idle",
-    },
-    {
-      name: "Architect",
-      detail: runtime.step >= 2 ? "Repository context mapped." : runtime.step >= 1 ? "Reading system context." : "Queued for intake.",
-      state: runtime.step >= 2 ? "done" : runtime.step >= 1 ? "active" : "idle",
-    },
-    {
-      name: "Engineer",
-      detail: patchReady ? "Patch delivered to CEO gate." : runtime.step >= 3 ? "Building proposed change." : "Waiting for architecture.",
-      state: patchReady ? "done" : runtime.step >= 3 ? "active" : "idle",
-    },
-    {
-      name: "QA",
-      detail: runtime.verified
-        ? "Verification passed."
-        : runtime.status === "blocked"
-          ? "Mission blocked at QA or approval."
-        : runtime.patchStatus === "approved"
-          ? "Ready to run verification."
-          : runtime.patchStatus === "rejected"
-            ? "Mission stopped before QA."
-            : "Waiting for CEO approval.",
-      state: runtime.verified
-        ? "done"
-        : runtime.status === "blocked" || runtime.patchStatus === "rejected"
-          ? "blocked"
-          : runtime.patchStatus === "approved"
-            ? "active"
-            : "idle",
-    },
-  ];
 }
 
 function verificationOutput(runtime: WorkspaceRuntime, output: string) {
