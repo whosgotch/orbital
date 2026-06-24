@@ -1327,6 +1327,81 @@ dd {
   color: var(--soft);
 }
 
+/* File switcher tabs (multi-file diffs). */
+.diff-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  padding: 6px 6px 0;
+  background: #0a0d11;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.diff-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-top-left-radius: 7px;
+  border-top-right-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.diff-tab:hover {
+  color: var(--soft);
+  background: rgba(139, 147, 161, 0.06);
+}
+
+.diff-tab.active {
+  color: var(--soft);
+  background: #11161d;
+  border-color: var(--line);
+}
+
+.diff-tab-name {
+  font-weight: 600;
+}
+
+.diff-tab-stat {
+  display: inline-flex;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Compact dark syntax theme for highlight.js tokens inside the diff. */
+.diff-code.hljs { background: transparent; padding: 0; }
+.diff-code .hljs-keyword,
+.diff-code .hljs-selector-tag,
+.diff-code .hljs-literal { color: #c678dd; }
+.diff-code .hljs-string,
+.diff-code .hljs-meta-string { color: #98c379; }
+.diff-code .hljs-number,
+.diff-code .hljs-symbol { color: #d19a66; }
+.diff-code .hljs-title,
+.diff-code .hljs-title.function_,
+.diff-code .hljs-section { color: #61afef; }
+.diff-code .hljs-built_in,
+.diff-code .hljs-type,
+.diff-code .hljs-class .hljs-title { color: #56b6c2; }
+.diff-code .hljs-attr,
+.diff-code .hljs-attribute,
+.diff-code .hljs-property,
+.diff-code .hljs-variable { color: #e06c75; }
+.diff-code .hljs-comment,
+.diff-code .hljs-quote { color: #5c6370; font-style: italic; }
+.diff-code .hljs-meta { color: #7f848e; }
+
 .actions {
   display: flex;
   justify-content: flex-end;

@@ -1,6 +1,63 @@
-// A dependency-free unified-diff renderer: parses `git diff` text into files,
-// hunks and lines, then renders them with line-number gutters and add/remove
-// coloring — the familiar git / GitHub / Cursor look, instead of a raw blob.
+// A dependency-light unified-diff renderer: parses `git diff` text into files,
+// hunks and lines, adds per-line syntax highlighting, and lets you tab between
+// changed files — the familiar git / GitHub / Cursor look.
+import { useEffect, useMemo, useState } from "react";
+import hljs from "highlight.js/lib/core";
+import typescript from "highlight.js/lib/languages/typescript";
+import javascript from "highlight.js/lib/languages/javascript";
+import go from "highlight.js/lib/languages/go";
+import json from "highlight.js/lib/languages/json";
+import css from "highlight.js/lib/languages/css";
+import xml from "highlight.js/lib/languages/xml";
+import bash from "highlight.js/lib/languages/bash";
+import python from "highlight.js/lib/languages/python";
+import rust from "highlight.js/lib/languages/rust";
+import markdown from "highlight.js/lib/languages/markdown";
+import yaml from "highlight.js/lib/languages/yaml";
+
+hljs.registerLanguage("typescript", typescript);
+hljs.registerLanguage("javascript", javascript);
+hljs.registerLanguage("go", go);
+hljs.registerLanguage("json", json);
+hljs.registerLanguage("css", css);
+hljs.registerLanguage("xml", xml);
+hljs.registerLanguage("bash", bash);
+hljs.registerLanguage("python", python);
+hljs.registerLanguage("rust", rust);
+hljs.registerLanguage("markdown", markdown);
+hljs.registerLanguage("yaml", yaml);
+
+const EXT_LANGUAGE: Record<string, string> = {
+  ts: "typescript", tsx: "typescript", mts: "typescript", cts: "typescript",
+  js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
+  go: "go", json: "json", css: "css", scss: "css",
+  html: "xml", xml: "xml", svg: "xml", vue: "xml",
+  sh: "bash", bash: "bash", zsh: "bash",
+  py: "python", rs: "rust", md: "markdown", markdown: "markdown",
+  yml: "yaml", yaml: "yaml",
+};
+
+function languageFor(path: string): string | undefined {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  return EXT_LANGUAGE[ext];
+}
+
+function escapeHtml(text: string) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Highlight a single line. Per-line highlighting can't see multi-line context
+// (block comments, template literals spanning lines), which is an acceptable
+// trade for a synchronous, diff-friendly renderer.
+function highlightLine(text: string, language: string | undefined): string {
+  if (text === "") return " ";
+  if (!language) return escapeHtml(text);
+  try {
+    return hljs.highlight(text, { language, ignoreIllegals: true }).value;
+  } catch {
+    return escapeHtml(text);
+  }
+}
 
 type DiffLineKind = "add" | "del" | "context" | "hunk";
 
@@ -41,7 +98,6 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
       current = pushFile(match ? match[1] : raw.replace("diff --git ", ""));
       continue;
     }
-    // A bare diff (no `diff --git` line) still starts a file at `---`/`+++`.
     if (raw.startsWith("--- ")) {
       if (!current) current = pushFile(stripPrefix(raw.slice(4)));
       continue;
@@ -74,7 +130,6 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
       current.deletions += 1;
       oldNo += 1;
     } else {
-      // Context line (leading space) or a stray blank line inside a hunk.
       current.lines.push({ kind: "context", text: raw.startsWith(" ") ? raw.slice(1) : raw, oldNo, newNo });
       oldNo += 1;
       newNo += 1;
@@ -85,41 +140,71 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
 }
 
 export function DiffView({ diff, emptyLabel }: { diff: string; emptyLabel: string }) {
-  const files = diff.trim() ? parseUnifiedDiff(diff) : [];
+  const files = useMemo(() => (diff.trim() ? parseUnifiedDiff(diff) : []), [diff]);
+  const signature = files.map((file) => file.path).join("|");
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Reset to the first file whenever the changed-file set changes (new mission).
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [signature]);
 
   if (files.length === 0) {
     return <div className="diff-empty">{emptyLabel}</div>;
   }
 
+  const active = files[Math.min(activeIndex, files.length - 1)];
+  const language = languageFor(active.path);
+
   return (
     <div className="diff-view">
-      {files.map((file) => (
-        <div className="diff-file" key={file.path}>
-          <div className="diff-file-head">
-            <span className="diff-file-path">{file.path}</span>
-            <span className="diff-file-stat">
-              {file.additions > 0 ? <span className="diff-add-count">+{file.additions}</span> : null}
-              {file.deletions > 0 ? <span className="diff-del-count">−{file.deletions}</span> : null}
-            </span>
-          </div>
-          <div className="diff-body">
-            {file.lines.map((line, index) => (
-              <div className={`diff-line ${line.kind}`} key={index}>
-                {line.kind === "hunk" ? (
-                  <span className="diff-hunk-text">{line.text || "…"}</span>
-                ) : (
-                  <>
-                    <span className="diff-gutter">{line.oldNo ?? ""}</span>
-                    <span className="diff-gutter">{line.newNo ?? ""}</span>
-                    <span className="diff-sign">{line.kind === "add" ? "+" : line.kind === "del" ? "−" : " "}</span>
-                    <span className="diff-code">{line.text || " "}</span>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
+      {files.length > 1 ? (
+        <div className="diff-tabs" role="tablist">
+          {files.map((file, index) => (
+            <button
+              key={file.path}
+              type="button"
+              role="tab"
+              aria-selected={index === activeIndex}
+              className={`diff-tab ${index === activeIndex ? "active" : ""}`}
+              onClick={() => setActiveIndex(index)}
+              title={file.path}
+            >
+              <span className="diff-tab-name">{file.path.split("/").pop()}</span>
+              <span className="diff-tab-stat">
+                {file.additions > 0 ? <span className="diff-add-count">+{file.additions}</span> : null}
+                {file.deletions > 0 ? <span className="diff-del-count">−{file.deletions}</span> : null}
+              </span>
+            </button>
+          ))}
         </div>
-      ))}
+      ) : null}
+
+      <div className="diff-file">
+        <div className="diff-file-head">
+          <span className="diff-file-path">{active.path}</span>
+          <span className="diff-file-stat">
+            {active.additions > 0 ? <span className="diff-add-count">+{active.additions}</span> : null}
+            {active.deletions > 0 ? <span className="diff-del-count">−{active.deletions}</span> : null}
+          </span>
+        </div>
+        <div className="diff-body">
+          {active.lines.map((line, index) => (
+            <div className={`diff-line ${line.kind}`} key={index}>
+              {line.kind === "hunk" ? (
+                <span className="diff-hunk-text">{line.text || "…"}</span>
+              ) : (
+                <>
+                  <span className="diff-gutter">{line.oldNo ?? ""}</span>
+                  <span className="diff-gutter">{line.newNo ?? ""}</span>
+                  <span className="diff-sign">{line.kind === "add" ? "+" : line.kind === "del" ? "−" : " "}</span>
+                  <span className="diff-code hljs" dangerouslySetInnerHTML={{ __html: highlightLine(line.text, language) }} />
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
