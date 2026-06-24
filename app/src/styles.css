@@ -763,6 +763,24 @@ dd {
   transition: stroke 180ms ease;
 }
 
+/* Marquee box drawn while dragging a selection. */
+.react-flow__selection {
+  background: rgba(91, 139, 255, 0.08);
+  border: 1px solid rgba(91, 139, 255, 0.5);
+  border-radius: 6px;
+}
+
+/* Bounding box that wraps the selected nodes. React Flow makes it focusable,
+   so kill the bright browser focus outline and use a soft dashed frame. */
+.react-flow__nodesselection-rect,
+.react-flow__nodesselection-rect:focus,
+.react-flow__nodesselection-rect:focus-visible {
+  background: transparent;
+  border: 1px dashed rgba(91, 139, 255, 0.45);
+  border-radius: 10px;
+  outline: none;
+}
+
 .react-flow__controls {
   border: 1px solid var(--line);
   border-radius: 8px;
