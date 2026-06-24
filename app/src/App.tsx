@@ -18,6 +18,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
+import { DiffView } from "./components/DiffView";
 import {
   type MissionNodeStatus,
   type WorkspaceGraphEdge,
@@ -1009,9 +1010,14 @@ export function App() {
               {patchStateLabel(selectedRuntime, patchReady)}
             </div>
           </div>
-          <pre className="diff">
-            <code>{patchReady ? selectedPatchDiff || "No patch proposal captured for this mission." : "Patch stream locked until this mission reaches review."}</code>
-          </pre>
+          <DiffView
+            diff={patchReady ? selectedPatchDiff : ""}
+            emptyLabel={
+              patchReady
+                ? "No patch proposal captured for this mission."
+                : "Patch stream locked until this mission reaches review."
+            }
+          />
           <div className="actions">
             <button
               className="secondary"
