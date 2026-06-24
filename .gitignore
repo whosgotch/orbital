@@ -4,3 +4,5 @@ dist/
 *.tsbuildinfo
 target/
 app/src-tauri/gen/
+
+.vite/

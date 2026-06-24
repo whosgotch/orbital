@@ -23,4 +23,8 @@ type Mission struct {
 	CreatedAt      time.Time     `json:"created_at"`
 	UpdatedAt      time.Time     `json:"updated_at"`
 	ParentMissionID string       `json:"parent_mission_id,omitempty"`
+	// CampaignID groups the per-repo missions of one coordinated multi-repo
+	// change. Each repo keeps its own state file, so a campaign is reconstructed
+	// by grouping missions that share this id across the combined workspace.
+	CampaignID string `json:"campaign_id,omitempty"`
 }

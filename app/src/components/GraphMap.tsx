@@ -18,7 +18,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Code2, Crown, Eye, FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
+import { Boxes, Code2, Crown, Eye, FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../mockMission";
 
@@ -53,6 +53,7 @@ const EDGE_COLOR: Record<string, string> = {
   proposes: "#5b8bff",
   verifies: "#5b8bff",
   spawns: "#5b8bff",
+  coordinates: "#b07cff",
   blocks: "#e2615f",
 };
 const NEUTRAL_EDGE = "rgba(139, 147, 161, 0.42)";
@@ -62,7 +63,7 @@ function edgeColor(kind: string) {
 }
 
 function edgeDash(kind: string) {
-  if (kind === "spawns") return "4 3";
+  if (kind === "spawns" || kind === "coordinates") return "4 3";
   if (kind === "blocks") return "5 4";
   return undefined;
 }
@@ -263,7 +264,7 @@ function LaneBands() {
         maxX = Math.max(maxX, node.position.x + width);
         maxY = Math.max(maxY, node.position.y + height);
         const data = node.data as OrbitalNodeData;
-        if (data.kind === "mission") label = data.label;
+        if (data.kind === "mission" || data.kind === "campaign") label = data.label;
       });
       result.push({
         missionId,
@@ -298,6 +299,9 @@ function LaneBands() {
 }
 
 function GraphGlyph({ kind, status, label }: { kind: GraphNodeKind; status?: MissionNodeStatus; label?: string }) {
+  if (kind === "campaign") {
+    return <Boxes size={18} aria-hidden="true" />;
+  }
   if (kind === "repo") {
     return <Network size={18} aria-hidden="true" />;
   }

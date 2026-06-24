@@ -31,6 +31,24 @@
       "status": "waiting_approval",
       "created_at": "2026-06-20T10:00:00Z",
       "updated_at": "2026-06-20T10:05:00Z"
+    },
+    {
+      "id": "mission_camp_0",
+      "repository_id": "repo_1781265206288741000",
+      "text": "rename customerId to accountId",
+      "status": "draft",
+      "created_at": "2026-06-20T10:00:00Z",
+      "updated_at": "2026-06-20T10:00:00Z",
+      "campaign_id": "camp_demo_rename"
+    },
+    {
+      "id": "mission_camp_1",
+      "repository_id": "repo_2781265300000000000",
+      "text": "rename customerId to accountId",
+      "status": "draft",
+      "created_at": "2026-06-20T10:00:00Z",
+      "updated_at": "2026-06-20T10:00:00Z",
+      "campaign_id": "camp_demo_rename"
     }
   ],
   "agent_runs": [
@@ -49,7 +67,10 @@
       "status": "completed",
       "started_at": "2026-06-20T10:00:00Z",
       "completed_at": "2026-06-20T10:05:00Z",
-      "child_run_ids": ["run_2781265300000000001", "run_2781265300000000002"]
+      "child_run_ids": [
+        "run_2781265300000000001",
+        "run_2781265300000000002"
+      ]
     },
     {
       "id": "run_2781265300000000001",
@@ -208,7 +229,7 @@
       "id": "patch_1781265206289361000",
       "run_id": "run_1781265206289083000",
       "status": "applied",
-      "diff": "diff --git a/package.json b/package.json\nindex 2b13a1c..91d44fd 100644\n--- a/package.json\n+++ b/package.json\n@@ -4,6 +4,7 @@\n   \"bin\": {\n     \"demo\": \"./dist/cli.js\"\n   },\n+  \"version\": \"0.1.0\",\n   \"scripts\": {\n     \"build\": \"tsc\",\n     \"test\": \"vitest run\"\ndiff --git a/src/cli.ts b/src/cli.ts\nindex 8b891fa..7f1c0db 100644\n--- a/src/cli.ts\n+++ b/src/cli.ts\n@@ -1,5 +1,10 @@\n import pkg from \"../package.json\";\n\n const command = process.argv[2];\n\n+if (command === \"version\" || command === \"--version\") {\n+  console.log(pkg.version);\n+  process.exit(0);\n+}\n+\n console.log(\"Usage: demo \u003ccommand\u003e\");\n",
+      "diff": "diff --git a/package.json b/package.json\nindex 2b13a1c..91d44fd 100644\n--- a/package.json\n+++ b/package.json\n@@ -4,6 +4,7 @@\n   \"bin\": {\n     \"demo\": \"./dist/cli.js\"\n   },\n+  \"version\": \"0.1.0\",\n   \"scripts\": {\n     \"build\": \"tsc\",\n     \"test\": \"vitest run\"\ndiff --git a/src/cli.ts b/src/cli.ts\nindex 8b891fa..7f1c0db 100644\n--- a/src/cli.ts\n+++ b/src/cli.ts\n@@ -1,5 +1,10 @@\n import pkg from \"../package.json\";\n\n const command = process.argv[2];\n\n+if (command === \"version\" || command === \"--version\") {\n+  console.log(pkg.version);\n+  process.exit(0);\n+}\n+\n console.log(\"Usage: demo <command>\");\n",
       "created_at": "2026-06-12T11:53:26.289361Z",
       "updated_at": "2026-06-12T11:53:26.300289Z"
     },

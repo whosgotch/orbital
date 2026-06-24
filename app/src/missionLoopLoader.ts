@@ -31,12 +31,16 @@ export async function refreshMissionLoopState(): Promise<MissionLoopState> {
   return loadRuntimeFixture();
 }
 
-export async function queueMissionLoopState(repoPath: string, missionText: string): Promise<MissionLoopState | undefined> {
+export async function queueMissionLoopState(
+  repoPath: string,
+  missionText: string,
+  campaignId?: string,
+): Promise<MissionLoopState | undefined> {
   if (!isTauriRuntime()) {
     return undefined;
   }
 
-  const state = await invoke<string>("queue_mission", { repoPath, missionText });
+  const state = await invoke<string>("queue_mission", { repoPath, missionText, campaignId });
   return JSON.parse(state) as MissionLoopState;
 }
 

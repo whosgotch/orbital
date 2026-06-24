@@ -16,7 +16,7 @@ export type WorkspaceMission = {
   map_position: "north" | "east" | "south" | "west" | "center";
 };
 
-export type GraphNodeKind = "repo" | "mission" | "file" | "worker" | "patch" | "verification" | "test";
+export type GraphNodeKind = "repo" | "mission" | "file" | "worker" | "patch" | "verification" | "test" | "campaign";
 
 export type WorkspaceGraphNode = {
   id: string;
@@ -33,7 +33,7 @@ export type WorkspaceGraphEdge = {
   id: string;
   from: string;
   to: string;
-  kind: "owns" | "reads" | "runs" | "proposes" | "verifies" | "blocks" | "spawns";
+  kind: "owns" | "reads" | "runs" | "proposes" | "verifies" | "blocks" | "spawns" | "coordinates";
 };
 
 export const mockMissionLoop: MissionLoopState = {

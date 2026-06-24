@@ -9,7 +9,10 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
-func (s *Service) CreateMission(repoID string, text string) (*domain.Mission, error) {
+// CreateMission records a draft mission for a repo. A non-empty campaignID ties
+// it to a coordinated multi-repo change so the campaign can be reconstructed by
+// grouping missions that share the id across each repo's separate state.
+func (s *Service) CreateMission(repoID string, text string, campaignID string) (*domain.Mission, error) {
 	missionText := strings.TrimSpace(text)
 	if missionText == "" {
 		return nil, fmt.Errorf("mission text is required")
@@ -23,6 +26,7 @@ func (s *Service) CreateMission(repoID string, text string) (*domain.Mission, er
 		Status:       domain.MissionStatusDraft,
 		CreatedAt:    now,
 		UpdatedAt:    now,
+		CampaignID:   strings.TrimSpace(campaignID),
 	}
 
 	_, err := s.store.Update(func(state *store.State) error {

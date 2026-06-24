@@ -25,6 +25,7 @@ export type Mission = {
   created_at: string;
   updated_at: string;
   parent_mission_id?: string;
+  campaign_id?: string;
 };
 
 export type AgentRunStatus = "queued" | "running" | "waiting_for_children" | "aggregating" | "completed" | "failed" | "cancelled";

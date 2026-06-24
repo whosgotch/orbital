@@ -31,8 +31,15 @@ fn open_repository(repo_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn queue_mission(repo_path: String, mission_text: String) -> Result<String, String> {
-    run_worker(&["queue", repo_path.trim(), mission_text.trim()])
+fn queue_mission(
+    repo_path: String,
+    mission_text: String,
+    campaign_id: Option<String>,
+) -> Result<String, String> {
+    match campaign_id.as_deref().map(str::trim).filter(|id| !id.is_empty()) {
+        Some(id) => run_worker(&["queue", repo_path.trim(), mission_text.trim(), "--campaign", id]),
+        None => run_worker(&["queue", repo_path.trim(), mission_text.trim()]),
+    }
 }
 
 #[tauri::command]

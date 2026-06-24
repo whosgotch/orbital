@@ -117,6 +117,9 @@ export function App() {
   const [activeRepoPath, setActiveRepoPath] = useState(demoRepoPath);
   const [selectedNodeId, setSelectedNodeId] = useState("mission_version");
   const [missionDraft, setMissionDraft] = useState("stabilize the release path");
+  // Repos a queued intent fans out to. Picking >1 makes it a coordinated
+  // campaign: the same intent is queued in each repo under a shared campaign id.
+  const [campaignRepoIds, setCampaignRepoIds] = useState<string[]>([]);
   const [workspaceMissions, setWorkspaceMissions] = useState(initialWorkspaceView.missions);
   const [workspaceGraphNodes, setWorkspaceGraphNodes] = useState(initialWorkspaceView.graphNodes);
   const [workspaceGraphEdges, setWorkspaceGraphEdges] = useState(initialWorkspaceView.graphEdges);
@@ -132,7 +135,13 @@ export function App() {
   );
   const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
   const [openPanel, setOpenPanel] = useState<null | "repo" | "mission" | "control">(null);
-  const togglePanel = (panel: "repo" | "mission" | "control") => setOpenPanel((current) => (current === panel ? null : panel));
+  const togglePanel = (panel: "repo" | "mission" | "control") =>
+    setOpenPanel((current) => {
+      const next = current === panel ? null : panel;
+      // Opening intake starts from the current repo; campaign targets are opt-in.
+      if (next === "mission") setCampaignRepoIds([]);
+      return next;
+    });
 
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode?.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0]?.id;
@@ -159,7 +168,8 @@ export function App() {
   const graphNodes = useMemo(
     () =>
       workspaceGraphNodes.map((node) => {
-        const status = node.mission_id ? statusFromRuntime(runtimeByMission[node.mission_id]) : undefined;
+        const runtime = node.mission_id ? runtimeByMission[node.mission_id] : undefined;
+        const status = runtime ? statusFromRuntime(runtime) : undefined;
         // Surface each mission's assigned worker on its node so the per-mission
         // choice is visible on the canvas (blocked missions keep their warning).
         if (node.kind === "mission" && node.mission_id && status !== "blocked") {
@@ -294,18 +304,25 @@ export function App() {
     }
 
     setMissionLoopError("");
-    const repoPath = selectedRepository?.path ?? activeRepoPath;
+
+    // Resolve which repos this intent targets. >1 → a coordinated campaign:
+    // every target gets the same intent under a shared campaign id.
+    const targetRepos = campaignTargetRepos();
+    const isCampaign = targetRepos.length > 1;
 
     if (isTauriRuntime()) {
       try {
-        let nextMissionLoopState: MissionLoopState | undefined;
         let lastMissionId: string | undefined;
-        for (const title of titles) {
-          nextMissionLoopState = await queueMissionLoopState(repoPath, title);
-          lastMissionId = nextMissionLoopState?.missions.at(-1)?.id;
-        }
-        if (nextMissionLoopState) {
-          applyRepoState(nextMissionLoopState, lastMissionId);
+        for (let titleIndex = 0; titleIndex < titles.length; titleIndex++) {
+          const title = titles[titleIndex];
+          const campaignId = isCampaign ? `camp_${Date.now()}_${titleIndex}` : undefined;
+          for (const repo of targetRepos) {
+            const nextMissionLoopState = await queueMissionLoopState(repo.path, title, campaignId);
+            if (nextMissionLoopState) {
+              lastMissionId = nextMissionLoopState.missions.at(-1)?.id;
+              applyRepoState(nextMissionLoopState, lastMissionId);
+            }
+          }
         }
       } catch (error) {
         setMissionLoopError(errorMessage(error, "Failed to queue mission."));
@@ -313,15 +330,45 @@ export function App() {
       return;
     }
 
-    if (!selectedRepository) return;
-    titles.forEach((title, index) => addLocalMission(title, index));
+    // Browser demo: optimistic local missions, with an explicit campaign node
+    // when the intent fans out across more than one repo.
+    titles.forEach((title, titleIndex) => {
+      const campaignId = isCampaign ? `camp_${Date.now()}_${titleIndex}` : undefined;
+      const missionIds = targetRepos.map((repo, repoIndex) =>
+        addLocalMission(title, titleIndex * targetRepos.length + repoIndex, repo.id),
+      );
+      if (campaignId && missionIds.length > 1) {
+        addLocalCampaign(campaignId, title, missionIds);
+      }
+    });
+  };
+
+  // Repos a queued intent fans out to: the explicit campaign selection if any,
+  // otherwise just the currently selected repo.
+  const campaignTargetRepos = () => {
+    const repositories = missionLoopState.repositories;
+    if (campaignRepoIds.length > 0) {
+      return campaignRepoIds
+        .map((id) => repositories.find((repo) => repo.id === id))
+        .filter((repo): repo is Repository => Boolean(repo));
+    }
+    if (selectedRepository) return [selectedRepository];
+    const active = repositories.find((repo) => repo.path === activeRepoPath);
+    return active ? [active] : [];
+  };
+
+  const toggleCampaignRepo = (repoId: string) => {
+    setCampaignRepoIds((current) => {
+      const base = current.length > 0 ? current : campaignTargetRepos().map((repo) => repo.id);
+      return base.includes(repoId) ? base.filter((id) => id !== repoId) : [...base, repoId];
+    });
   };
 
   // Optimistic, non-Tauri-only mission so the browser demo can line up a backlog.
-  const addLocalMission = (title: string, offset: number) => {
-    if (!selectedRepository) return;
+  // Returns the new mission id so a campaign fan-out can tie the lanes together.
+  const addLocalMission = (title: string, offset: number, repositoryId: string): string => {
     const missionId = `mission_${Date.now()}_${offset}`;
-    const targetRepositoryId = selectedRepository.id;
+    const targetRepositoryId = repositoryId;
     const mission: WorkspaceMission = {
       id: missionId,
       repository_id: targetRepositoryId,
@@ -364,6 +411,30 @@ export function App() {
     setActivityByMission((current) => ({ ...current, [missionId]: [] }));
     setWorkerModeByMission((current) => ({ ...current, [missionId]: selectedWorkerMode }));
     setSelectedNodeId(missionId);
+    return missionId;
+  };
+
+  // Optimistic campaign node + fan-out edges for the browser demo, so a
+  // coordinated multi-repo launch reads as one campaign without a worker round-trip.
+  const addLocalCampaign = (campaignId: string, title: string, missionIds: string[]) => {
+    const campaignNodeId = `campaign:${campaignId}`;
+    const campaignNode: WorkspaceGraphNode = {
+      id: campaignNodeId,
+      kind: "campaign",
+      label: missionLabel(title),
+      detail: `${missionIds.length} repos · 0/${missionIds.length} landed`,
+      x: 4,
+      y: 12,
+      mission_id: campaignNodeId,
+    };
+    const edges: WorkspaceGraphEdge[] = missionIds.map((missionId) => ({
+      id: `campaign_${campaignId}_${missionId}`,
+      from: campaignNodeId,
+      to: missionId,
+      kind: "coordinates",
+    }));
+    setWorkspaceGraphNodes((current) => [...current, campaignNode]);
+    setWorkspaceGraphEdges((current) => [...current, ...edges]);
   };
 
   const advanceStep = () => {
@@ -713,6 +784,28 @@ export function App() {
             value={missionDraft}
             onChange={(event) => setMissionDraft(event.target.value)}
           />
+          {missionLoopState.repositories.length > 1 ? (
+            <div className="campaign-targets">
+              <div className="section-label">Target repos {campaignTargetRepos().length > 1 ? "· campaign" : ""}</div>
+              <ul className="campaign-repo-list">
+                {missionLoopState.repositories.map((repo) => {
+                  const checked = campaignTargetRepos().some((target) => target.id === repo.id);
+                  return (
+                    <li key={repo.id}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCampaignRepo(repo.id)}
+                        />
+                        <span>{repo.name}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
           <button
             className="primary command-button"
             type="button"
@@ -723,7 +816,11 @@ export function App() {
             disabled={!missionDraft.trim()}
           >
             <Rocket size={17} aria-hidden="true" />
-            <span>Queue {missionDraft.split("\n").filter((line) => line.trim()).length > 1 ? "backlog" : "mission"}</span>
+            <span>
+              {campaignTargetRepos().length > 1
+                ? `Launch campaign · ${campaignTargetRepos().length} repos`
+                : `Queue ${missionDraft.split("\n").filter((line) => line.trim()).length > 1 ? "backlog" : "mission"}`}
+            </span>
           </button>
         </section>
       ) : null}

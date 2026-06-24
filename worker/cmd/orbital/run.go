@@ -29,7 +29,7 @@ func runMission(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 	fmt.Fprintf(stdout, "repository: %s (%s)\n", repository.ID, repository.Path)
 
-	mission, err := service.CreateMission(repository.ID, missionText)
+	mission, err := service.CreateMission(repository.ID, missionText, "")
 	if err != nil {
 		return err
 	}

@@ -26,13 +26,17 @@ func TestCreateMissionSavesMission(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	mission, err := svc.CreateMission("repo_1", " add a version command ")
+	mission, err := svc.CreateMission("repo_1", " add a version command ", " camp_1 ")
 	if err != nil {
 		t.Fatalf("CreateMission() error = %v", err)
 	}
 
 	if mission.RepositoryID != "repo_1" {
 		t.Fatalf("repository ID = %q, want %q", mission.RepositoryID, "repo_1")
+	}
+
+	if mission.CampaignID != "camp_1" {
+		t.Fatalf("campaign ID = %q, want %q", mission.CampaignID, "camp_1")
 	}
 
 	if mission.Text != "add a version command" {
@@ -56,7 +60,7 @@ func TestCreateMissionSavesMission(t *testing.T) {
 func TestCreateMissionRejectsBlankText(t *testing.T) {
 	svc := NewService(store.NewJSONStore(t.TempDir()))
 
-	if _, err := svc.CreateMission("repo_1", "   "); err == nil {
+	if _, err := svc.CreateMission("repo_1", "   ", ""); err == nil {
 		t.Fatal("expected error for blank mission text, got nil")
 	}
 }
@@ -64,7 +68,7 @@ func TestCreateMissionRejectsBlankText(t *testing.T) {
 func TestCreateMissionRejectsUnknownRepository(t *testing.T) {
 	svc := NewService(store.NewJSONStore(t.TempDir()))
 
-	if _, err := svc.CreateMission("missing_repo", "add a version command"); err == nil {
+	if _, err := svc.CreateMission("missing_repo", "add a version command", ""); err == nil {
 		t.Fatal("expected error for unknown repository, got nil")
 	}
 }

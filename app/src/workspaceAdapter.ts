@@ -68,10 +68,12 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
     }),
   );
 
+  const campaigns = campaignGroups(state, missions);
+
   return {
     missions,
-    graphNodes: graphNodesFromState(state, missions),
-    graphEdges: graphEdgesFromState(missions, state),
+    graphNodes: [...graphNodesFromState(state, missions), ...campaignNodes(campaigns)],
+    graphEdges: [...graphEdgesFromState(missions, state), ...campaignEdges(campaigns)],
     runtimeByMission,
     patchDiffByMission,
     verificationOutputByMission,
@@ -294,6 +296,56 @@ function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopSta
 
     return edges;
   });
+}
+
+type CampaignGroup = {
+  id: string;
+  text: string;
+  members: WorkspaceMission[];
+};
+
+// A campaign is the per-repo fan-out of one coordinated change. Each repo keeps
+// its own state, so membership is reconstructed by grouping missions that share
+// a campaign_id across the combined workspace. Singletons are ignored — a
+// campaign only reads as one when it spans more than a single repo.
+function campaignGroups(state: MissionLoopState, missions: WorkspaceMission[]): CampaignGroup[] {
+  const campaignByMission = new Map(state.missions.map((mission) => [mission.id, mission.campaign_id]));
+  const groups = new Map<string, CampaignGroup>();
+  missions.forEach((mission) => {
+    const campaignId = campaignByMission.get(mission.id);
+    if (!campaignId) return;
+    if (!groups.has(campaignId)) groups.set(campaignId, { id: campaignId, text: mission.title, members: [] });
+    groups.get(campaignId)!.members.push(mission);
+  });
+  return Array.from(groups.values()).filter((group) => group.members.length > 1);
+}
+
+function campaignNodes(campaigns: CampaignGroup[]): WorkspaceGraphNode[] {
+  return campaigns.map((campaign) => {
+    const landed = campaign.members.filter((m) => m.status === "verified" || m.status === "approved").length;
+    return {
+      id: `campaign:${campaign.id}`,
+      kind: "campaign" as const,
+      label: compactLabel(campaign.text),
+      detail: `${campaign.members.length} repos · ${landed}/${campaign.members.length} landed`,
+      x: 4,
+      y: 12,
+      // Own synthetic lane so the swimlane layout gives it a labeled band that
+      // sits apart from the repo lanes it fans out into.
+      mission_id: `campaign:${campaign.id}`,
+    };
+  });
+}
+
+function campaignEdges(campaigns: CampaignGroup[]): WorkspaceGraphEdge[] {
+  return campaigns.flatMap((campaign) =>
+    campaign.members.map((mission) => ({
+      id: `campaign_${campaign.id}_${mission.id}`,
+      from: `campaign:${campaign.id}`,
+      to: mission.id,
+      kind: "coordinates" as const,
+    })),
+  );
 }
 
 function missionStatus(
