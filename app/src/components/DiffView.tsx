@@ -181,13 +181,15 @@ export function DiffView({ diff, emptyLabel }: { diff: string; emptyLabel: strin
       ) : null}
 
       <div className="diff-file">
-        <div className="diff-file-head">
-          <span className="diff-file-path">{active.path}</span>
-          <span className="diff-file-stat">
-            {active.additions > 0 ? <span className="diff-add-count">+{active.additions}</span> : null}
-            {active.deletions > 0 ? <span className="diff-del-count">−{active.deletions}</span> : null}
-          </span>
-        </div>
+        {files.length === 1 ? (
+          <div className="diff-file-head">
+            <span className="diff-file-path">{active.path}</span>
+            <span className="diff-file-stat">
+              {active.additions > 0 ? <span className="diff-add-count">+{active.additions}</span> : null}
+              {active.deletions > 0 ? <span className="diff-del-count">−{active.deletions}</span> : null}
+            </span>
+          </div>
+        ) : null}
         <div className="diff-body">
           {active.lines.map((line, index) => (
             <div className={`diff-line ${line.kind}`} key={index}>

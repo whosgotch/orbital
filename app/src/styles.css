@@ -366,7 +366,17 @@ h3 {
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
+  /* Pack entries from the top; without this the grid stretches its rows to fill
+     the tall panel, leaving huge gaps between log lines. */
+  align-content: start;
   overflow-y: auto;
+}
+
+/* Expand-diff button lives at the right end of the panel tab row. */
+.review-tabs .review-expand {
+  margin-left: auto;
+  align-self: center;
+  margin-bottom: 6px;
 }
 
 /* Worker pickers relocated out of the review surface. */

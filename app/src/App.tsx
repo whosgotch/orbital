@@ -929,20 +929,7 @@ export function App() {
                 </div>
                 <h2 className="work-order-title">{selectedMission.title}</h2>
               </div>
-              <div className="review-head-actions">
-                <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
-                {reviewTab === "changes" && patchReady ? (
-                  <button
-                    className="secondary icon-button mini"
-                    type="button"
-                    onClick={() => setDiffModalOpen(true)}
-                    title="Expand diff"
-                    aria-label="Expand diff"
-                  >
-                    <Maximize2 size={14} aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
+              <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
             </div>
 
             <div className="review-tabs" role="tablist">
@@ -964,6 +951,17 @@ export function App() {
               >
                 Activity{activity.length > 0 ? <span className="tab-count">{activity.length}</span> : null}
               </button>
+              {reviewTab === "changes" && patchReady ? (
+                <button
+                  className="secondary icon-button mini review-expand"
+                  type="button"
+                  onClick={() => setDiffModalOpen(true)}
+                  title="Expand diff"
+                  aria-label="Expand diff"
+                >
+                  <Maximize2 size={14} aria-hidden="true" />
+                </button>
+              ) : null}
             </div>
 
             {reviewTab === "changes" ? (
