@@ -203,6 +203,9 @@ func ensureGitRepo(ctx context.Context, repoPath string) error {
 	check := exec.CommandContext(ctx, "git", "rev-parse", "--is-inside-work-tree")
 	check.Dir = repoPath
 	if check.Run() == nil {
+		// Existing repo: make sure Orbital's own state never surfaces as
+		// untracked/intent-to-added noise in the user's git status.
+		ensureOrbitalExcluded(ctx, repoPath)
 		return nil
 	}
 
@@ -226,8 +229,45 @@ func ensureGitRepo(ctx context.Context, repoPath string) error {
 	return nil
 }
 
+// ensureOrbitalExcluded adds .orbital/ to the repo's local exclude file
+// (.git/info/exclude) so Orbital's state and per-run worktrees never show up as
+// untracked files. It's local-only — it never touches the user's tracked
+// .gitignore — and best-effort: a failure here must not break a run.
+func ensureOrbitalExcluded(ctx context.Context, repoPath string) {
+	pathCmd := exec.CommandContext(ctx, "git", "rev-parse", "--git-path", "info/exclude")
+	pathCmd.Dir = repoPath
+	out, err := pathCmd.Output()
+	if err != nil {
+		return
+	}
+
+	excludePath := strings.TrimSpace(string(out))
+	if !filepath.IsAbs(excludePath) {
+		excludePath = filepath.Join(repoPath, excludePath)
+	}
+
+	existing, _ := os.ReadFile(excludePath)
+	for _, line := range strings.Split(string(existing), "\n") {
+		if strings.TrimSpace(line) == ".orbital/" {
+			return
+		}
+	}
+
+	if err := os.MkdirAll(filepath.Dir(excludePath), 0755); err != nil {
+		return
+	}
+	content := string(existing)
+	if content != "" && !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	content += ".orbital/\n"
+	_ = os.WriteFile(excludePath, []byte(content), 0644)
+}
+
 // captureGitDiff stages intent-to-add for new files (so they appear in the
-// diff) and returns the working-tree diff for the repo.
+// diff) and returns the working-tree diff for the repo. ensureGitRepo has
+// already excluded .orbital/ via .git/info/exclude, so git add skips Orbital's
+// own state instead of intent-adding it into the user's index.
 func captureGitDiff(ctx context.Context, repoPath string) (string, error) {
 	add := exec.CommandContext(ctx, "git", "add", "-A", "-N")
 	add.Dir = repoPath
