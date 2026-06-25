@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Rocket,
   Terminal,
+  Trash2,
   FolderOpen,
   X,
 } from "lucide-react";
@@ -34,6 +35,7 @@ import {
 } from "./workspaceAdapter";
 import {
   approvePatchMissionLoopState,
+  deleteMissionLoopState,
   demoRepoPath,
   isTauriRuntime,
   loadMissionLoopState,
@@ -108,11 +110,32 @@ function splitByRepository(state: MissionLoopState): Record<string, MissionLoopS
   return out;
 }
 
+// Drop a mission and everything attached to it from a combined state. Mirrors
+// the worker's DeleteMission cascade for the browser/demo path that has no
+// backend to do it.
+function removeMissionFromState(state: MissionLoopState, missionId: string): MissionLoopState {
+  const runIds = new Set(state.agent_runs.filter((run) => run.mission_id === missionId).map((run) => run.id));
+  return {
+    repositories: state.repositories,
+    missions: state.missions.filter((mission) => mission.id !== missionId),
+    agent_runs: state.agent_runs.filter((run) => run.mission_id !== missionId),
+    workflow_events: state.workflow_events.filter(
+      (event) => event.mission_id !== missionId && !(event.run_id != null && runIds.has(event.run_id)),
+    ),
+    patch_proposals: state.patch_proposals.filter((patch) => !runIds.has(patch.run_id)),
+    verification_runs: state.verification_runs.filter((run) => run.mission_id !== missionId),
+  };
+}
+
 export function App() {
   const [missionLoopState, setMissionLoopState] = useState(emptyMissionLoopState);
   // Each opened repository keeps its own worker state; the canvas renders the
   // union of them all. Keyed by repository id.
   const repoStatesRef = useRef<Record<string, MissionLoopState>>({});
+  // Missions whose in-flight run we intentionally killed (via delete). Their
+  // dispatch promise rejects when the agent process dies — we swallow that
+  // instead of flashing it as an error.
+  const cancelledMissionsRef = useRef<Set<string>>(new Set());
   const [refreshingMissionLoop, setRefreshingMissionLoop] = useState(false);
   const [missionLoopError, setMissionLoopError] = useState("");
   const [repoPathDraft, setRepoPathDraft] = useState(demoRepoPath);
@@ -341,6 +364,11 @@ export function App() {
         return;
       }
     } catch (error) {
+      // A delete kills the run mid-flight, which rejects here — that's expected,
+      // not a failure to surface.
+      if (cancelledMissionsRef.current.has(missionId)) {
+        return;
+      }
       console.error("[orbital] dispatch failed", error);
       setMissionLoopError(errorMessage(error, "Failed to dispatch mission."));
       return;
@@ -546,6 +574,41 @@ export function App() {
     }
 
     setMissionRuntime(missionId, (current) => ({ ...current, patchStatus: "rejected", status: "blocked" }));
+  };
+
+  // Delete a mission entirely — including a running one, in which case the
+  // backend kills the live agent first. Removes its runs, patches, diffs, and
+  // worktree along with it.
+  const deleteMission = async (missionId: string) => {
+    const mission = workspaceMissions.find((item) => item.id === missionId);
+    const running = runtimeByMission[missionId]?.status === "running";
+    const label = mission?.title ?? "this mission";
+    const prompt = running
+      ? `Delete "${label}"? Its agent is still running and will be shut down.`
+      : `Delete "${label}"? This removes its runs and proposed changes.`;
+    if (!window.confirm(prompt)) {
+      return;
+    }
+
+    setMissionLoopError("");
+    cancelledMissionsRef.current.add(missionId);
+
+    try {
+      const nextMissionLoopState = await deleteMissionLoopState(repoPathForMission(missionId), missionId);
+      if (nextMissionLoopState) {
+        applyRepoState(nextMissionLoopState);
+        return;
+      }
+
+      // Browser/demo mode: no backend, so drop the mission from local state.
+      const pruned = removeMissionFromState(combineRepoStates(repoStatesRef.current), missionId);
+      repoStatesRef.current = splitByRepository(pruned);
+      hydrateMissionLoop(combineRepoStates(repoStatesRef.current));
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to delete mission."));
+    } finally {
+      cancelledMissionsRef.current.delete(missionId);
+    }
   };
 
   const runVerification = async () => {
@@ -959,6 +1022,15 @@ export function App() {
                     ) : (
                       <span className={`control-state ${status ?? ""}`}>{controlStateLabel(status)}</span>
                     )}
+                    <button
+                      className="ghost mini danger"
+                      type="button"
+                      onClick={() => void deleteMission(mission.id)}
+                      title={status === "running" ? "Delete — shuts the agent down" : "Delete mission"}
+                      aria-label="Delete mission"
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                    </button>
                   </div>
                 </li>
               );

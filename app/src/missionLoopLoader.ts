@@ -58,6 +58,15 @@ export async function startAgentRunMissionLoopState(
   return JSON.parse(state) as MissionLoopState;
 }
 
+export async function deleteMissionLoopState(repoPath: string, missionId: string): Promise<MissionLoopState | undefined> {
+  if (!isTauriRuntime()) {
+    return undefined;
+  }
+
+  const state = await invoke<string>("delete_mission", { repoPath, missionId });
+  return JSON.parse(state) as MissionLoopState;
+}
+
 export async function approvePatchMissionLoopState(repoPath: string, missionId: string): Promise<MissionLoopState | undefined> {
   if (!isTauriRuntime()) {
     return undefined;
