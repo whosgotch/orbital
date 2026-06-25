@@ -1,7 +1,32 @@
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use tauri::Emitter;
+use std::sync::{Arc, Mutex};
+use tauri::{Emitter, State};
+
+/// Tracks the OS process group id of every in-flight agent run, keyed by
+/// mission id, so a delete can shut the live agent down. Each run is spawned as
+/// its own process-group leader (see `run_worker_streaming`), so killing the
+/// group tears down the whole tree: `go run`, the binary it builds and execs,
+/// and any `claude`/`git` children that binary spawns.
+#[derive(Default, Clone)]
+struct RunningRuns(Arc<Mutex<HashMap<String, u32>>>);
+
+/// Removes a mission's registry entry when the run finishes, however it ends
+/// (normal completion, error, or being killed by a delete).
+struct RunGuard {
+    runs: RunningRuns,
+    mission_id: String,
+}
+
+impl Drop for RunGuard {
+    fn drop(&mut self) {
+        if let Ok(mut map) = self.runs.0.lock() {
+            map.remove(&self.mission_id);
+        }
+    }
+}
 
 const DEMO_REPO_PATH: &str = "/private/tmp/orbital-demo-repo";
 const DEMO_VERIFICATION_COMMAND: &str = "node -e \"console.log('verified')\"";
@@ -45,6 +70,7 @@ fn queue_mission(
 #[tauri::command]
 async fn start_agent_run(
     app: tauri::AppHandle,
+    runs: State<'_, RunningRuns>,
     repo_path: String,
     mission_id: String,
     worker_name: Option<String>,
@@ -72,14 +98,53 @@ async fn start_agent_run(
         ]
     };
 
+    let runs = runs.inner().clone();
+    let mission_id = mission_id.trim().to_string();
+
     // Run the blocking worker off the main thread so the UI stays responsive
     // while events stream in over the ~minute the run takes.
     tauri::async_runtime::spawn_blocking(move || {
         let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        run_worker_streaming(&app, &arg_refs)
+        run_worker_streaming(&app, &runs, &mission_id, &arg_refs)
     })
     .await
     .map_err(|e| format!("worker task failed: {e}"))?
+}
+
+#[tauri::command]
+fn delete_mission(
+    runs: State<'_, RunningRuns>,
+    repo_path: String,
+    mission_id: String,
+) -> Result<String, String> {
+    let mission_id = mission_id.trim();
+
+    // Shut the live agent down first so it can't keep writing to the worktree
+    // we're about to remove. The streaming task's RunGuard clears the registry
+    // entry once the killed process is reaped.
+    let pgid = runs.0.lock().ok().and_then(|map| map.get(mission_id).copied());
+    if let Some(pgid) = pgid {
+        kill_process_group(pgid);
+    }
+
+    run_worker(&["delete", repo_path.trim(), mission_id])
+}
+
+/// Terminates a process group: SIGTERM to let `claude`/`git` unwind, then
+/// SIGKILL as a fallback for anything that ignored it. A negative pid targets
+/// the whole group, which is why agent runs are spawned as group leaders.
+#[cfg(unix)]
+fn kill_process_group(pgid: u32) {
+    let _ = Command::new("kill").arg("-TERM").arg(format!("-{pgid}")).status();
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    let _ = Command::new("kill").arg("-KILL").arg(format!("-{pgid}")).status();
+}
+
+#[cfg(not(unix))]
+fn kill_process_group(pgid: u32) {
+    let _ = Command::new("taskkill")
+        .args(["/T", "/F", "/PID", &pgid.to_string()])
+        .status();
 }
 
 #[tauri::command]
@@ -107,17 +172,44 @@ fn verify_mission(
     ])
 }
 
-fn run_worker_streaming(app: &tauri::AppHandle, args: &[&str]) -> Result<String, String> {
-    let mut child = Command::new("go")
+fn run_worker_streaming(
+    app: &tauri::AppHandle,
+    runs: &RunningRuns,
+    mission_id: &str,
+    args: &[&str],
+) -> Result<String, String> {
+    let mut command = Command::new("go");
+    command
         .arg("run")
         .arg("./cmd/orbital")
         .args(args)
         .current_dir(worker_dir()?)
         .env("GOCACHE", GO_CACHE_PATH)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // Put the run in its own process group so a delete can kill the entire
+    // tree (`go run` execs a separate compiled binary that itself spawns
+    // `claude`/`git`) in one signal to the group.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+
+    let mut child = command
         .spawn()
         .map_err(|e| format!("failed to spawn worker: {e}"))?;
+
+    // Registry holds the group id (== leader pid) so delete_mission can find
+    // it; the guard clears it on every exit path, including a kill.
+    if let Ok(mut map) = runs.0.lock() {
+        map.insert(mission_id.to_string(), child.id());
+    }
+    let _guard = RunGuard {
+        runs: runs.clone(),
+        mission_id: mission_id.to_string(),
+    };
 
     let stdout = child.stdout.take().expect("stdout is piped");
     let stderr = child.stderr.take().expect("stderr is piped");
@@ -204,12 +296,14 @@ fn worker_dir() -> Result<PathBuf, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(RunningRuns::default())
         .invoke_handler(tauri::generate_handler![
             load_worker_state,
             refresh_demo_worker_loop,
             open_repository,
             queue_mission,
             start_agent_run,
+            delete_mission,
             approve_patch,
             reject_patch,
             verify_mission
