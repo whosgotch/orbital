@@ -790,6 +790,22 @@ button.mini {
   border-radius: 5px;
 }
 
+button.ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+}
+
+button.ghost:hover {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+button.ghost.danger:hover {
+  border-color: #e2615f;
+  color: #e2615f;
+}
+
 .control-state {
   font-size: 11px;
   font-weight: 700;

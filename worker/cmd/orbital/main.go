@@ -26,6 +26,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return openRepository(args, stdout)
 	case "queue":
 		return queueMission(args, stdout)
+	case "delete":
+		return deleteMission(args, stdout)
 	case "reject":
 		return rejectMissionPatch(args, stdout)
 	case "start-run":
