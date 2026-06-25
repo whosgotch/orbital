@@ -124,7 +124,7 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 			return
 		}
 
-		diff = strings.TrimSpace(diff)
+		diff = normalizeCapturedDiff(diff)
 		if diff != "" {
 			patchPath := filepath.Join(request.RepoPath, ".orbital", "runs", request.RunID, "patch.diff")
 			if err := os.MkdirAll(filepath.Dir(patchPath), 0755); err != nil {
@@ -169,4 +169,14 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 
 func (w *claudeAgentWorker) CancelRun(ctx context.Context, runID string) error {
 	return nil
+}
+
+// normalizeCapturedDiff trims only the trailing newline(s) git appends, so the
+// caller can re-add exactly one. It must NOT use strings.TrimSpace: when a
+// hunk's last context line mirrors a blank line in the file, git writes it as a
+// lone space (" \n"); TrimSpace would eat that space-only line, leaving the
+// body one line short of what the hunk header counts and making git apply fail
+// with "corrupt patch". TrimRight on "\n" preserves the space.
+func normalizeCapturedDiff(diff string) string {
+	return strings.TrimRight(diff, "\n")
 }
