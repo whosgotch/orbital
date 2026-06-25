@@ -283,6 +283,211 @@ h3 {
   flex-direction: column;
 }
 
+/* Glanceable agent status: phase spine + files touched + live "now" line. */
+.agent-status {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.agent-status-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agent-status-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.agent-status-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.agent-status-live.live {
+  color: var(--accent);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.phase-spine {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.phase-glyph {
+  display: inline-flex;
+}
+
+.phase-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+
+.phase.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.phase.done {
+  color: #4fbf7b;
+  border-color: rgba(79, 191, 123, 0.35);
+}
+
+.phase.failed {
+  color: #e2615f;
+  border-color: rgba(226, 97, 95, 0.4);
+}
+
+.touched-head {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.touched-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.touched-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.touched-file:hover {
+  background: var(--panel-2);
+}
+
+.touched-glyph {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.touched-file.added .touched-glyph {
+  color: #4fbf7b;
+}
+
+.touched-file.deleted .touched-glyph {
+  color: #e2615f;
+}
+
+.touched-path {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.touched-counts {
+  flex-shrink: 0;
+  display: inline-flex;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.touched-counts .add {
+  color: #4fbf7b;
+}
+
+.touched-counts .del {
+  color: #e2615f;
+}
+
+.agent-now {
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.agent-status-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agent-meta {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+button.mini-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.agent-reasoning {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
 /* Agent transcript: the agent's thoughts + actions stream. */
 .transcript {
   flex: 1 1 auto;

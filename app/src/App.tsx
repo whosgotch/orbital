@@ -19,6 +19,8 @@ import {
 import { GraphMap } from "./components/GraphMap";
 import { DiffView } from "./components/DiffView";
 import { AgentTranscript, type TranscriptEntry } from "./components/AgentTranscript";
+import { AgentStatus } from "./components/AgentStatus";
+import { buildAgentStatus } from "./agentStatus";
 import {
   type MissionNodeStatus,
   type WorkspaceGraphEdge,
@@ -206,10 +208,11 @@ export function App() {
     () => buildAgentTranscript(missionLoopState, selectedMissionId, selectedAgentRunId),
     [missionLoopState, selectedMissionId, selectedAgentRunId],
   );
-  const transcriptAgentLabel = selectedAgentRunId
-    ? roleLabel(missionLoopState.agent_runs.find((run) => run.id === selectedAgentRunId)?.worker_name ?? "")
-    : "All agents";
   const selectedActivity = activityByMission[selectedMission?.id ?? ""] ?? [];
+  const agentStatus = useMemo(
+    () => buildAgentStatus(missionLoopState, selectedMissionId, selectedPatchDiff, selectedActivity, selectedRuntime),
+    [missionLoopState, selectedMissionId, selectedPatchDiff, selectedActivity, selectedRuntime],
+  );
   const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
   const visibleMissions = useMemo(
@@ -1123,16 +1126,7 @@ export function App() {
               </div>
             ) : (
               <div className="review-agent">
-                <div className="activity-toolbar">
-                  <span className="activity-worker">
-                    <RadioTower size={13} aria-hidden="true" />
-                    {transcriptAgentLabel} · thinking
-                  </span>
-                </div>
-                <AgentTranscript
-                  entries={agentTranscript}
-                  emptyLabel="No reasoning captured yet — run this mission with an AI worker to see how it thinks."
-                />
+                <AgentStatus model={agentStatus} transcript={agentTranscript} />
               </div>
             )}
           </section>
