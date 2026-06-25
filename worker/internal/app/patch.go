@@ -113,15 +113,8 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 
 		repoPath := state.Repositories[repositoryIndex].Path
 		if strings.TrimSpace(patch.Diff) != "" {
-			cmd := exec.Command("git", "apply")
-			cmd.Dir = repoPath
-			cmd.Stdin = strings.NewReader(patch.Diff)
-
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				if !patchAlreadyApplied(repoPath, patch.Diff) {
-					return fmt.Errorf("apply patch: %w: %s", err, strings.TrimSpace(string(output)))
-				}
+			if err := applyDiff(repoPath, patch.Diff); err != nil {
+				return err
 			}
 		}
 
@@ -151,6 +144,33 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 	}
 
 	return &result, nil
+}
+
+// applyDiff lands a patch on the repo working tree. It tries a strict apply
+// first (which also covers non-git scratch dirs the mock worker uses), and only
+// when that fails — typically because the run's isolated worktree base has
+// diverged from the main tree — retries with a blob-based 3-way merge. The
+// worktree shares the object store, so the base blobs the merge needs are local.
+func applyDiff(repoPath string, diff string) error {
+	strict := exec.Command("git", "apply")
+	strict.Dir = repoPath
+	strict.Stdin = strings.NewReader(diff)
+	if _, err := strict.CombinedOutput(); err == nil {
+		return nil
+	}
+
+	merge := exec.Command("git", "apply", "--3way")
+	merge.Dir = repoPath
+	merge.Stdin = strings.NewReader(diff)
+	output, err := merge.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+
+	if patchAlreadyApplied(repoPath, diff) {
+		return nil
+	}
+	return fmt.Errorf("apply patch: %w: %s", err, strings.TrimSpace(string(output)))
 }
 
 func patchAlreadyApplied(repoPath string, diff string) bool {
