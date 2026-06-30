@@ -54,6 +54,35 @@ func (s *Service) CreateMission(repoID string, text string, campaignID string) (
 	return &mission, nil
 }
 
+// UpdateMissionText rewrites a mission's prompt — the instruction its agent will
+// run — so the human can refine a planned sub-task node before launching it.
+// Editing a mission that is already running is rejected to avoid changing the
+// prompt out from under a live agent.
+func (s *Service) UpdateMissionText(missionID string, text string) (*domain.Mission, error) {
+	missionText := strings.TrimSpace(text)
+	if missionText == "" {
+		return nil, fmt.Errorf("mission text is required")
+	}
+
+	var updated domain.Mission
+	if _, err := s.store.Update(func(state *store.State) error {
+		missionIndex := findMissionIndex(state.Missions, missionID)
+		if missionIndex == -1 {
+			return fmt.Errorf("mission not found: %s", missionID)
+		}
+		if state.Missions[missionIndex].Status == domain.MissionStatusRunning {
+			return fmt.Errorf("cannot edit a running mission")
+		}
+		state.Missions[missionIndex].Text = missionText
+		state.Missions[missionIndex].UpdatedAt = time.Now().UTC()
+		updated = state.Missions[missionIndex]
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return &updated, nil
+}
+
 // PlanMission decomposes a mission outcome into a set of self-written sub-tasks,
 // recording each as a draft child mission (parent_mission_id set) so it renders
 // as an operable node the human can run, edit, or remove. The children are not

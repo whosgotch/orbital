@@ -83,6 +83,42 @@ func TestPlanMissionFallsBackOnDecomposeError(t *testing.T) {
 	}
 }
 
+func TestUpdateMissionText(t *testing.T) {
+	svc, jsonStore := planTestService(t, nil)
+
+	updated, err := svc.UpdateMissionText("mission_1", "  rewritten prompt  ")
+	if err != nil {
+		t.Fatalf("UpdateMissionText() error = %v", err)
+	}
+	if updated.Text != "rewritten prompt" {
+		t.Fatalf("text = %q, want trimmed", updated.Text)
+	}
+
+	state, _ := jsonStore.Load()
+	if state.Missions[0].Text != "rewritten prompt" {
+		t.Fatalf("persisted text = %q", state.Missions[0].Text)
+	}
+
+	if _, err := svc.UpdateMissionText("mission_1", "   "); err == nil {
+		t.Fatal("expected error for blank text")
+	}
+	if _, err := svc.UpdateMissionText("missing", "x"); err == nil {
+		t.Fatal("expected error for unknown mission")
+	}
+}
+
+func TestUpdateMissionTextRejectsRunning(t *testing.T) {
+	svc, jsonStore := planTestService(t, nil)
+	state, _ := jsonStore.Load()
+	state.Missions[0].Status = domain.MissionStatusRunning
+	if err := jsonStore.Save(state); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	if _, err := svc.UpdateMissionText("mission_1", "new"); err == nil {
+		t.Fatal("expected error editing a running mission")
+	}
+}
+
 func TestPlanMissionRejectsUnknownMission(t *testing.T) {
 	svc, _ := planTestService(t, func(ctx context.Context, repoPath, mission string) ([]agent.SubTask, error) {
 		return []agent.SubTask{{Title: "x", Prompt: "x"}}, nil
