@@ -118,9 +118,15 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 			}
 		}
 
-		// The approved work has landed in the main tree; the run's isolated
-		// worktree is no longer needed.
-		removeRunWorktree(repoPath, state.AgentRuns[runIndex])
+		// The approved work has landed in the main tree; every isolated worktree
+		// this mission's runs created (manager + each parallel child) is now
+		// disposable.
+		missionID := state.AgentRuns[runIndex].MissionID
+		for _, run := range state.AgentRuns {
+			if run.MissionID == missionID {
+				removeRunWorktree(repoPath, run)
+			}
+		}
 
 		now := time.Now().UTC()
 		state.PatchProposals[patchIndex].Status = domain.PatchStatusApplied
@@ -202,11 +208,18 @@ func (s *Service) updatePatchDecision(patchID string, patchStatus domain.PatchSt
 			return fmt.Errorf("mission not found: %s", state.AgentRuns[runIndex].MissionID)
 		}
 
-		// A rejected mission abandons its work, so tear down its worktree now.
-		// An approved one keeps it until ApplyPatch lands the diff.
+		// A rejected mission abandons its work, so tear down every worktree its
+		// runs created (manager + each parallel child) now. An approved one keeps
+		// them until ApplyPatch lands the diff.
 		if patchStatus == domain.PatchStatusRejected {
 			if repositoryIndex := findRepositoryIndex(state.Repositories, state.Missions[missionIndex].RepositoryID); repositoryIndex != -1 {
-				removeRunWorktree(state.Repositories[repositoryIndex].Path, state.AgentRuns[runIndex])
+				repoPath := state.Repositories[repositoryIndex].Path
+				missionID := state.AgentRuns[runIndex].MissionID
+				for _, run := range state.AgentRuns {
+					if run.MissionID == missionID {
+						removeRunWorktree(repoPath, run)
+					}
+				}
 			}
 		}
 

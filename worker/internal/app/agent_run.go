@@ -199,9 +199,10 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 		ParentRunID: parentRunID,
 	}
 
-	// Children share the parent run's worktree, so the manager's agents (e.g.
-	// engineer then reviewer) refine one another's changes in a single tree.
-	var missionID, workdir, missionText string
+	// Each child gets its own isolated worktree (created below), so the agents an
+	// AI manager spawns for independent parts can run in parallel without sharing
+	// a working tree.
+	var missionID, workdir, missionText, repoPath string
 	if _, err := s.store.Update(func(state *store.State) error {
 		parentIndex := findRunIndex(state.AgentRuns, parentRunID)
 		if parentIndex == -1 {
@@ -220,17 +221,14 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 			return fmt.Errorf("repository not found: %s", state.Missions[missionIndex].RepositoryID)
 		}
 
-		workdir = state.Repositories[repositoryIndex].Path
-		if parentRun.WorktreePath != "" {
-			workdir = parentRun.WorktreePath
-		}
+		repoPath = state.Repositories[repositoryIndex].Path
+		workdir = repoPath
 		missionText = state.Missions[missionIndex].Text
 		if task != "" {
 			missionText = task
 		}
 
 		childRun.MissionID = missionID
-		childRun.WorktreePath = parentRun.WorktreePath
 		state.AgentRuns[parentIndex].ChildRunIDs = append(state.AgentRuns[parentIndex].ChildRunIDs, childRun.ID)
 		state.AgentRuns[parentIndex].Status = domain.AgentRunStatusWaitingForChildren
 		state.AgentRuns = append(state.AgentRuns, childRun)
@@ -241,6 +239,24 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+
+	// `git worktree add` isn't safe to race, so serialize creation; the agents
+	// then run in parallel in their separate trees. Fall back to the repo root.
+	s.worktreeMu.Lock()
+	worktreePath := createRunWorktree(ctx, repoPath, childRun.ID)
+	s.worktreeMu.Unlock()
+	if worktreePath != "" {
+		workdir = worktreePath
+		childRun.WorktreePath = worktreePath
+		if _, err := s.store.Update(func(state *store.State) error {
+			if runIndex := findRunIndex(state.AgentRuns, childRun.ID); runIndex != -1 {
+				state.AgentRuns[runIndex].WorktreePath = worktreePath
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	runRequest := agent.RunRequest{
