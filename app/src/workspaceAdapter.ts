@@ -92,7 +92,10 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
   return {
     id: mission.id,
     repository_id: mission.repository_id,
-    title: mission.text,
+    // Prefer the manager-written sub-task title (short, glanceable) and fall back
+    // to the full outcome text for top-level missions.
+    title: mission.title?.trim() || mission.text,
+    parent_mission_id: mission.parent_mission_id,
     status: missionStatus(mission, patch?.status, verification),
     worker: topLevelRun?.worker_name ?? "unassigned",
     command: verification?.command ?? commandFromEvents(state, mission.id) ?? defaultVerificationCommand(state, mission),
@@ -128,12 +131,15 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
     const hasVerify = Boolean(latestVerification(state, mission.id));
     const base = { mission_id: mission.id, repository_id: mission.repository_id };
 
+    const isSubtask = Boolean(mission.parent_mission_id);
     const nodes: WorkspaceGraphNode[] = [
       {
         id: mission.id,
         kind: "mission",
-        label: compactLabel(mission.title),
-        detail: mission.status === "blocked" ? "blocked" : "mission order",
+        // A sub-task's title is already short; show it whole. Outcomes get the
+        // first few words of their prose.
+        label: isSubtask ? mission.title : compactLabel(mission.title),
+        detail: mission.status === "blocked" ? "blocked" : isSubtask ? "sub-task" : "mission order",
         x: 24,
         y: rowY,
         ...base,
@@ -208,13 +214,18 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
 // Edges connect only the nodes that actually exist (see graphNodesFromState),
 // so the graph never draws a line to a stage that hasn't happened yet.
 function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopState): WorkspaceGraphEdge[] {
+  const missionIds = new Set(missions.map((mission) => mission.id));
   return missions.flatMap((mission) => {
     const managerID = `${mission.id}_manager`;
     const patchID = `${mission.id}_patch`;
     const verifyID = `${mission.id}_verify`;
-    const edges: WorkspaceGraphEdge[] = [
-      { id: `${mission.repository_id}_${mission.id}`, from: mission.repository_id, to: mission.id, kind: "owns" },
-    ];
+    // A planned sub-task hangs off the outcome it decomposes; a top-level mission
+    // hangs off its repository.
+    const parentEdge: WorkspaceGraphEdge =
+      mission.parent_mission_id && missionIds.has(mission.parent_mission_id)
+        ? { id: `${mission.parent_mission_id}_${mission.id}`, from: mission.parent_mission_id, to: mission.id, kind: "decomposes" }
+        : { id: `${mission.repository_id}_${mission.id}`, from: mission.repository_id, to: mission.id, kind: "owns" };
+    const edges: WorkspaceGraphEdge[] = [parentEdge];
 
     const topLevelRun = state.agent_runs.filter((run) => run.mission_id === mission.id && !run.parent_run_id).at(-1);
     const childRuns = topLevelRun
