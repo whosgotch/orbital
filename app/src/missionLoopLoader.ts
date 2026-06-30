@@ -44,6 +44,31 @@ export async function queueMissionLoopState(
   return JSON.parse(state) as MissionLoopState;
 }
 
+export async function planMissionLoopState(
+  repoPath: string,
+  missionId: string,
+): Promise<MissionLoopState | undefined> {
+  if (!isTauriRuntime()) {
+    return undefined;
+  }
+
+  const state = await invoke<string>("plan_mission", { repoPath, missionId });
+  return JSON.parse(state) as MissionLoopState;
+}
+
+export async function updateMissionTextLoopState(
+  repoPath: string,
+  missionId: string,
+  text: string,
+): Promise<MissionLoopState | undefined> {
+  if (!isTauriRuntime()) {
+    return undefined;
+  }
+
+  const state = await invoke<string>("update_mission_text", { repoPath, missionId, text });
+  return JSON.parse(state) as MissionLoopState;
+}
+
 export async function startAgentRunMissionLoopState(
   repoPath: string,
   missionId: string,

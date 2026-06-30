@@ -112,6 +112,27 @@ async fn start_agent_run(
 }
 
 #[tauri::command]
+async fn plan_mission(repo_path: String, mission_id: String) -> Result<String, String> {
+    let repo_path = repo_path.trim().to_string();
+    let mission_id = mission_id.trim().to_string();
+
+    // Decomposition shells out to the Claude CLI, which can take a while; run it
+    // off the main thread so the UI stays responsive.
+    tauri::async_runtime::spawn_blocking(move || run_worker(&["plan", &repo_path, &mission_id]))
+        .await
+        .map_err(|e| format!("plan task failed: {e}"))?
+}
+
+#[tauri::command]
+fn update_mission_text(
+    repo_path: String,
+    mission_id: String,
+    text: String,
+) -> Result<String, String> {
+    run_worker(&["edit-mission", repo_path.trim(), mission_id.trim(), text.trim()])
+}
+
+#[tauri::command]
 fn delete_mission(
     runs: State<'_, RunningRuns>,
     repo_path: String,
@@ -302,6 +323,8 @@ pub fn run() {
             refresh_demo_worker_loop,
             open_repository,
             queue_mission,
+            plan_mission,
+            update_mission_text,
             start_agent_run,
             delete_mission,
             approve_patch,
