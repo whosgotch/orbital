@@ -8,12 +8,14 @@ import {
   Gauge,
   Maximize2,
   Network,
+  Pencil,
   Play,
   RadioTower,
   RefreshCw,
   Rocket,
   Terminal,
   Trash2,
+  Wand2,
   FolderOpen,
   X,
 } from "lucide-react";
@@ -42,10 +44,12 @@ import {
   isTauriRuntime,
   loadMissionLoopState,
   openMissionLoopRepository,
+  planMissionLoopState,
   queueMissionLoopState,
   rejectPatchMissionLoopState,
   refreshMissionLoopState,
   startAgentRunMissionLoopState,
+  updateMissionTextLoopState,
   verifyMissionLoopState,
 } from "./missionLoopLoader";
 
@@ -170,6 +174,11 @@ export function App() {
   const [focusedDiffFile, setFocusedDiffFile] = useState<string | undefined>(undefined);
   // Worker chosen at launch time (intake), applied to every mission queued.
   const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-manager");
+  // Node-centric operation: which mission is mid-decomposition, and the inline
+  // prompt editor for refining a planned node before launch.
+  const [planningMissionId, setPlanningMissionId] = useState<string | undefined>(undefined);
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [promptDraft, setPromptDraft] = useState("");
   const [openPanel, setOpenPanel] = useState<null | "repo" | "mission" | "control">(null);
   const togglePanel = (panel: "repo" | "mission" | "control") =>
     setOpenPanel((current) => {
@@ -209,6 +218,10 @@ export function App() {
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
   const selectedMissionId = selectedGraphNode?.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0]?.id;
   const selectedMission = workspaceMissions.find((mission) => mission.id === selectedMissionId) ?? workspaceMissions[0];
+  // The raw mission record carries the full prompt text (the WorkspaceMission's
+  // title is only the short node label) and whether it's a planned sub-task.
+  const selectedMissionRecord = missionLoopState.missions.find((mission) => mission.id === selectedMission?.id);
+  const isSubtask = Boolean(selectedMissionRecord?.parent_mission_id);
   const selectedRepository = selectedMission ? repositoryFor(selectedMission, missionLoopState.repositories) : undefined;
   const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? { step: -1, patchStatus: "pending" as const, verified: false, status: "queued" as const };
   const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
@@ -238,6 +251,13 @@ export function App() {
   );
   const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
+
+  // Close the inline prompt editor whenever the selected node changes, so an
+  // unsaved draft never leaks onto a different mission.
+  useEffect(() => {
+    setEditingPrompt(false);
+  }, [selectedMissionId]);
+
   const visibleMissions = useMemo(
     () =>
       workspaceMissions.map((mission) => ({
@@ -612,6 +632,64 @@ export function App() {
     } finally {
       cancelledMissionsRef.current.delete(missionId);
     }
+  };
+
+  // Plan an outcome: the manager decomposes it into self-written sub-task nodes
+  // (child missions) the human can then run, edit, or remove individually.
+  const planMission = async (missionId: string) => {
+    setMissionLoopError("");
+    setPlanningMissionId(missionId);
+    try {
+      const nextMissionLoopState = await planMissionLoopState(repoPathForMission(missionId), missionId);
+      if (nextMissionLoopState) {
+        applyRepoState(nextMissionLoopState, missionId);
+        return;
+      }
+      // Decomposition shells out to Claude, which only runs in the desktop build.
+      setMissionLoopError("Planning runs in the desktop app (it uses the Claude CLI).");
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to plan mission."));
+    } finally {
+      setPlanningMissionId(undefined);
+    }
+  };
+
+  // Save an edited node prompt — the instruction its agent will run. Backed by
+  // the worker in the desktop build, with a local fallback so the demo still
+  // reflects the edit.
+  const saveMissionPrompt = async (missionId: string, text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return;
+    }
+    setMissionLoopError("");
+    try {
+      const nextMissionLoopState = await updateMissionTextLoopState(repoPathForMission(missionId), missionId, trimmed);
+      if (nextMissionLoopState) {
+        applyRepoState(nextMissionLoopState, missionId);
+        setEditingPrompt(false);
+        return;
+      }
+
+      // Browser/demo mode: no backend, so update the mission text locally.
+      const combined = combineRepoStates(repoStatesRef.current);
+      const updated = {
+        ...combined,
+        missions: combined.missions.map((mission) =>
+          mission.id === missionId ? { ...mission, text: trimmed } : mission,
+        ),
+      };
+      repoStatesRef.current = splitByRepository(updated);
+      hydrateMissionLoop(updated, selectedNodeId);
+      setEditingPrompt(false);
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to save prompt."));
+    }
+  };
+
+  const beginEditPrompt = () => {
+    setPromptDraft(selectedMissionRecord?.text ?? selectedMission?.title ?? "");
+    setEditingPrompt(true);
   };
 
   const runVerification = async () => {
@@ -1056,6 +1134,76 @@ export function App() {
               </div>
               <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
             </div>
+
+            <div className="node-actions" aria-label="Node actions">
+              {!isSubtask ? (
+                <button
+                  className="node-action secondary"
+                  type="button"
+                  onClick={() => void planMission(selectedMission.id)}
+                  disabled={planningMissionId === selectedMission.id || selectedRuntime.status === "running"}
+                  title="Decompose this outcome into sub-task nodes"
+                >
+                  <Wand2 size={14} aria-hidden="true" />
+                  <span>{planningMissionId === selectedMission.id ? "Planning…" : "Plan"}</span>
+                </button>
+              ) : null}
+              <button
+                className="node-action secondary"
+                type="button"
+                onClick={() => void dispatchMission(selectedMission.id)}
+                disabled={selectedRuntime.status === "running"}
+                title="Run this node's agent"
+              >
+                <Play size={14} aria-hidden="true" />
+                <span>Run</span>
+              </button>
+              <button
+                className={`node-action secondary ${editingPrompt ? "active" : ""}`}
+                type="button"
+                onClick={editingPrompt ? () => setEditingPrompt(false) : beginEditPrompt}
+                disabled={selectedRuntime.status === "running"}
+                title="Edit this node's prompt"
+              >
+                <Pencil size={14} aria-hidden="true" />
+                <span>Edit</span>
+              </button>
+              <button
+                className="node-action secondary danger"
+                type="button"
+                onClick={() => void deleteMission(selectedMission.id)}
+                title="Remove this node"
+              >
+                <Trash2 size={14} aria-hidden="true" />
+                <span>Remove</span>
+              </button>
+            </div>
+
+            {editingPrompt ? (
+              <div className="node-prompt-editor">
+                <textarea
+                  className="node-prompt-input"
+                  aria-label="Node prompt"
+                  value={promptDraft}
+                  onChange={(event) => setPromptDraft(event.target.value)}
+                  rows={4}
+                  autoFocus
+                />
+                <div className="node-prompt-actions">
+                  <button className="node-action secondary" type="button" onClick={() => setEditingPrompt(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    className="node-action primary"
+                    type="button"
+                    disabled={!promptDraft.trim()}
+                    onClick={() => void saveMissionPrompt(selectedMission.id, promptDraft)}
+                  >
+                    Save prompt
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="review-tabs" role="tablist">
               <button

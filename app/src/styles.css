@@ -1511,6 +1511,68 @@ dd {
   margin-top: 14px;
 }
 
+/* Node-centric operation: the action bar and inline prompt editor that let the
+   human run, edit, or remove the selected mission node. */
+.node-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+button.node-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  width: auto;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+button.node-action.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button.node-action.danger:hover:not(:disabled) {
+  border-color: #e2615f;
+  color: #e2615f;
+}
+
+.node-prompt-editor {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.node-prompt-input {
+  width: 100%;
+  resize: vertical;
+  padding: 9px 11px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--panel-2, rgba(255, 255, 255, 0.03));
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.node-prompt-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.node-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .work-order-meta span {
   display: flex;
   align-items: center;
