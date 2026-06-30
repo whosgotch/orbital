@@ -82,70 +82,6 @@ func callClaudeAgentic(ctx context.Context, repoPath, prompt string, onStep func
 	return summary, nil
 }
 
-// managerPlan is Claude's decomposition of a mission into the work each
-// specialized child agent should carry out.
-type managerPlan struct {
-	EngineerTask string `json:"engineer_task"`
-	ReviewerTask string `json:"reviewer_task"`
-}
-
-// callClaudePlan asks Claude to break a mission into an engineering task and a
-// review task. It returns the parsed plan, or an error if the CLI fails or the
-// response can't be parsed (callers fall back to delegating the raw mission).
-func callClaudePlan(ctx context.Context, repoPath, mission string) (managerPlan, error) {
-	prompt := fmt.Sprintf(`You are an engineering manager planning how to accomplish a mission in this repository.
-
-Mission: %s
-
-Decompose it into work for two agents that run in sequence on the same code:
-1. an Engineer who implements the change, and
-2. a Reviewer who refines the engineer's work for correctness, edge cases, and clarity.
-
-Respond with ONLY a JSON object and nothing else:
-{"engineer_task": "<what the engineer should implement>", "reviewer_task": "<what the reviewer should check and refine>"}`, mission)
-
-	cmd := exec.CommandContext(ctx, "claude", "--print", "--output-format", "json", prompt)
-	cmd.Dir = repoPath
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	out, err := cmd.Output()
-	if err != nil {
-		return managerPlan{}, fmt.Errorf("claude plan: %w: %s", err, strings.TrimSpace(stderr.String()))
-	}
-
-	// `--output-format json` wraps the answer in a result envelope.
-	text := string(out)
-	var envelope struct {
-		Result string `json:"result"`
-	}
-	if json.Unmarshal(out, &envelope) == nil && strings.TrimSpace(envelope.Result) != "" {
-		text = envelope.Result
-	}
-
-	plan, err := parseManagerPlan(text)
-	if err != nil {
-		return managerPlan{}, err
-	}
-	return plan, nil
-}
-
-// parseManagerPlan extracts the JSON object from Claude's reply, tolerating
-// markdown fences or surrounding prose.
-func parseManagerPlan(text string) (managerPlan, error) {
-	start := strings.Index(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start == -1 || end == -1 || end < start {
-		return managerPlan{}, fmt.Errorf("no JSON object in plan response")
-	}
-
-	var plan managerPlan
-	if err := json.Unmarshal([]byte(text[start:end+1]), &plan); err != nil {
-		return managerPlan{}, fmt.Errorf("parse plan: %w", err)
-	}
-	return plan, nil
-}
-
 // subTask is one self-written unit of work in a manager's decomposition of a
 // mission outcome. Title labels the node; Prompt is the sub-prompt an agent runs.
 type subTask struct {
@@ -163,16 +99,17 @@ func Decompose(ctx context.Context, repoPath, mission string) ([]SubTask, error)
 	return callClaudeDecompose(ctx, repoPath, mission)
 }
 
-// callClaudeDecompose asks Claude to break a mission outcome into a short list of
-// concrete, independently-runnable sub-tasks — each becomes an operable node on
-// the canvas. It returns the parsed sub-tasks, or an error if the CLI fails or
-// the response can't be parsed (callers fall back to a single sub-task).
+// callClaudeDecompose asks Claude how to tackle a mission. It deliberately
+// favors NOT splitting: a focused change comes back as a single task, and only
+// genuinely independent parts are broken out. It never produces a testing,
+// verification, or review task — that is the mission's own lifecycle, not work an
+// agent invents. Callers fall back to a single task if the CLI or parse fails.
 func callClaudeDecompose(ctx context.Context, repoPath, mission string) ([]subTask, error) {
-	prompt := fmt.Sprintf(`You are an engineering manager decomposing a mission into concrete sub-tasks for this repository.
+	prompt := fmt.Sprintf(`You are an engineering manager deciding how to tackle a mission in this repository.
 
 Mission: %s
 
-Break it into 2-5 sub-tasks that can each be handed to one engineer and reviewed on their own. Each sub-task should be a self-contained, actionable instruction — not a phase label. Order them so earlier sub-tasks set up later ones.
+If the mission is a single, focused change, return ONE task containing the whole mission — do not invent extra steps. Only split it into multiple tasks when it genuinely contains independent parts that separate engineers could implement on their own. Never create a task for testing, verifying, reviewing, or QA — that is handled separately, outside this work.
 
 Respond with ONLY a JSON array and nothing else:
 [{"title": "<short imperative label, max 6 words>", "prompt": "<the full instruction the engineer should carry out>"}]`, mission)

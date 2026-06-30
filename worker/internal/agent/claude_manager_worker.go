@@ -54,35 +54,31 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 			return
 		}
 
-		// Ask Claude to decompose the mission into an engineering task and a
-		// review task. The children run sequentially against the same working
-		// tree, so the reviewer refines the engineer's uncommitted changes and
-		// the final cumulative diff is what reaches the CEO gate.
-		engineerTask := request.MissionText
-		reviewerTask := "Review the engineer's changes for correctness, edge cases, and clarity, and refine them where needed."
-
-		if plan, err := callClaudePlan(ctx, request.RepoPath, request.MissionText); err != nil {
-			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "Planning unavailable; delegating the mission directly to the Engineer.", "", "claude") {
-				return
-			}
-		} else {
-			if strings.TrimSpace(plan.EngineerTask) != "" {
-				engineerTask = plan.EngineerTask
-			}
-			if strings.TrimSpace(plan.ReviewerTask) != "" {
-				reviewerTask = plan.ReviewerTask
+		// Decompose only when the work genuinely has independent parts. A focused
+		// mission comes back as a single task and runs as one engineer — no padded
+		// steps, no separate review/verify agent (the human CEO gate and the
+		// optional verification stage cover that). Each task is an engineer that
+		// runs in sequence on the same working tree, so the cumulative diff is what
+		// reaches the gate.
+		tasks, err := callClaudeDecompose(ctx, request.RepoPath, request.MissionText)
+		if err != nil || len(tasks) == 0 {
+			// Planning unavailable: hand the whole mission to a single engineer.
+			tasks = []subTask{{Title: "Engineer", Prompt: request.MissionText}}
+		} else if len(tasks) > 1 {
+			titles := make([]string, len(tasks))
+			for index, task := range tasks {
+				titles[index] = task.Title
 			}
 			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted,
-				fmt.Sprintf("🧭 Plan — Engineer: %s | Reviewer: %s", truncate(engineerTask, 120), truncate(reviewerTask, 120)), "", "claude") {
+				fmt.Sprintf("🧭 Split into %d parts: %s", len(tasks), strings.Join(titles, " · ")), "", "claude") {
 				return
 			}
 		}
 
-		if !w.delegate(ctx, events, request.RunID, "claude-engineer", "Engineer", engineerTask) {
-			return
-		}
-		if !w.delegate(ctx, events, request.RunID, "claude-reviewer", "Reviewer", reviewerTask) {
-			return
+		for _, task := range tasks {
+			if !w.delegate(ctx, events, request.RunID, task) {
+				return
+			}
 		}
 
 		sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunCompleted, "Claude Manager completed orchestration.", "", "")
@@ -90,19 +86,23 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 	return events, nil
 }
 
-// delegate spawns one child agent and waits for it (SpawnChildRun is
+// delegate spawns one engineer for a task and waits for it (SpawnChildRun is
 // synchronous). It returns false if the run should stop — on cancellation or a
 // spawn failure — after emitting the appropriate event.
-func (w *ClaudeManagerWorker) delegate(ctx context.Context, events chan<- RunEvent, runID, worker, role, task string) bool {
+func (w *ClaudeManagerWorker) delegate(ctx context.Context, events chan<- RunEvent, runID string, task subTask) bool {
 	if ctx.Err() != nil {
 		sendCancelledEvent(events, runID)
 		return false
 	}
-	if !sendWorkflowEvent(ctx, events, runID, domain.WorkflowEventCommandExecuted, fmt.Sprintf("Delegating to %s.", role), "", "claude") {
+	label := strings.TrimSpace(task.Title)
+	if label == "" {
+		label = "the Engineer"
+	}
+	if !sendWorkflowEvent(ctx, events, runID, domain.WorkflowEventCommandExecuted, fmt.Sprintf("Delegating to %s.", label), "", "claude") {
 		return false
 	}
-	if _, err := w.spawner.SpawnChildRun(ctx, runID, worker, task); err != nil {
-		sendWorkflowEvent(ctx, events, runID, domain.WorkflowEventRunFailed, fmt.Sprintf("%s failed: %v", role, err), "", "")
+	if _, err := w.spawner.SpawnChildRun(ctx, runID, "claude-engineer", task.Prompt); err != nil {
+		sendWorkflowEvent(ctx, events, runID, domain.WorkflowEventRunFailed, fmt.Sprintf("%s failed: %v", label, err), "", "")
 		return false
 	}
 	return true
