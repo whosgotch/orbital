@@ -1,10 +1,12 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/whosgotch/orbital/worker/internal/agent"
 	"github.com/whosgotch/orbital/worker/internal/domain"
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
@@ -50,6 +52,85 @@ func (s *Service) CreateMission(repoID string, text string, campaignID string) (
 	}
 
 	return &mission, nil
+}
+
+// PlanMission decomposes a mission outcome into a set of self-written sub-tasks,
+// recording each as a draft child mission (parent_mission_id set) so it renders
+// as an operable node the human can run, edit, or remove. The children are not
+// started — planning produces the graph, the human drives execution. If
+// decomposition is unavailable, it falls back to a single sub-task carrying the
+// outcome so the operation still yields one operable node.
+func (s *Service) PlanMission(ctx context.Context, missionID string) ([]domain.Mission, error) {
+	state, err := s.store.Load()
+	if err != nil {
+		return nil, err
+	}
+	missionIndex := findMissionIndex(state.Missions, missionID)
+	if missionIndex == -1 {
+		return nil, fmt.Errorf("mission not found: %s", missionID)
+	}
+	mission := state.Missions[missionIndex]
+	repositoryIndex := findRepositoryIndex(state.Repositories, mission.RepositoryID)
+	if repositoryIndex == -1 {
+		return nil, fmt.Errorf("repository not found: %s", mission.RepositoryID)
+	}
+	repoPath := state.Repositories[repositoryIndex].Path
+
+	planNote := ""
+	tasks, err := s.decompose(ctx, repoPath, mission.Text)
+	if err != nil {
+		tasks = []agent.SubTask{{Title: compactTitle(mission.Text), Prompt: mission.Text}}
+		planNote = fmt.Sprintf("Planning unavailable (%v); created a single sub-task.", err)
+	}
+
+	now := time.Now().UTC()
+	children := make([]domain.Mission, 0, len(tasks))
+	for index, task := range tasks {
+		children = append(children, domain.Mission{
+			ID:              fmt.Sprintf("mission_%d_%d", now.UnixNano(), index),
+			RepositoryID:    mission.RepositoryID,
+			Text:            task.Prompt,
+			Title:           task.Title,
+			Status:          domain.MissionStatusDraft,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+			ParentMissionID: missionID,
+		})
+	}
+
+	if _, err := s.store.Update(func(state *store.State) error {
+		if findMissionIndex(state.Missions, missionID) == -1 {
+			return fmt.Errorf("mission not found: %s", missionID)
+		}
+		state.Missions = append(state.Missions, children...)
+
+		message := fmt.Sprintf("🧭 Planned %d sub-tasks.", len(children))
+		if planNote != "" {
+			message = planNote
+		}
+		state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+			missionID, "", domain.WorkflowEventCommandExecuted, message, "", now,
+		))
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return children, nil
+}
+
+// compactTitle reduces a mission's prose into a short node label — the first few
+// words, truncated — used when no manager-written title is available.
+func compactTitle(text string) string {
+	words := strings.Fields(text)
+	if len(words) > 6 {
+		words = words[:6]
+	}
+	label := strings.Join(words, " ")
+	if len(label) > 48 {
+		label = strings.TrimSpace(label[:48]) + "…"
+	}
+	return label
 }
 
 // DeleteMission removes a mission and everything attached to it — its agent
