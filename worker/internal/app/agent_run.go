@@ -302,6 +302,10 @@ func (s *Service) streamRunEvent(event agent.RunEvent) {
 	if err != nil || data == nil {
 		return
 	}
+	// Concurrent child agents stream through one eventOut; serialize so their
+	// NDJSON lines never interleave into corrupt JSON.
+	s.streamMu.Lock()
+	defer s.streamMu.Unlock()
 	fmt.Fprintf(s.eventOut, "%s%s\n", prefix, data)
 }
 
