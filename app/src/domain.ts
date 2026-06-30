@@ -21,9 +21,6 @@ export type Mission = {
   id: string;
   repository_id: string;
   text: string;
-  // title is a short, glanceable node label the manager sets when decomposing an
-  // outcome into sub-tasks; absent for top-level missions.
-  title?: string;
   status: MissionStatus;
   created_at: string;
   updated_at: string;

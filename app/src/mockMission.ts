@@ -6,9 +6,6 @@ export type WorkspaceMission = {
   id: string;
   repository_id: string;
   title: string;
-  // Set when this mission is a planned sub-task; points at the outcome it
-  // decomposes, so the node can be operated and laid out under its parent.
-  parent_mission_id?: string;
   status: MissionNodeStatus;
   worker: string;
   command: string;
@@ -36,7 +33,7 @@ export type WorkspaceGraphEdge = {
   id: string;
   from: string;
   to: string;
-  kind: "owns" | "reads" | "runs" | "proposes" | "verifies" | "blocks" | "spawns" | "coordinates" | "decomposes";
+  kind: "owns" | "reads" | "runs" | "proposes" | "verifies" | "blocks" | "spawns" | "coordinates";
 };
 
 export const mockMissionLoop: MissionLoopState = {

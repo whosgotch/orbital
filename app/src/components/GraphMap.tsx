@@ -54,7 +54,6 @@ const EDGE_COLOR: Record<string, string> = {
   verifies: "#5b8bff",
   spawns: "#5b8bff",
   coordinates: "#b07cff",
-  decomposes: "#b07cff",
   blocks: "#e2615f",
 };
 const NEUTRAL_EDGE = "rgba(139, 147, 161, 0.42)";
@@ -64,7 +63,7 @@ function edgeColor(kind: string) {
 }
 
 function edgeDash(kind: string) {
-  if (kind === "spawns" || kind === "coordinates" || kind === "decomposes") return "4 3";
+  if (kind === "spawns" || kind === "coordinates") return "4 3";
   if (kind === "blocks") return "5 4";
   return undefined;
 }

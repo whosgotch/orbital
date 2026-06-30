@@ -89,16 +89,6 @@ type subTask struct {
 	Prompt string `json:"prompt"`
 }
 
-// SubTask is one self-written unit of work in a decomposed mission, exported for
-// the app service that turns each into a child mission node.
-type SubTask = subTask
-
-// Decompose breaks a mission outcome into operable sub-tasks via Claude. It is
-// the app layer's entry point to the manager's decomposition capability.
-func Decompose(ctx context.Context, repoPath, mission string) ([]SubTask, error) {
-	return callClaudeDecompose(ctx, repoPath, mission)
-}
-
 // callClaudeDecompose asks Claude how to tackle a mission. It deliberately
 // favors NOT splitting: a focused change comes back as a single task, and only
 // genuinely independent parts are broken out. It never produces a testing,

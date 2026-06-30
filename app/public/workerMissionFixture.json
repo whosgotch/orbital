@@ -49,44 +49,6 @@
       "created_at": "2026-06-20T10:00:00Z",
       "updated_at": "2026-06-20T10:00:00Z",
       "campaign_id": "camp_demo_rename"
-    },
-    {
-      "id": "mission_plan_demo",
-      "repository_id": "repo_2781265300000000000",
-      "text": "harden the webhook delivery pipeline",
-      "status": "draft",
-      "created_at": "2026-06-22T09:00:00Z",
-      "updated_at": "2026-06-22T09:00:00Z"
-    },
-    {
-      "id": "mission_plan_a",
-      "repository_id": "repo_2781265300000000000",
-      "text": "Add exponential-backoff retries to webhook delivery so transient downstream failures are retried instead of dropped.",
-      "title": "Add retry with backoff",
-      "status": "waiting_approval",
-      "parent_mission_id": "mission_plan_demo",
-      "created_at": "2026-06-22T09:00:01Z",
-      "updated_at": "2026-06-22T09:05:00Z"
-    },
-    {
-      "id": "mission_plan_b",
-      "repository_id": "repo_2781265300000000000",
-      "text": "Verify HMAC signatures on inbound webhooks and reject payloads that fail validation.",
-      "title": "Verify signatures",
-      "status": "draft",
-      "parent_mission_id": "mission_plan_demo",
-      "created_at": "2026-06-22T09:00:02Z",
-      "updated_at": "2026-06-22T09:00:02Z"
-    },
-    {
-      "id": "mission_plan_c",
-      "repository_id": "repo_2781265300000000000",
-      "text": "Route deliveries that exhaust their retries to a dead-letter queue for later inspection.",
-      "title": "Add dead-letter queue",
-      "status": "draft",
-      "parent_mission_id": "mission_plan_demo",
-      "created_at": "2026-06-22T09:00:03Z",
-      "updated_at": "2026-06-22T09:00:03Z"
     }
   ],
   "agent_runs": [
@@ -127,14 +89,6 @@
       "started_at": "2026-06-20T10:03:00Z",
       "completed_at": "2026-06-20T10:05:00Z",
       "parent_run_id": "run_2781265300000000000"
-    },
-    {
-      "id": "run_plan_a",
-      "mission_id": "mission_plan_a",
-      "worker_name": "claude-engineer",
-      "status": "completed",
-      "started_at": "2026-06-22T09:01:00Z",
-      "completed_at": "2026-06-22T09:05:00Z"
     }
   ],
   "workflow_events": [
@@ -332,46 +286,6 @@
       "type": "agent_thought",
       "message": "Confirmed the returned existing charge matches the gateway's ChargeResult type, so callers see no difference. The change is minimal and correct \u2014 approving.",
       "created_at": "2026-06-12T12:00:07Z"
-    },
-    {
-      "id": "ev_plan_0",
-      "mission_id": "mission_plan_demo",
-      "type": "command_executed",
-      "message": "\ud83e\udded Planned 3 sub-tasks.",
-      "created_at": "2026-06-22T09:00:04Z"
-    },
-    {
-      "id": "ev_plan_a1",
-      "mission_id": "mission_plan_a",
-      "run_id": "run_plan_a",
-      "type": "run_started",
-      "message": "Engineer accepted the sub-task.",
-      "created_at": "2026-06-22T09:01:00Z"
-    },
-    {
-      "id": "ev_plan_a2",
-      "mission_id": "mission_plan_a",
-      "run_id": "run_plan_a",
-      "type": "agent_thought",
-      "message": "Retries should be bounded and use exponential backoff to avoid hammering a struggling downstream.",
-      "created_at": "2026-06-22T09:02:00Z"
-    },
-    {
-      "id": "ev_plan_a3",
-      "mission_id": "mission_plan_a",
-      "run_id": "run_plan_a",
-      "type": "agent_action",
-      "message": "\u270f\ufe0f Editing deliver.go",
-      "file_path": "webhook/deliver.go",
-      "created_at": "2026-06-22T09:03:00Z"
-    },
-    {
-      "id": "ev_plan_a4",
-      "mission_id": "mission_plan_a",
-      "run_id": "run_plan_a",
-      "type": "patch_proposed",
-      "message": "Engineer delivered a patch to the approval bay.",
-      "created_at": "2026-06-22T09:05:00Z"
     }
   ],
   "patch_proposals": [
@@ -390,14 +304,6 @@
       "diff": "diff --git a/src/charges.ts b/src/charges.ts\nindex 1a2b3c4..5d6e7f8 100644\n--- a/src/charges.ts\n+++ b/src/charges.ts\n@@ -1,6 +1,11 @@\n export async function createCharge(input: ChargeInput) {\n+  if (input.idempotencyKey) {\n+    const existing = await charges.findByKey(input.idempotencyKey);\n+    if (existing) return existing;\n+  }\n   const charge = await gateway.charge(input);\n   return charge;\n }\n",
       "created_at": "2026-06-20T10:05:00Z",
       "updated_at": "2026-06-20T10:05:00Z"
-    },
-    {
-      "id": "patch_plan_a",
-      "run_id": "run_plan_a",
-      "status": "pending",
-      "diff": "diff --git a/webhook/deliver.go b/webhook/deliver.go\nindex 1a2b3c4..5d6e7f8 100644\n--- a/webhook/deliver.go\n+++ b/webhook/deliver.go\n@@ -12,6 +12,15 @@ func Deliver(ev Event) error {\n-\treturn post(ev)\n+\tvar err error\n+\tfor attempt := 0; attempt < 5; attempt++ {\n+\t\tif err = post(ev); err == nil {\n+\t\t\treturn nil\n+\t\t}\n+\t\ttime.Sleep(backoff(attempt))\n+\t}\n+\treturn err\n }\n",
-      "created_at": "2026-06-22T09:05:00Z",
-      "updated_at": "2026-06-22T09:05:00Z"
     }
   ],
   "verification_runs": [

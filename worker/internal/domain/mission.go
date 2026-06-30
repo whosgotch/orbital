@@ -19,10 +19,6 @@ type Mission struct {
 	ID             string        `json:"id"`
 	RepositoryID   string        `json:"repository_id"`
 	Text           string        `json:"text"`
-	// Title is a short, glanceable label for the mission node. The manager sets
-	// it when decomposing an outcome into sub-tasks; empty for top-level missions
-	// (the UI falls back to summarizing Text).
-	Title          string        `json:"title,omitempty"`
 	Status         MissionStatus `json:"status"`
 	CreatedAt      time.Time     `json:"created_at"`
 	UpdatedAt      time.Time     `json:"updated_at"`
