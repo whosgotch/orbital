@@ -8,6 +8,42 @@ import (
 	"testing"
 )
 
+func TestParseSubTasks(t *testing.T) {
+	text := "Here is the plan:\n```json\n[" +
+		`{"title": "Add route", "prompt": "Add a GET /health route"},` +
+		`{"title": "", "prompt": "Write a handler"},` +
+		`{"title": "Tests"}` +
+		"]\n```\nDone."
+
+	tasks, err := parseSubTasks(text)
+	if err != nil {
+		t.Fatalf("parseSubTasks() error = %v", err)
+	}
+	if len(tasks) != 3 {
+		t.Fatalf("got %d tasks, want 3: %+v", len(tasks), tasks)
+	}
+	if tasks[0].Title != "Add route" || tasks[0].Prompt != "Add a GET /health route" {
+		t.Errorf("task 0 = %+v", tasks[0])
+	}
+	// Missing title falls back to a truncated prompt.
+	if tasks[1].Title != "Write a handler" {
+		t.Errorf("task 1 title = %q, want prompt fallback", tasks[1].Title)
+	}
+	// Missing prompt falls back to the title.
+	if tasks[2].Prompt != "Tests" {
+		t.Errorf("task 2 prompt = %q, want title fallback", tasks[2].Prompt)
+	}
+}
+
+func TestParseSubTasksRejectsNonArray(t *testing.T) {
+	if _, err := parseSubTasks("no json here"); err == nil {
+		t.Fatal("expected error for response without a JSON array")
+	}
+	if _, err := parseSubTasks("[]"); err == nil {
+		t.Fatal("expected error for empty sub-task list")
+	}
+}
+
 // Orbital's own .orbital directory must never leak into a captured patch or get
 // intent-to-added into the user's index (which showed up as spurious "A
 // .orbital/..." entries in git status).

@@ -146,6 +146,85 @@ func parseManagerPlan(text string) (managerPlan, error) {
 	return plan, nil
 }
 
+// subTask is one self-written unit of work in a manager's decomposition of a
+// mission outcome. Title labels the node; Prompt is the sub-prompt an agent runs.
+type subTask struct {
+	Title  string `json:"title"`
+	Prompt string `json:"prompt"`
+}
+
+// callClaudeDecompose asks Claude to break a mission outcome into a short list of
+// concrete, independently-runnable sub-tasks — each becomes an operable node on
+// the canvas. It returns the parsed sub-tasks, or an error if the CLI fails or
+// the response can't be parsed (callers fall back to a single sub-task).
+func callClaudeDecompose(ctx context.Context, repoPath, mission string) ([]subTask, error) {
+	prompt := fmt.Sprintf(`You are an engineering manager decomposing a mission into concrete sub-tasks for this repository.
+
+Mission: %s
+
+Break it into 2-5 sub-tasks that can each be handed to one engineer and reviewed on their own. Each sub-task should be a self-contained, actionable instruction — not a phase label. Order them so earlier sub-tasks set up later ones.
+
+Respond with ONLY a JSON array and nothing else:
+[{"title": "<short imperative label, max 6 words>", "prompt": "<the full instruction the engineer should carry out>"}]`, mission)
+
+	cmd := exec.CommandContext(ctx, "claude", "--print", "--output-format", "json", prompt)
+	cmd.Dir = repoPath
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("claude decompose: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+
+	// `--output-format json` wraps the answer in a result envelope.
+	text := string(out)
+	var envelope struct {
+		Result string `json:"result"`
+	}
+	if json.Unmarshal(out, &envelope) == nil && strings.TrimSpace(envelope.Result) != "" {
+		text = envelope.Result
+	}
+
+	return parseSubTasks(text)
+}
+
+// parseSubTasks extracts the JSON array of sub-tasks from Claude's reply,
+// tolerating markdown fences or surrounding prose. Entries missing a prompt fall
+// back to their title; entries with neither are dropped.
+func parseSubTasks(text string) ([]subTask, error) {
+	start := strings.Index(text, "[")
+	end := strings.LastIndex(text, "]")
+	if start == -1 || end == -1 || end < start {
+		return nil, fmt.Errorf("no JSON array in decompose response")
+	}
+
+	var raw []subTask
+	if err := json.Unmarshal([]byte(text[start:end+1]), &raw); err != nil {
+		return nil, fmt.Errorf("parse sub-tasks: %w", err)
+	}
+
+	tasks := make([]subTask, 0, len(raw))
+	for _, task := range raw {
+		title := strings.TrimSpace(task.Title)
+		prompt := strings.TrimSpace(task.Prompt)
+		if prompt == "" {
+			prompt = title
+		}
+		if title == "" {
+			title = truncate(prompt, 48)
+		}
+		if prompt == "" {
+			continue
+		}
+		tasks = append(tasks, subTask{Title: title, Prompt: prompt})
+	}
+	if len(tasks) == 0 {
+		return nil, fmt.Errorf("no usable sub-tasks in decompose response")
+	}
+	return tasks, nil
+}
+
 // describeToolUse renders a concise, human-readable line for a Claude tool call.
 func describeToolUse(name string, input json.RawMessage) string {
 	var fields struct {
