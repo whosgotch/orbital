@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
 )
@@ -64,20 +65,57 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 		if err != nil || len(tasks) == 0 {
 			// Planning unavailable: hand the whole mission to a single engineer.
 			tasks = []subTask{{Title: "Engineer", Prompt: request.MissionText}}
-		} else if len(tasks) > 1 {
-			titles := make([]string, len(tasks))
-			for index, task := range tasks {
-				titles[index] = task.Title
-			}
-			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted,
-				fmt.Sprintf("🧭 Split into %d parts: %s", len(tasks), strings.Join(titles, " · ")), "", "claude") {
-				return
-			}
 		}
 
-		for _, task := range tasks {
-			if !w.delegate(ctx, events, request.RunID, task) {
+		if len(tasks) == 1 {
+			if _, ok := w.delegate(ctx, events, request.RunID, tasks[0]); !ok {
 				return
+			}
+			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunCompleted, "Claude Manager completed orchestration.", "", "")
+			return
+		}
+
+		// Genuinely multi-part: run an engineer for each part IN PARALLEL, each in
+		// its own worktree, then merge their diffs into the single patch the CEO
+		// gate reviews.
+		titles := make([]string, len(tasks))
+		for index, task := range tasks {
+			titles[index] = task.Title
+		}
+		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted,
+			fmt.Sprintf("🧭 Split into %d parts, running in parallel: %s", len(tasks), strings.Join(titles, " · ")), "", "claude") {
+			return
+		}
+
+		var wg sync.WaitGroup
+		childIDs := make([]string, len(tasks))
+		for index := range tasks {
+			wg.Add(1)
+			go func(index int) {
+				defer wg.Done()
+				if run, ok := w.delegate(ctx, events, request.RunID, tasks[index]); ok {
+					childIDs[index] = run.ID
+				}
+			}(index)
+		}
+		wg.Wait()
+
+		completed := make([]string, 0, len(childIDs))
+		for _, id := range childIDs {
+			if id != "" {
+				completed = append(completed, id)
+			}
+		}
+		if len(completed) == 0 {
+			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, "Every part failed.", "", "")
+			return
+		}
+
+		// Converge the parallel diffs. If nothing produced changes, there's simply
+		// no patch to review — not a failure.
+		if len(completed) > 1 {
+			if _, err := w.spawner.MergePatches(completed); err != nil {
+				sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "No changes to merge.", "", "claude")
 			}
 		}
 
@@ -87,25 +125,26 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 }
 
 // delegate spawns one engineer for a task and waits for it (SpawnChildRun is
-// synchronous). It returns false if the run should stop — on cancellation or a
-// spawn failure — after emitting the appropriate event.
-func (w *ClaudeManagerWorker) delegate(ctx context.Context, events chan<- RunEvent, runID string, task subTask) bool {
+// synchronous). It returns the child run on success; on cancellation or a spawn
+// failure it returns (nil, false) after emitting the appropriate event.
+func (w *ClaudeManagerWorker) delegate(ctx context.Context, events chan<- RunEvent, runID string, task subTask) (*domain.AgentRun, bool) {
 	if ctx.Err() != nil {
 		sendCancelledEvent(events, runID)
-		return false
+		return nil, false
 	}
 	label := strings.TrimSpace(task.Title)
 	if label == "" {
 		label = "the Engineer"
 	}
 	if !sendWorkflowEvent(ctx, events, runID, domain.WorkflowEventCommandExecuted, fmt.Sprintf("Delegating to %s.", label), "", "claude") {
-		return false
+		return nil, false
 	}
-	if _, err := w.spawner.SpawnChildRun(ctx, runID, "claude-engineer", task.Prompt); err != nil {
+	run, err := w.spawner.SpawnChildRun(ctx, runID, "claude-engineer", task.Prompt)
+	if err != nil {
 		sendWorkflowEvent(ctx, events, runID, domain.WorkflowEventRunFailed, fmt.Sprintf("%s failed: %v", label, err), "", "")
-		return false
+		return nil, false
 	}
-	return true
+	return run, true
 }
 
 func (w *ClaudeManagerWorker) CancelRun(ctx context.Context, runID string) error {

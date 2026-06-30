@@ -75,6 +75,10 @@ func TestSpawnChildRunsRecordsChildrenAndMergesPatches(t *testing.T) {
 	if !strings.Contains(merged.Diff, "implement the feature") || !strings.Contains(merged.Diff, "review the feature") {
 		t.Fatalf("merged diff missing child patches: %q", merged.Diff)
 	}
+	// A missing final newline makes `git apply` read the patch as corrupt.
+	if !strings.HasSuffix(merged.Diff, "\n") {
+		t.Fatalf("merged diff must end with a newline: %q", merged.Diff)
+	}
 
 	state, err = jsonStore.Load()
 	if err != nil {

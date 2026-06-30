@@ -21,9 +21,11 @@ func (s *Service) MergePatches(runIDs []string) (*domain.PatchProposal, error) {
 	}
 
 	_, err := s.store.Update(func(state *store.State) error {
+		merging := make(map[string]bool, len(runIDs))
 		var diffs []string
 		var missionID string
 		for _, runID := range runIDs {
+			merging[runID] = true
 			runIndex := findRunIndex(state.AgentRuns, runID)
 			if runIndex == -1 {
 				continue
@@ -33,7 +35,9 @@ func (s *Service) MergePatches(runIDs []string) (*domain.PatchProposal, error) {
 			}
 			for _, patch := range state.PatchProposals {
 				if patch.RunID == runID && patch.Status == domain.PatchStatusPending {
-					diffs = append(diffs, strings.TrimSpace(patch.Diff))
+					// Trim only trailing newlines so each file section starts on a
+					// fresh line; a leading space on a context line stays intact.
+					diffs = append(diffs, strings.TrimRight(patch.Diff, "\n"))
 				}
 			}
 		}
@@ -42,8 +46,20 @@ func (s *Service) MergePatches(runIDs []string) (*domain.PatchProposal, error) {
 			return fmt.Errorf("no pending patches found for the given runs")
 		}
 
-		merged.Diff = strings.Join(diffs, "\n")
-		state.PatchProposals = append(state.PatchProposals, merged)
+		// Join the file sections with a newline and end with one, so `git apply`
+		// sees a well-formed patch (a missing final newline reads as corrupt).
+		merged.Diff = strings.Join(diffs, "\n") + "\n"
+
+		// Fold the child patches into the one merged patch so a single pending
+		// patch reaches the gate (the approve flow resolves one patch per mission).
+		remaining := make([]domain.PatchProposal, 0, len(state.PatchProposals))
+		for _, patch := range state.PatchProposals {
+			if merging[patch.RunID] && patch.Status == domain.PatchStatusPending {
+				continue
+			}
+			remaining = append(remaining, patch)
+		}
+		state.PatchProposals = append(remaining, merged)
 		state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
 			missionID, runIDs[0], domain.WorkflowEventPatchesMerged,
 			fmt.Sprintf("Merged patches from %d child runs.", len(runIDs)), "", now,
