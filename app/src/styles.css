@@ -215,10 +215,11 @@ h3 {
   flex: 0 0 auto;
 }
 
-/* The task window opens wide so chat and its changes each get real room —
-   capped so it never swallows the whole canvas. */
+/* The task window opens wide so whichever view is showing — the conversation or
+   the full-width diff — is roomy and easy to read, capped so it never swallows
+   the whole canvas. */
 .inspector.task-window {
-  width: min(1100px, calc(100vw - 220px));
+  width: min(960px, calc(100vw - 240px));
   overflow: hidden;
 }
 
@@ -234,43 +235,69 @@ h3 {
   box-shadow: var(--shadow);
 }
 
-/* Two columns: the conversation on the left, its live diff on the right. */
-.task-split {
+/* One view at a time: a segmented Chat / Changes switch flips the body below. */
+.task-switch {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.task-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.task-switch-btn:hover {
+  color: var(--soft);
+}
+
+.task-switch-btn.active {
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.task-switch-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.task-switch-spacer {
+  flex: 1 1 auto;
+}
+
+.task-body {
   flex: 1 1 auto;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  display: flex;
+  flex-direction: column;
   margin-top: 14px;
 }
 
-.task-pane {
+.task-changes {
+  flex: 1 1 auto;
   min-height: 0;
-  min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
-.task-diff-pane {
-  padding-left: 24px;
-  border-left: 1px solid var(--line);
-}
-
-.task-pane-label {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.task-diff-pane .diff-view,
-.task-diff-pane .diff-empty {
+.task-changes .diff-view,
+.task-changes .diff-empty {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;

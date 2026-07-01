@@ -167,7 +167,9 @@ export function App() {
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, workerModeFromName(mission.worker)])),
   );
   const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
-  // Whether the verification detail (command + output) is expanded under the diff.
+  // Which full-width view the task window shows, and whether the verification
+  // detail (command + output) is expanded under the diff.
+  const [taskView, setTaskView] = useState<"chat" | "changes">("chat");
   // The live conversation with each mission's agent, and which missions have a
   // chat turn in flight (so the composer shows a spinner while the agent works).
   const [chatByMission, setChatByMission] = useState<Record<string, ChatMessage[]>>({});
@@ -201,9 +203,11 @@ export function App() {
     switch (node.kind) {
       case "verification":
       case "test":
+        setTaskView("changes");
         setVerifyOpen(true);
         break;
       case "file":
+        setTaskView("changes");
         setFocusedDiffFile(node.label);
         break;
       default:
@@ -252,6 +256,7 @@ export function App() {
   // unsaved draft never leaks onto a different mission.
   useEffect(() => {
     setEditingPrompt(false);
+    setTaskView("chat");
   }, [selectedMissionId]);
 
   const visibleMissions = useMemo(
@@ -1234,9 +1239,42 @@ export function App() {
               </div>
             ) : null}
 
-            <div className="task-split">
-              <div className="task-pane task-chat-pane">
-                <div className="task-pane-label">Chat</div>
+            <div className="task-switch" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={taskView === "chat"}
+                className={`task-switch-btn ${taskView === "chat" ? "active" : ""}`}
+                onClick={() => setTaskView("chat")}
+              >
+                Chat
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={taskView === "changes"}
+                className={`task-switch-btn ${taskView === "changes" ? "active" : ""}`}
+                onClick={() => setTaskView("changes")}
+              >
+                Changes
+                {patchReady && taskView !== "changes" ? <span className="task-switch-dot" aria-hidden="true" /> : null}
+              </button>
+              <div className="task-switch-spacer" />
+              {taskView === "changes" && patchReady ? (
+                <button
+                  className="secondary icon-button mini"
+                  type="button"
+                  onClick={() => setDiffModalOpen(true)}
+                  title="Expand diff"
+                  aria-label="Expand diff"
+                >
+                  <Maximize2 size={14} aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+
+            <div className="task-body">
+              {taskView === "chat" ? (
                 <AgentChat
                   messages={selectedChatMessages}
                   statusModel={agentStatus}
@@ -1244,95 +1282,80 @@ export function App() {
                   sending={selectedChatSending}
                   onSend={(text) => void sendAgentChat(selectedMission.id, text)}
                 />
-              </div>
+              ) : (
+                <div className="task-changes">
+                  <DiffView
+                    diff={patchReady ? selectedPatchDiff : ""}
+                    focusPath={focusedDiffFile}
+                    emptyLabel={
+                      patchReady
+                        ? "No patch proposal captured for this task."
+                        : "No changes yet — chat with the agent to make some."
+                    }
+                  />
 
-              <div className="task-pane task-diff-pane">
-                <div className="task-pane-label">
-                  <span>Changes</span>
-                  {patchReady ? (
+                  <div className="verify-bar">
                     <button
-                      className="secondary icon-button mini"
                       type="button"
-                      onClick={() => setDiffModalOpen(true)}
-                      title="Expand diff"
-                      aria-label="Expand diff"
+                      className="verify-status-toggle"
+                      onClick={() => setVerifyOpen((open) => !open)}
+                      aria-expanded={verifyOpen}
                     >
-                      <Maximize2 size={14} aria-hidden="true" />
+                      <span className={`verify-pill ${verifyPillClass(selectedRuntime)}`}>
+                        {verifyPillLabel(selectedRuntime)}
+                      </span>
+                      <ChevronDown size={14} className={`verify-chevron ${verifyOpen ? "open" : ""}`} aria-hidden="true" />
                     </button>
-                  ) : null}
-                </div>
-
-                <DiffView
-                  diff={patchReady ? selectedPatchDiff : ""}
-                  focusPath={focusedDiffFile}
-                  emptyLabel={
-                    patchReady
-                      ? "No patch proposal captured for this task."
-                      : "No changes yet — chat with the agent to make some."
-                  }
-                />
-
-                <div className="verify-bar">
-                  <button
-                    type="button"
-                    className="verify-status-toggle"
-                    onClick={() => setVerifyOpen((open) => !open)}
-                    aria-expanded={verifyOpen}
-                  >
-                    <span className={`verify-pill ${verifyPillClass(selectedRuntime)}`}>
-                      {verifyPillLabel(selectedRuntime)}
-                    </span>
-                    <ChevronDown size={14} className={`verify-chevron ${verifyOpen ? "open" : ""}`} aria-hidden="true" />
-                  </button>
-                  <button
-                    className="secondary mini"
-                    type="button"
-                    disabled={selectedRuntime.patchStatus !== "approved" || selectedRuntime.verified || !selectedVerificationCommand.trim()}
-                    onClick={runVerification}
-                    title="Run verification"
-                  >
-                    <Terminal size={14} aria-hidden="true" />
-                    <span>Verify</span>
-                  </button>
-                </div>
-                {verifyOpen ? (
-                  <div className="verify-detail">
-                    <input
-                      className="command-line"
-                      aria-label="Verification command"
-                      value={selectedVerificationCommand}
-                      onChange={(event) =>
-                        setVerificationCommandByMission((current) => ({
-                          ...current,
-                          [selectedMission.id]: event.target.value,
-                        }))
-                      }
-                    />
-                    <pre className="test-output">{verificationOutput(selectedRuntime, selectedVerificationOutput)}</pre>
+                    <button
+                      className="secondary mini"
+                      type="button"
+                      disabled={selectedRuntime.patchStatus !== "approved" || selectedRuntime.verified || !selectedVerificationCommand.trim()}
+                      onClick={runVerification}
+                      title="Run verification"
+                    >
+                      <Terminal size={14} aria-hidden="true" />
+                      <span>Verify</span>
+                    </button>
                   </div>
-                ) : null}
+                  {verifyOpen ? (
+                    <div className="verify-detail">
+                      <input
+                        className="command-line"
+                        aria-label="Verification command"
+                        value={selectedVerificationCommand}
+                        onChange={(event) =>
+                          setVerificationCommandByMission((current) => ({
+                            ...current,
+                            [selectedMission.id]: event.target.value,
+                          }))
+                        }
+                      />
+                      <pre className="test-output">{verificationOutput(selectedRuntime, selectedVerificationOutput)}</pre>
+                    </div>
+                  ) : null}
 
-                <div className="actions">
-                  <button
-                    className="secondary"
-                    type="button"
-                    disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
-                    onClick={rejectPatch}
-                  >
-                    <X size={16} aria-hidden="true" />
-                    <span>Reject</span>
-                  </button>
-                  <button
-                    className="primary"
-                    type="button"
-                    disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
-                    onClick={approvePatch}
-                  >
-                    <Check size={16} aria-hidden="true" />
-                    <span>Approve + apply</span>
-                  </button>
+                  <div className="actions">
+                    <button
+                      className="secondary"
+                      type="button"
+                      disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
+                      onClick={rejectPatch}
+                    >
+                      <X size={16} aria-hidden="true" />
+                      <span>Reject</span>
+                    </button>
+                    <button
+                      className="primary"
+                      type="button"
+                      disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
+                      onClick={approvePatch}
+                    >
+                      <Check size={16} aria-hidden="true" />
+                      <span>Approve + apply</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </section>
         </aside>
