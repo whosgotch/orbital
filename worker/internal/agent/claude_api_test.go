@@ -8,6 +8,36 @@ import (
 	"testing"
 )
 
+// scanAgenticStream must capture the session id (so a run can be resumed as a
+// chat) and the final summary, while forwarding narration and tool calls.
+func TestScanAgenticStreamCapturesSessionAndSteps(t *testing.T) {
+	stream := strings.Join([]string{
+		`{"type":"system","subtype":"init","session_id":"sess_abc123"}`,
+		`{"type":"assistant","session_id":"sess_abc123","message":{"content":[{"type":"text","text":"Adding the route."}]}}`,
+		`{"type":"assistant","session_id":"sess_abc123","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/repo/main.go"}}]}}`,
+		`{"type":"result","subtype":"success","session_id":"sess_abc123","result":"Added a /health route."}`,
+	}, "\n")
+
+	var kinds, msgs []string
+	summary, sessionID := scanAgenticStream(strings.NewReader(stream), func(kind, msg string) {
+		kinds = append(kinds, kind)
+		msgs = append(msgs, msg)
+	})
+
+	if sessionID != "sess_abc123" {
+		t.Fatalf("sessionID = %q, want sess_abc123", sessionID)
+	}
+	if summary != "Added a /health route." {
+		t.Fatalf("summary = %q", summary)
+	}
+	if len(kinds) != 2 || kinds[0] != "thought" || kinds[1] != "action" {
+		t.Fatalf("steps = %v (%v)", kinds, msgs)
+	}
+	if !strings.Contains(msgs[1], "main.go") {
+		t.Errorf("action step should name the edited file: %q", msgs[1])
+	}
+}
+
 func TestParseSubTasks(t *testing.T) {
 	text := "Here is the plan:\n```json\n[" +
 		`{"title": "Add route", "prompt": "Add a GET /health route"},` +

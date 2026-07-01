@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,10 +15,11 @@ import (
 
 // streamJSONLine is one line of `claude --output-format stream-json` output.
 type streamJSONLine struct {
-	Type    string `json:"type"`
-	Subtype string `json:"subtype"`
-	Result  string `json:"result"`
-	Message struct {
+	Type      string `json:"type"`
+	Subtype   string `json:"subtype"`
+	Result    string `json:"result"`
+	SessionID string `json:"session_id"`
+	Message   struct {
 		Content []struct {
 			Type  string          `json:"type"`
 			Text  string          `json:"text"`
@@ -29,35 +31,60 @@ type streamJSONLine struct {
 
 // callClaudeAgentic runs Claude in the repo with edit permissions so it can
 // modify files directly. It streams Claude's actions (text, tool use) to onStep
-// as they happen, and returns Claude's final summary. The actual file changes
-// are captured separately via git diff.
-// onStep receives each streamed step as ("thought", reasoning text) for Claude's
-// own narration or ("action", tool description) for an edit/command it runs.
-func callClaudeAgentic(ctx context.Context, repoPath, prompt string, onStep func(kind, msg string)) (string, error) {
-	cmd := exec.CommandContext(ctx, "claude", "--print",
+// as they happen, and returns Claude's final summary plus the CLI session id so
+// the caller can resume the same conversation on a later turn. The actual file
+// changes are captured separately via git diff.
+//
+// When resumeSessionID is non-empty, the prompt continues that existing session
+// (`claude --resume <id>`) instead of starting fresh — this is what turns a run
+// into a live, multi-turn chat. onStep receives each streamed step as
+// ("thought", reasoning text) for Claude's own narration or ("action", tool
+// description) for an edit/command it runs.
+func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, prompt string, onStep func(kind, msg string)) (string, string, error) {
+	args := []string{"--print",
 		"--permission-mode", "acceptEdits",
-		"--output-format", "stream-json", "--verbose",
-		prompt)
+		"--output-format", "stream-json", "--verbose"}
+	if resumeSessionID != "" {
+		args = append(args, "--resume", resumeSessionID)
+	}
+	args = append(args, prompt)
+
+	cmd := exec.CommandContext(ctx, "claude", args...)
 	cmd.Dir = repoPath
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("claude CLI start: %w", err)
+		return "", "", fmt.Errorf("claude CLI start: %w", err)
 	}
 
-	var summary string
-	scanner := bufio.NewScanner(stdout)
+	summary, sessionID := scanAgenticStream(stdout, onStep)
+
+	if err := cmd.Wait(); err != nil {
+		return "", "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return summary, sessionID, nil
+}
+
+// scanAgenticStream reads `claude --output-format stream-json` lines, forwarding
+// Claude's narration and tool calls to onStep, and returns the final summary and
+// the session id (captured from whichever line carries it). Kept separate from
+// the exec plumbing so it can be tested against a captured stream fixture.
+func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, sessionID string) {
+	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 1024*1024), 16*1024*1024)
 	for scanner.Scan() {
 		var line streamJSONLine
 		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
 			continue
+		}
+		if line.SessionID != "" {
+			sessionID = line.SessionID
 		}
 		switch line.Type {
 		case "assistant":
@@ -75,11 +102,7 @@ func callClaudeAgentic(ctx context.Context, repoPath, prompt string, onStep func
 			summary = strings.TrimSpace(line.Result)
 		}
 	}
-
-	if err := cmd.Wait(); err != nil {
-		return "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
-	}
-	return summary, nil
+	return summary, sessionID
 }
 
 // subTask is one self-written unit of work in a manager's decomposition of a
