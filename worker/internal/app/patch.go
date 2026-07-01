@@ -2,7 +2,9 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -128,19 +130,28 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 		}
 
 		repoPath := state.Repositories[repositoryIndex].Path
+		chatRun := state.AgentRuns[runIndex]
+		// A live chat agent (one that owns a session) keeps working in its own
+		// worktree, which already holds the exact desired file contents. Land its
+		// turn by copying those files straight into the repo rather than replaying
+		// a diff — that sidesteps git-apply's context/index checks, which a
+		// re-applied cumulative diff trips over ("does not match index"). Other
+		// runs (mock, manager children) still apply their diff the normal way.
 		if strings.TrimSpace(patch.Diff) != "" {
-			if err := applyDiff(repoPath, patch.Diff); err != nil {
+			if chatRun.SessionID != "" && worktreeExists(chatRun.WorktreePath) {
+				if err := applyFromWorktree(repoPath, chatRun.WorktreePath, patch.Diff); err != nil {
+					return err
+				}
+			} else if err := applyDiff(repoPath, patch.Diff); err != nil {
 				return err
 			}
 		}
 
 		// The approved work has landed in the main tree, so this mission's isolated
-		// worktrees are disposable — except a live chat agent (one that owns a
-		// session): keep its worktree and re-baseline it to the just-applied state,
-		// so its next turn proposes an incremental diff that still applies cleanly
-		// on top of what we just landed instead of re-applying it.
+		// worktrees are disposable — except the live chat agent: keep its worktree
+		// and re-baseline it to the just-applied state, so its next turn proposes an
+		// incremental diff instead of re-proposing what we already landed.
 		missionID := state.AgentRuns[runIndex].MissionID
-		chatRun := state.AgentRuns[runIndex]
 		for _, run := range state.AgentRuns {
 			if run.MissionID != missionID {
 				continue
@@ -201,6 +212,85 @@ func applyDiff(repoPath string, diff string) error {
 		return nil
 	}
 	return fmt.Errorf("apply patch: %w: %s", err, strings.TrimSpace(string(output)))
+}
+
+func worktreeExists(worktreePath string) bool {
+	if strings.TrimSpace(worktreePath) == "" {
+		return false
+	}
+	info, err := os.Stat(worktreePath)
+	return err == nil && info.IsDir()
+}
+
+// applyFromWorktree lands a chat agent's turn by copying the files its diff
+// touched straight from the agent's worktree into the repo (and removing files
+// the diff deletes). Because it never replays hunks, it can't fail on context or
+// index mismatch — it just makes the repo's changed files match the worktree.
+func applyFromWorktree(repoPath, worktreePath, diff string) error {
+	for _, change := range changedFiles(diff) {
+		dst := filepath.Join(repoPath, change.path)
+		if change.deleted {
+			if err := os.Remove(dst); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("apply (remove %s): %w", change.path, err)
+			}
+			continue
+		}
+
+		src := filepath.Join(worktreePath, change.path)
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return fmt.Errorf("apply (read %s): %w", change.path, err)
+		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return fmt.Errorf("apply (mkdir %s): %w", change.path, err)
+		}
+		mode := os.FileMode(0o644)
+		if info, statErr := os.Stat(src); statErr == nil {
+			mode = info.Mode()
+		}
+		if err := os.WriteFile(dst, data, mode); err != nil {
+			return fmt.Errorf("apply (write %s): %w", change.path, err)
+		}
+	}
+	return nil
+}
+
+type changedFile struct {
+	path    string
+	deleted bool
+}
+
+// changedFiles reads the set of files a unified diff touches from its file
+// headers: a `+++ /dev/null` marks a deletion (path comes from the `---` line),
+// otherwise the `+++ b/<path>` names the file to copy from the worktree.
+func changedFiles(diff string) []changedFile {
+	var out []changedFile
+	var oldPath string
+	for _, line := range strings.Split(diff, "\n") {
+		switch {
+		case strings.HasPrefix(line, "--- "):
+			oldPath = stripDiffPathPrefix(strings.TrimPrefix(line, "--- "))
+		case strings.HasPrefix(line, "+++ "):
+			newPath := stripDiffPathPrefix(strings.TrimPrefix(line, "+++ "))
+			if newPath == "/dev/null" {
+				out = append(out, changedFile{path: oldPath, deleted: true})
+			} else {
+				out = append(out, changedFile{path: newPath})
+			}
+		}
+	}
+	return out
+}
+
+func stripDiffPathPrefix(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "/dev/null" {
+		return path
+	}
+	if strings.HasPrefix(path, "a/") || strings.HasPrefix(path, "b/") {
+		return path[2:]
+	}
+	return path
 }
 
 func patchAlreadyApplied(repoPath string, diff string) bool {
