@@ -11,10 +11,13 @@ import (
 
 type ClaudeManagerWorker struct {
 	spawner RunSpawner
+	// decompose splits a mission into sub-tasks; a field so tests can drive the
+	// orchestration without invoking the Claude CLI.
+	decompose func(ctx context.Context, repoPath, mission string) ([]subTask, error)
 }
 
 func NewClaudeManagerWorker(spawner RunSpawner) *ClaudeManagerWorker {
-	return &ClaudeManagerWorker{spawner: spawner}
+	return &ClaudeManagerWorker{spawner: spawner, decompose: callClaudeDecompose}
 }
 
 func (w *ClaudeManagerWorker) Name() string { return "claude-manager" }
@@ -61,7 +64,7 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 		// optional verification stage cover that). Each task is an engineer that
 		// runs in sequence on the same working tree, so the cumulative diff is what
 		// reaches the gate.
-		tasks, err := callClaudeDecompose(ctx, request.RepoPath, request.MissionText)
+		tasks, err := w.decompose(ctx, request.RepoPath, request.MissionText)
 		if err != nil || len(tasks) == 0 {
 			// Planning unavailable: hand the whole mission to a single engineer.
 			tasks = []subTask{{Title: "Engineer", Prompt: request.MissionText}}
