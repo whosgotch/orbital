@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import { DiffView } from "./components/DiffView";
-import { AgentTranscript, type TranscriptEntry } from "./components/AgentTranscript";
-import { AgentStatus } from "./components/AgentStatus";
+import { type TranscriptEntry } from "./components/AgentTranscript";
+import { AgentChat } from "./components/AgentChat";
 import { buildAgentStatus } from "./agentStatus";
 import {
   type MissionNodeStatus,
@@ -29,7 +29,7 @@ import {
   type WorkspaceGraphNode,
   type WorkspaceMission,
 } from "./mockMission";
-import type { MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
+import type { ChatMessage, MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
 import {
   roleLabel,
   workspaceViewFromMissionLoop,
@@ -46,6 +46,7 @@ import {
   queueMissionLoopState,
   rejectPatchMissionLoopState,
   refreshMissionLoopState,
+  sendAgentMessageLoopState,
   startAgentRunMissionLoopState,
   updateMissionTextLoopState,
   verifyMissionLoopState,
@@ -168,7 +169,11 @@ export function App() {
   );
   const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
   // Review panel: which tab is shown and whether the verification log is expanded.
-  const [reviewTab, setReviewTab] = useState<"changes" | "activity" | "agent">("changes");
+  const [reviewTab, setReviewTab] = useState<"changes" | "activity" | "chat">("changes");
+  // The live conversation with each mission's agent, and which missions have a
+  // chat turn in flight (so the composer shows a spinner while the agent works).
+  const [chatByMission, setChatByMission] = useState<Record<string, ChatMessage[]>>({});
+  const [chatSendingByMission, setChatSendingByMission] = useState<Record<string, boolean>>({});
   const [verifyOpen, setVerifyOpen] = useState(false);
   // Whether the diff is popped out into a wide full-screen modal.
   const [diffModalOpen, setDiffModalOpen] = useState(false);
@@ -208,7 +213,7 @@ export function App() {
         setFocusedDiffFile(node.label);
         break;
       case "worker":
-        setReviewTab("agent");
+        setReviewTab("chat");
         break;
       default:
         break;
@@ -250,6 +255,8 @@ export function App() {
   );
   const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
+  const selectedChatMessages = chatByMission[selectedMission?.id ?? ""] ?? [];
+  const selectedChatSending = chatSendingByMission[selectedMission?.id ?? ""] ?? false;
 
   // Close the inline prompt editor whenever the selected node changes, so an
   // unsaved draft never leaks onto a different mission.
@@ -397,6 +404,90 @@ export function App() {
     } finally {
       unlistenEvent?.();
       unlistenPatch?.();
+    }
+  };
+
+  // Send one chat turn to a mission's agent. The first turn starts a live
+  // claude session; every later turn resumes it, so the agent keeps its context
+  // and its diff evolves in place. Events stream in while the agent works.
+  const sendAgentChat = async (missionId: string, text: string) => {
+    setMissionLoopError("");
+    const repoPath = repoPathForMission(missionId);
+
+    // Show the user's turn immediately; the agent's reply and the authoritative
+    // history land as the turn streams and completes.
+    const optimistic: ChatMessage = {
+      id: `local_${Date.now()}`,
+      mission_id: missionId,
+      run_id: "",
+      role: "user",
+      text,
+      created_at: new Date().toISOString(),
+    };
+    setChatByMission((current) => ({
+      ...current,
+      [missionId]: [...(current[missionId] ?? []), optimistic],
+    }));
+    setChatSendingByMission((current) => ({ ...current, [missionId]: true }));
+    setRuntimeByMission((current) => ({
+      ...current,
+      [missionId]: { ...(current[missionId] ?? { step: -1, patchStatus: "pending", verified: false, status: "queued" }), status: "running", step: Math.max(current[missionId]?.step ?? -1, 0) },
+    }));
+
+    let unlistenEvent: (() => void) | undefined;
+    let unlistenPatch: (() => void) | undefined;
+    let unlistenChat: (() => void) | undefined;
+
+    if (isTauriRuntime()) {
+      unlistenChat = await listen<ChatMessage>("chat_message", (e) => {
+        const message = e.payload;
+        // The user turn is already shown optimistically; only stream the reply.
+        if (message.mission_id !== missionId || message.role !== "assistant") return;
+        setChatByMission((current) => {
+          const existing = current[missionId] ?? [];
+          if (existing.some((item) => item.id === message.id)) return current;
+          return { ...current, [missionId]: [...existing, message] };
+        });
+      });
+
+      unlistenEvent = await listen<WorkflowEvent>("workflow_event", (e) => {
+        const event = e.payload;
+        if (event.mission_id && event.mission_id !== missionId) return;
+        if (!event.message) return;
+        setActivityByMission((current) => ({
+          ...current,
+          [missionId]: [...(current[missionId] ?? []), event.message],
+        }));
+        setRuntimeByMission((current) => ({
+          ...current,
+          [missionId]: { ...current[missionId], status: "running", step: (current[missionId]?.step ?? -1) + 1 },
+        }));
+      });
+
+      unlistenPatch = await listen<PatchProposal>("patch_proposal", (e) => {
+        const patch = e.payload;
+        setPatchDiffByMission((current) => ({ ...current, [missionId]: patch.diff }));
+        setRuntimeByMission((current) => ({
+          ...current,
+          [missionId]: { ...current[missionId], status: "review", patchStatus: "pending", step: (current[missionId]?.step ?? 0) + 1 },
+        }));
+      });
+    }
+
+    try {
+      const next = await sendAgentMessageLoopState(repoPath, missionId, text);
+      if (next) {
+        applyRepoState(next, missionId);
+      }
+    } catch (error) {
+      if (cancelledMissionsRef.current.has(missionId)) return;
+      console.error("[orbital] chat failed", error);
+      setMissionLoopError(errorMessage(error, "Failed to send message."));
+    } finally {
+      unlistenEvent?.();
+      unlistenPatch?.();
+      unlistenChat?.();
+      setChatSendingByMission((current) => ({ ...current, [missionId]: false }));
     }
   };
 
@@ -713,6 +804,7 @@ export function App() {
     setPatchDiffByMission(nextWorkspaceView.patchDiffByMission);
     setVerificationOutputByMission(nextWorkspaceView.verificationOutputByMission);
     setActivityByMission(nextWorkspaceView.activityByMission);
+    setChatByMission(groupChatByMission(nextMissionLoopState.chat_messages));
     setVerificationCommandByMission((current) => ({
       ...Object.fromEntries(nextWorkspaceView.missions.map((mission) => [mission.id, current[mission.id] ?? mission.command])),
     }));
@@ -1194,11 +1286,11 @@ export function App() {
               <button
                 type="button"
                 role="tab"
-                aria-selected={reviewTab === "agent"}
-                className={`review-tab ${reviewTab === "agent" ? "active" : ""}`}
-                onClick={() => setReviewTab("agent")}
+                aria-selected={reviewTab === "chat"}
+                className={`review-tab ${reviewTab === "chat" ? "active" : ""}`}
+                onClick={() => setReviewTab("chat")}
               >
-                Agent
+                Chat
               </button>
               {reviewTab === "changes" && patchReady ? (
                 <button
@@ -1312,8 +1404,14 @@ export function App() {
                 </ol>
               </div>
             ) : (
-              <div className="review-agent">
-                <AgentStatus model={agentStatus} transcript={agentTranscript} />
+              <div className="review-chat">
+                <AgentChat
+                  messages={selectedChatMessages}
+                  statusModel={agentStatus}
+                  transcript={agentTranscript}
+                  sending={selectedChatSending}
+                  onSend={(text) => void sendAgentChat(selectedMission.id, text)}
+                />
               </div>
             )}
           </section>
@@ -1525,6 +1623,19 @@ function buildAgentTranscript(state: MissionLoopState, missionId: string, runId:
       return { id: event.id, kind, text: event.message, agent: labelForRun(event.run_id) } as TranscriptEntry;
     })
     .filter((entry) => entry.text.trim() !== "");
+}
+
+// groupChatByMission buckets the flat chat log into per-mission conversations,
+// each ordered oldest-first so the thread reads top to bottom.
+function groupChatByMission(messages: ChatMessage[]): Record<string, ChatMessage[]> {
+  const byMission: Record<string, ChatMessage[]> = {};
+  for (const message of messages) {
+    (byMission[message.mission_id] ??= []).push(message);
+  }
+  for (const list of Object.values(byMission)) {
+    list.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+  return byMission;
 }
 
 function verifyPillLabel(runtime: WorkspaceRuntime) {
