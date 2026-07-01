@@ -10,7 +10,6 @@ import {
   Network,
   Pencil,
   Play,
-  RadioTower,
   RefreshCw,
   Rocket,
   Terminal,
@@ -168,8 +167,7 @@ export function App() {
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, workerModeFromName(mission.worker)])),
   );
   const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
-  // Review panel: which tab is shown and whether the verification log is expanded.
-  const [reviewTab, setReviewTab] = useState<"changes" | "activity" | "chat">("changes");
+  // Whether the verification detail (command + output) is expanded under the diff.
   // The live conversation with each mission's agent, and which missions have a
   // chat turn in flight (so the composer shows a spinner while the agent works).
   const [chatByMission, setChatByMission] = useState<Record<string, ChatMessage[]>>({});
@@ -193,27 +191,20 @@ export function App() {
       return next;
     });
 
-  // Selecting a node also deep-links into the relevant review section, so each
-  // node does something specific instead of just opening the same panel.
+  // The task window shows chat and changes side by side, so selecting a node
+  // just focuses the relevant part: a file node scrolls the diff to that file,
+  // a verification node opens the verify detail.
   const handleSelectNode = (nodeId: string) => {
     setSelectedNodeId(nodeId);
     const node = workspaceGraphNodes.find((item) => item.id === nodeId);
     if (!node) return;
     switch (node.kind) {
-      case "patch":
-        setReviewTab("changes");
-        break;
       case "verification":
       case "test":
-        setReviewTab("changes");
         setVerifyOpen(true);
         break;
       case "file":
-        setReviewTab("changes");
         setFocusedDiffFile(node.label);
-        break;
-      case "worker":
-        setReviewTab("chat");
         break;
       default:
         break;
@@ -253,7 +244,6 @@ export function App() {
     () => buildAgentStatus(missionLoopState, selectedMissionId, selectedPatchDiff, selectedActivity, selectedRuntime),
     [missionLoopState, selectedMissionId, selectedPatchDiff, selectedActivity, selectedRuntime],
   );
-  const activity = selectedActivity.slice(0, selectedRuntime.step + 1);
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
   const selectedChatMessages = chatByMission[selectedMission?.id ?? ""] ?? [];
   const selectedChatSending = chatSendingByMission[selectedMission?.id ?? ""] ?? false;
@@ -315,8 +305,6 @@ export function App() {
     const repository = mission ? missionLoopState.repositories.find((repo) => repo.id === mission.repository_id) : undefined;
     return repository?.path ?? activeRepoPath;
   };
-
-  const startMission = () => dispatchMission(selectedMission.id);
 
   // Launch every draft/queued mission at once. Each runs in its own worker
   // process and git worktree, so the backlog burns down in parallel.
@@ -636,13 +624,6 @@ export function App() {
     }));
     setWorkspaceGraphNodes((current) => [...current, campaignNode]);
     setWorkspaceGraphEdges((current) => [...current, ...edges]);
-  };
-
-  const advanceStep = () => {
-    updateSelectedRuntime((current) => ({
-      ...current,
-      step: current.step + 1,
-    }));
   };
 
   const setMissionRuntime = (missionId: string, next: (runtime: WorkspaceRuntime) => WorkspaceRuntime) => {
@@ -1194,55 +1175,44 @@ export function App() {
       {missionLoopError ? <div className="floating-error">{missionLoopError}</div> : null}
 
       {selectedMission ? (
-        <aside className="inspector" aria-label="Review">
-          <section className="console-panel review-panel" aria-label="Mission review">
+        <aside className="inspector task-window" aria-label="Task">
+          <section className="task-panel" aria-label="Task">
             <div className="panel-head review-head">
               <div>
                 <div className="section-label">
-                  {selectedRepository?.name ?? "workspace"} · review
+                  {selectedRepository?.name ?? "workspace"} · task
                 </div>
                 <h2 className="work-order-title">{selectedMission.title}</h2>
               </div>
-              <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
-            </div>
-
-            <div className="node-actions" aria-label="Node actions">
-              <button
-                className="node-action secondary"
-                type="button"
-                onClick={() => void dispatchMission(selectedMission.id)}
-                disabled={selectedRuntime.status === "running"}
-                title="Run this node's agent"
-              >
-                <Play size={14} aria-hidden="true" />
-                <span>Run</span>
-              </button>
-              <button
-                className={`node-action secondary ${editingPrompt ? "active" : ""}`}
-                type="button"
-                onClick={editingPrompt ? () => setEditingPrompt(false) : beginEditPrompt}
-                disabled={selectedRuntime.status === "running"}
-                title="Edit this node's prompt"
-              >
-                <Pencil size={14} aria-hidden="true" />
-                <span>Edit</span>
-              </button>
-              <button
-                className="node-action secondary danger"
-                type="button"
-                onClick={() => void deleteMission(selectedMission.id)}
-                title="Remove this node"
-              >
-                <Trash2 size={14} aria-hidden="true" />
-                <span>Remove</span>
-              </button>
+              <div className="task-head-actions">
+                <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
+                <button
+                  className={`node-action secondary ${editingPrompt ? "active" : ""}`}
+                  type="button"
+                  onClick={editingPrompt ? () => setEditingPrompt(false) : beginEditPrompt}
+                  disabled={selectedRuntime.status === "running"}
+                  title="Edit this task's prompt"
+                >
+                  <Pencil size={14} aria-hidden="true" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  className="node-action secondary danger"
+                  type="button"
+                  onClick={() => void deleteMission(selectedMission.id)}
+                  title="Remove this task"
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                  <span>Remove</span>
+                </button>
+              </div>
             </div>
 
             {editingPrompt ? (
               <div className="node-prompt-editor">
                 <textarea
                   className="node-prompt-input"
-                  aria-label="Node prompt"
+                  aria-label="Task prompt"
                   value={promptDraft}
                   onChange={(event) => setPromptDraft(event.target.value)}
                   rows={4}
@@ -1264,56 +1234,41 @@ export function App() {
               </div>
             ) : null}
 
-            <div className="review-tabs" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={reviewTab === "changes"}
-                className={`review-tab ${reviewTab === "changes" ? "active" : ""}`}
-                onClick={() => setReviewTab("changes")}
-              >
-                Changes
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={reviewTab === "activity"}
-                className={`review-tab ${reviewTab === "activity" ? "active" : ""}`}
-                onClick={() => setReviewTab("activity")}
-              >
-                Activity{activity.length > 0 ? <span className="tab-count">{activity.length}</span> : null}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={reviewTab === "chat"}
-                className={`review-tab ${reviewTab === "chat" ? "active" : ""}`}
-                onClick={() => setReviewTab("chat")}
-              >
-                Chat
-              </button>
-              {reviewTab === "changes" && patchReady ? (
-                <button
-                  className="secondary icon-button mini review-expand"
-                  type="button"
-                  onClick={() => setDiffModalOpen(true)}
-                  title="Expand diff"
-                  aria-label="Expand diff"
-                >
-                  <Maximize2 size={14} aria-hidden="true" />
-                </button>
-              ) : null}
-            </div>
+            <div className="task-split">
+              <div className="task-pane task-chat-pane">
+                <div className="task-pane-label">Chat</div>
+                <AgentChat
+                  messages={selectedChatMessages}
+                  statusModel={agentStatus}
+                  transcript={agentTranscript}
+                  sending={selectedChatSending}
+                  onSend={(text) => void sendAgentChat(selectedMission.id, text)}
+                />
+              </div>
 
-            {reviewTab === "changes" ? (
-              <div className="review-changes">
+              <div className="task-pane task-diff-pane">
+                <div className="task-pane-label">
+                  <span>Changes</span>
+                  {patchReady ? (
+                    <button
+                      className="secondary icon-button mini"
+                      type="button"
+                      onClick={() => setDiffModalOpen(true)}
+                      title="Expand diff"
+                      aria-label="Expand diff"
+                    >
+                      <Maximize2 size={14} aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
+
                 <DiffView
                   diff={patchReady ? selectedPatchDiff : ""}
                   focusPath={focusedDiffFile}
                   emptyLabel={
                     patchReady
-                      ? "No patch proposal captured for this mission."
-                      : "No changes yet — this mission hasn't reached review."
+                      ? "No patch proposal captured for this task."
+                      : "No changes yet — chat with the agent to make some."
                   }
                 />
 
@@ -1378,42 +1333,7 @@ export function App() {
                   </button>
                 </div>
               </div>
-            ) : reviewTab === "activity" ? (
-              <div className="review-activity">
-                <div className="activity-toolbar">
-                  <span className="activity-worker">
-                    <RadioTower size={13} aria-hidden="true" />
-                    {workerLabel(selectedMission.worker)}
-                  </span>
-                  <button
-                    className="secondary icon-button"
-                    type="button"
-                    onClick={selectedRuntime.step < 0 ? startMission : advanceStep}
-                    disabled={selectedRuntime.status === "running" || (patchReady && selectedRuntime.patchStatus !== "pending")}
-                    aria-label="Advance run"
-                    title="Advance run"
-                  >
-                    <Play size={16} aria-hidden="true" />
-                  </button>
-                </div>
-                <ol className="activity-list">
-                  {activity.length === 0 ? <li className="quiet">Mission is queued outside the active lane.</li> : null}
-                  {activity.map((step, index) => (
-                    <li key={`${index}-${step}`}>{step}</li>
-                  ))}
-                </ol>
-              </div>
-            ) : (
-              <div className="review-chat">
-                <AgentChat
-                  messages={selectedChatMessages}
-                  statusModel={agentStatus}
-                  transcript={agentTranscript}
-                  sending={selectedChatSending}
-                  onSend={(text) => void sendAgentChat(selectedMission.id, text)}
-                />
-              </div>
-            )}
+            </div>
           </section>
         </aside>
       ) : null}
@@ -1569,23 +1489,6 @@ function missionStatusFor(runtime: WorkspaceRuntime, patchReady: boolean) {
 
 function isRunning(runtime: WorkspaceRuntime) {
   return statusFromRuntime(runtime) === "running";
-}
-
-function workerLabel(workerName: string) {
-  if (workerName === "mock") {
-    return "Demo worker: limited patch generator";
-  }
-  if (workerName === "claude-manager") {
-    return "Claude Manager: AI orchestrates child agents";
-  }
-  if (workerName === "claude-engineer") {
-    return "Claude Engineer: AI code generation agent";
-  }
-  if (workerName === "unassigned") {
-    return "Worker not assigned";
-  }
-
-  return workerName;
 }
 
 function defaultLocalCommand() {
