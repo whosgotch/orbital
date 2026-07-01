@@ -58,6 +58,7 @@ const emptyMissionLoopState: MissionLoopState = {
   workflow_events: [],
   patch_proposals: [],
   verification_runs: [],
+  chat_messages: [],
 };
 
 const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState);
@@ -89,6 +90,7 @@ function combineRepoStates(states: Record<string, MissionLoopState>): MissionLoo
     workflow_events: all.flatMap((state) => state.workflow_events),
     patch_proposals: all.flatMap((state) => state.patch_proposals),
     verification_runs: all.flatMap((state) => state.verification_runs),
+    chat_messages: all.flatMap((state) => state.chat_messages),
   };
 }
 
@@ -109,6 +111,7 @@ function splitByRepository(state: MissionLoopState): Record<string, MissionLoopS
       ),
       patch_proposals: state.patch_proposals.filter((patch) => runIds.has(patch.run_id)),
       verification_runs: state.verification_runs.filter((run) => run.repository_id === repo.id || missionIds.has(run.mission_id)),
+      chat_messages: state.chat_messages.filter((message) => missionIds.has(message.mission_id) || runIds.has(message.run_id)),
     };
   }
   return out;
@@ -128,6 +131,7 @@ function removeMissionFromState(state: MissionLoopState, missionId: string): Mis
     ),
     patch_proposals: state.patch_proposals.filter((patch) => !runIds.has(patch.run_id)),
     verification_runs: state.verification_runs.filter((run) => run.mission_id !== missionId),
+    chat_messages: state.chat_messages.filter((message) => message.mission_id !== missionId && !runIds.has(message.run_id)),
   };
 }
 

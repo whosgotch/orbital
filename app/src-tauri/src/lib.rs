@@ -112,6 +112,34 @@ async fn start_agent_run(
 }
 
 #[tauri::command]
+async fn send_agent_message(
+    app: tauri::AppHandle,
+    runs: State<'_, RunningRuns>,
+    repo_path: String,
+    mission_id: String,
+    text: String,
+) -> Result<String, String> {
+    let args: Vec<String> = vec![
+        "send-message".into(),
+        repo_path.trim().to_string(),
+        mission_id.trim().to_string(),
+        text.to_string(),
+    ];
+
+    let runs = runs.inner().clone();
+    let mission_id = mission_id.trim().to_string();
+
+    // A chat turn streams the agent's work just like a run; keep it off the main
+    // thread so the UI stays responsive while the agent thinks and edits.
+    tauri::async_runtime::spawn_blocking(move || {
+        let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        run_worker_streaming(&app, &runs, &mission_id, &arg_refs)
+    })
+    .await
+    .map_err(|e| format!("worker task failed: {e}"))?
+}
+
+#[tauri::command]
 fn update_mission_text(
     repo_path: String,
     mission_id: String,
@@ -242,6 +270,10 @@ fn run_worker_streaming(
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
                 let _ = app.emit("patch_proposal", val);
             }
+        } else if let Some(json_str) = line.strip_prefix("CHAT:") {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
+                let _ = app.emit("chat_message", val);
+            }
         } else if let Some(json_str) = line.strip_prefix("STATE:") {
             final_state = json_str.to_string();
         }
@@ -313,6 +345,7 @@ pub fn run() {
             queue_mission,
             update_mission_text,
             start_agent_run,
+            send_agent_message,
             delete_mission,
             approve_patch,
             reject_patch,

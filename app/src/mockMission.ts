@@ -65,6 +65,7 @@ export const mockMissionLoop: MissionLoopState = {
   workflow_events: [],
   patch_proposals: [],
   verification_runs: [],
+  chat_messages: [],
 };
 
 export const mockWorkspaceMissions: WorkspaceMission[] = [

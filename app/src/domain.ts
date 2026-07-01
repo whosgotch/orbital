@@ -40,6 +40,18 @@ export type AgentRun = {
   error?: string;
   parent_run_id?: string;
   child_run_ids?: string[];
+  session_id?: string;
+};
+
+export type ChatRole = "user" | "assistant";
+
+export type ChatMessage = {
+  id: string;
+  mission_id: string;
+  run_id: string;
+  role: ChatRole;
+  text: string;
+  created_at: string;
 };
 
 export type WorkflowEventType =
@@ -107,4 +119,5 @@ export type MissionLoopState = {
   workflow_events: WorkflowEvent[];
   patch_proposals: PatchProposal[];
   verification_runs: VerificationRun[];
+  chat_messages: ChatMessage[];
 };
