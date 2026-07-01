@@ -215,9 +215,10 @@ h3 {
   flex: 0 0 auto;
 }
 
-/* The task window opens wide so chat and its changes sit side by side. */
+/* The task window opens wide so chat and its changes each get real room —
+   capped so it never swallows the whole canvas. */
 .inspector.task-window {
-  width: 840px;
+  width: min(1100px, calc(100vw - 220px));
   overflow: hidden;
 }
 
@@ -239,8 +240,8 @@ h3 {
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-top: 12px;
+  gap: 24px;
+  margin-top: 14px;
 }
 
 .task-pane {
@@ -251,7 +252,7 @@ h3 {
 }
 
 .task-diff-pane {
-  padding-left: 16px;
+  padding-left: 24px;
   border-left: 1px solid var(--line);
 }
 
@@ -401,6 +402,13 @@ h3 {
 .chat-work .agent-status {
   flex: 0 0 auto;
   overflow: visible;
+  gap: 10px;
+}
+
+/* Keep the chat side calm: the diff pane already shows which files changed, so
+   the in-chat status stays a slim phase + "now" line with reasoning on demand. */
+.chat-work .touched {
+  display: none;
 }
 
 .chat-composer {
@@ -1968,12 +1976,15 @@ button.node-action.danger:hover:not(:disabled) {
 }
 
 .diff-body {
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
+/* Wrap long lines so the whole change is readable at once (no sideways scroll),
+   and top-align the gutters so a wrapped line still reads cleanly. The add/del
+   background then always spans the full width instead of breaking mid-line. */
 .diff-line {
   display: flex;
-  white-space: pre;
+  align-items: flex-start;
 }
 
 .diff-line.add {
@@ -2019,8 +2030,13 @@ button.node-action.danger:hover:not(:disabled) {
 
 .diff-code {
   flex: 1;
+  min-width: 0;
   padding-right: 12px;
   color: var(--soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  tab-size: 4;
 }
 
 /* Popped-out wide diff. */
