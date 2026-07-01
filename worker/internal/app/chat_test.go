@@ -82,6 +82,49 @@ func TestSendAgentMessageStartsThenResumesOneAgent(t *testing.T) {
 	}
 }
 
+func TestChatPatchSupersedesPriorPending(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+	if err := jsonStore.Save(&store.State{
+		Missions: []domain.Mission{{ID: "mission_1", RepositoryID: "repo_1", Text: "x"}},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	patch := func(id, diff string) agent.RunEvent {
+		now := time.Now().UTC()
+		return agent.RunEvent{PatchProposal: &domain.PatchProposal{
+			ID: id, RunID: "run_chat", Status: domain.PatchStatusPending, Diff: diff, CreatedAt: now, UpdatedAt: now,
+		}}
+	}
+
+	// Two turns from the same chat run each propose a patch; only the latest
+	// should remain pending so the gate never applies a superseded diff.
+	if err := svc.saveRunEvent("mission_1", patch("patch_1", "turn one")); err != nil {
+		t.Fatalf("saveRunEvent(1) error = %v", err)
+	}
+	if err := svc.saveRunEvent("mission_1", patch("patch_2", "turn two")); err != nil {
+		t.Fatalf("saveRunEvent(2) error = %v", err)
+	}
+
+	state, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	pending := make([]domain.PatchProposal, 0)
+	for _, p := range state.PatchProposals {
+		if p.RunID == "run_chat" && p.Status == domain.PatchStatusPending {
+			pending = append(pending, p)
+		}
+	}
+	if len(pending) != 1 {
+		t.Fatalf("pending patches for run = %d, want 1", len(pending))
+	}
+	if pending[0].ID != "patch_2" {
+		t.Fatalf("surviving patch = %q, want patch_2 (latest)", pending[0].ID)
+	}
+}
+
 // recordingChatWorker stands in for claude-engineer: it records each turn's
 // request and emits a captured session id plus an assistant reply, so the chat
 // orchestration can be tested without the claude CLI.

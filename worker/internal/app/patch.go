@@ -134,14 +134,22 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 			}
 		}
 
-		// The approved work has landed in the main tree; every isolated worktree
-		// this mission's runs created (manager + each parallel child) is now
-		// disposable.
+		// The approved work has landed in the main tree, so this mission's isolated
+		// worktrees are disposable — except a live chat agent (one that owns a
+		// session): keep its worktree and re-baseline it to the just-applied state,
+		// so its next turn proposes an incremental diff that still applies cleanly
+		// on top of what we just landed instead of re-applying it.
 		missionID := state.AgentRuns[runIndex].MissionID
+		chatRun := state.AgentRuns[runIndex]
 		for _, run := range state.AgentRuns {
-			if run.MissionID == missionID {
-				removeRunWorktree(repoPath, run)
+			if run.MissionID != missionID {
+				continue
 			}
+			if run.ID == chatRun.ID && chatRun.SessionID != "" {
+				rebaselineWorktree(run.WorktreePath)
+				continue
+			}
+			removeRunWorktree(repoPath, run)
 		}
 
 		now := time.Now().UTC()

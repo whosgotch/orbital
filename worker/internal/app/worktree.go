@@ -36,6 +36,26 @@ func createRunWorktree(ctx context.Context, repoPath, runID string) string {
 	return worktreePath
 }
 
+// rebaselineWorktree commits a live chat agent's worktree in place, so its HEAD
+// advances to the state we just approved. The next `git diff` in that worktree
+// then captures only the following turn's changes (an incremental patch), which
+// applies cleanly on top of the already-landed work instead of colliding with
+// it. Best-effort: a failure here must not fail the apply.
+func rebaselineWorktree(worktreePath string) {
+	if strings.TrimSpace(worktreePath) == "" {
+		return
+	}
+	add := exec.Command("git", "add", "-A")
+	add.Dir = worktreePath
+	_ = add.Run()
+
+	commit := exec.Command("git",
+		"-c", "user.email=orbital@local", "-c", "user.name=Orbital",
+		"commit", "-m", "orbital chat baseline", "--allow-empty")
+	commit.Dir = worktreePath
+	_ = commit.Run()
+}
+
 func removeRunWorktree(repoPath string, run domain.AgentRun) {
 	if run.WorktreePath == "" {
 		return

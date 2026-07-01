@@ -169,7 +169,16 @@ func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
 		}
 
 		if event.PatchProposal != nil {
-			state.PatchProposals = append(state.PatchProposals, *event.PatchProposal)
+			// A chat agent proposes a fresh patch every turn; keep only the latest
+			// pending one per run so the gate never sees a stale, superseded diff.
+			pruned := state.PatchProposals[:0]
+			for _, patch := range state.PatchProposals {
+				if patch.RunID == event.PatchProposal.RunID && patch.Status == domain.PatchStatusPending {
+					continue
+				}
+				pruned = append(pruned, patch)
+			}
+			state.PatchProposals = append(pruned, *event.PatchProposal)
 			state.Missions[missionIndex].Status = domain.MissionStatusWaitingApproval
 			state.Missions[missionIndex].UpdatedAt = event.PatchProposal.UpdatedAt
 		}
