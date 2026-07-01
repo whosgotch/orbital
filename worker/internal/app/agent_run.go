@@ -174,6 +174,10 @@ func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
 			state.Missions[missionIndex].UpdatedAt = event.PatchProposal.UpdatedAt
 		}
 
+		if event.ChatMessage != nil {
+			state.ChatMessages = append(state.ChatMessages, *event.ChatMessage)
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -314,6 +318,9 @@ func (s *Service) streamRunEvent(event agent.RunEvent) {
 	} else if event.PatchProposal != nil {
 		prefix = "PATCH:"
 		data, err = json.Marshal(event.PatchProposal)
+	} else if event.ChatMessage != nil {
+		prefix = "CHAT:"
+		data, err = json.Marshal(event.ChatMessage)
 	}
 	if err != nil || data == nil {
 		return

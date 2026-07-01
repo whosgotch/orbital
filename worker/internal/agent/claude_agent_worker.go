@@ -98,9 +98,17 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 			return
 		}
 
+		// A first turn gets the full engineer framing; a resumed turn sends the
+		// user's message verbatim, since the framing and context already live in
+		// the session being continued.
+		prompt := w.buildPrompt(request.MissionText)
+		if request.ResumeSessionID != "" {
+			prompt = request.MissionText
+		}
+
 		// Stream Claude's reasoning (thoughts) and actions (edits, commands) into
 		// the feed, tagged so the Agent transcript can render them distinctly.
-		summary, _, err := callClaudeAgentic(ctx, request.RepoPath, "", w.buildPrompt(request.MissionText), func(kind, msg string) {
+		summary, sessionID, err := callClaudeAgentic(ctx, request.RepoPath, request.ResumeSessionID, prompt, func(kind, msg string) {
 			eventType := domain.WorkflowEventAgentAction
 			if kind == "thought" {
 				eventType = domain.WorkflowEventAgentThought
@@ -112,9 +120,35 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 			return
 		}
 
+		// Persist the captured session so the next turn can resume this exact
+		// conversation instead of starting a new one.
+		if sessionID != "" {
+			select {
+			case <-ctx.Done():
+				sendCancelledEvent(events, request.RunID)
+				return
+			case events <- RunEvent{SessionID: sessionID}:
+			}
+		}
+
 		if strings.TrimSpace(summary) != "" {
 			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "✅ "+truncate(summary, 200), "", "claude") {
 				return
+			}
+			// Record the summary as the agent's chat reply for this turn.
+			now := time.Now().UTC()
+			select {
+			case <-ctx.Done():
+				sendCancelledEvent(events, request.RunID)
+				return
+			case events <- RunEvent{ChatMessage: &domain.ChatMessage{
+				ID:        fmt.Sprintf("msg_%d", now.UnixNano()),
+				MissionID: request.MissionID,
+				RunID:     request.RunID,
+				Role:      domain.ChatRoleAssistant,
+				Text:      strings.TrimSpace(summary),
+				CreatedAt: now,
+			}}:
 			}
 		}
 

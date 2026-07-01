@@ -27,4 +27,8 @@ type AgentRun struct {
 	// WorktreePath is the isolated git worktree this run works in, so parallel
 	// runs on the same repo don't collide. Empty when the run uses the repo root.
 	WorktreePath string `json:"worktree_path,omitempty"`
+	// SessionID is the claude CLI session this run owns, captured on its first
+	// turn. A later chat turn resumes it (`claude --resume`), so the agent keeps
+	// its context across messages instead of starting fresh each time.
+	SessionID string `json:"session_id,omitempty"`
 }

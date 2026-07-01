@@ -34,6 +34,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return rejectMissionPatch(args, stdout)
 	case "start-run":
 		return startAgentRun(ctx, args, stdout)
+	case "send-message":
+		return sendAgentMessage(ctx, args, stdout)
 	case "verify":
 		return verifyMission(ctx, args, stdout)
 	case "run":
@@ -48,5 +50,5 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 }
 
 func usageError() error {
-	return fmt.Errorf("usage: orbital open <repo-path>\n       orbital queue <repo-path> <mission-text>\n       orbital edit-mission <repo-path> <mission-id> <text>\n       orbital start-run <repo-path> <mission-id>\n       orbital approve <repo-path> <mission-id>\n       orbital reject <repo-path> <mission-id>\n       orbital verify <repo-path> <mission-id> <verification-command>\n       orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital demo-fixture <repo-path>")
+	return fmt.Errorf("usage: orbital open <repo-path>\n       orbital queue <repo-path> <mission-text>\n       orbital edit-mission <repo-path> <mission-id> <text>\n       orbital start-run <repo-path> <mission-id>\n       orbital send-message <repo-path> <mission-id> <text>\n       orbital approve <repo-path> <mission-id>\n       orbital reject <repo-path> <mission-id>\n       orbital verify <repo-path> <mission-id> <verification-command>\n       orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital demo-fixture <repo-path>")
 }

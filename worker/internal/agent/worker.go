@@ -26,6 +26,10 @@ type RunRequest struct {
 	MissionID   string `json:"mission_id"`
 	RepoPath    string `json:"repo_path"`
 	MissionText string `json:"mission_text"`
+	// ResumeSessionID, when set, continues an existing claude chat session instead
+	// of starting a fresh one — so MissionText is treated as the next message in an
+	// ongoing conversation rather than a standalone task.
+	ResumeSessionID string `json:"resume_session_id,omitempty"`
 }
 
 type SupportResult struct {
@@ -36,6 +40,12 @@ type SupportResult struct {
 type RunEvent struct {
 	WorkflowEvent *domain.WorkflowEvent `json:"workflow_event,omitempty"`
 	PatchProposal *domain.PatchProposal `json:"patch_proposal,omitempty"`
+	// ChatMessage carries the agent's reply for a chat turn, recorded as an
+	// assistant message in the conversation.
+	ChatMessage *domain.ChatMessage `json:"chat_message,omitempty"`
+	// SessionID is the claude session this run captured, so the service can
+	// persist it onto the run and resume the same conversation next turn.
+	SessionID string `json:"session_id,omitempty"`
 }
 
 type Worker interface {
