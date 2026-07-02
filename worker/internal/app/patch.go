@@ -145,6 +145,14 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 			} else if err := applyDiff(repoPath, patch.Diff); err != nil {
 				return err
 			}
+			// Land the applied change as a real commit so the repo's HEAD and
+			// index advance with each mission. Without it the working tree
+			// drifts from the index and the next mission's apply dies with
+			// "does not match index" — and new run worktrees would branch from
+			// a stale HEAD that lacks the missions already landed.
+			if err := commitApplied(repoPath, patch.Diff, state.Missions[missionIndex].Text); err != nil {
+				return err
+			}
 		}
 
 		// The approved work has landed in the main tree, so this mission's isolated
@@ -212,6 +220,70 @@ func applyDiff(repoPath string, diff string) error {
 		return nil
 	}
 	return fmt.Errorf("apply patch: %w: %s", err, strings.TrimSpace(string(output)))
+}
+
+// commitApplied records an applied patch as a commit on the target repo.
+// Staging is limited to the patch's own files, so a user's unrelated
+// work-in-progress is never swept into a mission's commit. Skips silently for
+// non-git scratch dirs (the mock worker) and when the patch changed nothing.
+func commitApplied(repoPath, diff, missionText string) error {
+	if !isGitRepo(repoPath) {
+		return nil
+	}
+
+	paths := make([]string, 0)
+	for _, change := range changedFiles(diff) {
+		paths = append(paths, change.path)
+	}
+	if len(paths) == 0 {
+		return nil
+	}
+
+	add := exec.Command("git", append([]string{"add", "-A", "--"}, paths...)...)
+	add.Dir = repoPath
+	if output, err := add.CombinedOutput(); err != nil {
+		return fmt.Errorf("commit applied patch (add): %w: %s", err, strings.TrimSpace(string(output)))
+	}
+
+	// Nothing to commit when the patch's files already match HEAD (re-apply).
+	unchanged := exec.Command("git", append([]string{"diff", "--quiet", "HEAD", "--"}, paths...)...)
+	unchanged.Dir = repoPath
+	if unchanged.Run() == nil {
+		return nil
+	}
+
+	// Committing by pathspec takes exactly these files' current content, so
+	// anything else the user staged stays staged and out of this commit.
+	commit := exec.Command("git", append([]string{
+		"-c", "user.email=orbital@local", "-c", "user.name=Orbital",
+		"commit", "-m", commitSubject(missionText), "--"}, paths...)...)
+	commit.Dir = repoPath
+	if output, err := commit.CombinedOutput(); err != nil {
+		return fmt.Errorf("commit applied patch: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func isGitRepo(repoPath string) bool {
+	cmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
+	cmd.Dir = repoPath
+	return cmd.Run() == nil
+}
+
+// commitSubject turns a mission's text into a git subject line: first line
+// only, capped so history stays scannable.
+func commitSubject(missionText string) string {
+	subject := strings.TrimSpace(missionText)
+	if index := strings.IndexByte(subject, '\n'); index != -1 {
+		subject = strings.TrimSpace(subject[:index])
+	}
+	if subject == "" {
+		subject = "orbital: apply mission patch"
+	}
+	if len(subject) > 72 {
+		subject = subject[:69] + "..."
+	}
+	return subject
 }
 
 func worktreeExists(worktreePath string) bool {
