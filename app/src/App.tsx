@@ -29,7 +29,7 @@ import {
   type WorkspaceGraphEdge,
   type WorkspaceGraphNode,
   type WorkspaceMission,
-} from "./mockMission";
+} from "./graph";
 import type { ChatMessage, MissionLoopState, PatchProposal, RepoCommit, Repository, WorkflowEvent } from "./domain";
 import {
   roleLabel,

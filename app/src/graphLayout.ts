@@ -1,5 +1,5 @@
 import dagre from "@dagrejs/dagre";
-import type { WorkspaceGraphEdge, WorkspaceGraphNode } from "./mockMission";
+import type { WorkspaceGraphEdge, WorkspaceGraphNode } from "./graph";
 
 export type NodePosition = { x: number; y: number };
 

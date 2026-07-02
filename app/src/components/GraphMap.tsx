@@ -20,7 +20,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Boxes, Code2, Crown, Eye, FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
-import { type GraphNodeKind, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../mockMission";
+import { type GraphNodeKind, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 

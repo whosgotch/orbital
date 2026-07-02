@@ -4,7 +4,7 @@ import type {
   WorkspaceGraphEdge,
   WorkspaceGraphNode,
   WorkspaceMission,
-} from "./mockMission";
+} from "./graph";
 
 export type PatchStatus = Extract<WorkerPatchStatus, "pending" | "approved" | "rejected">;
 
