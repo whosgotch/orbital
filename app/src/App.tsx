@@ -1257,6 +1257,9 @@ export function App() {
                 onClick={() => setTaskView("changes")}
               >
                 Changes
+                {agentStatus.files.length > 0 ? (
+                  <span className="tab-count">{agentStatus.files.length}</span>
+                ) : null}
                 {patchReady && taskView !== "changes" ? <span className="task-switch-dot" aria-hidden="true" /> : null}
               </button>
               <div className="task-switch-spacer" />
@@ -1279,6 +1282,11 @@ export function App() {
                   messages={selectedChatMessages}
                   statusModel={agentStatus}
                   transcript={agentTranscript}
+                  files={agentStatus.files}
+                  onOpenFile={(path) => {
+                    setFocusedDiffFile(path);
+                    setTaskView("changes");
+                  }}
                   sending={selectedChatSending}
                   onSend={(text) => void sendAgentChat(selectedMission.id, text)}
                 />
