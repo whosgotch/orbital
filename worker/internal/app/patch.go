@@ -208,6 +208,17 @@ func applyDiff(repoPath string, diff string) error {
 		return nil
 	}
 
+	if patchAlreadyApplied(repoPath, diff) {
+		return nil
+	}
+
+	// The 3-way merge refuses to touch a file whose working-tree content
+	// differs from the index ("does not match index") — the exact state
+	// leftover uncommitted edits produce. Stage the patch's own files first so
+	// the merge sees one consistent "ours" side; the leftovers then ride along
+	// into the mission's commit instead of wedging every future apply.
+	stagePatchPaths(repoPath, diff)
+
 	merge := exec.Command("git", "apply", "--3way")
 	merge.Dir = repoPath
 	merge.Stdin = strings.NewReader(diff)
@@ -216,10 +227,22 @@ func applyDiff(repoPath string, diff string) error {
 		return nil
 	}
 
-	if patchAlreadyApplied(repoPath, diff) {
-		return nil
-	}
 	return fmt.Errorf("apply patch: %w: %s", err, strings.TrimSpace(string(output)))
+}
+
+// stagePatchPaths aligns the index with the working tree for the files a diff
+// touches. Best-effort: non-git dirs and unborn repos just skip.
+func stagePatchPaths(repoPath string, diff string) {
+	paths := make([]string, 0)
+	for _, change := range changedFiles(diff) {
+		paths = append(paths, change.path)
+	}
+	if len(paths) == 0 {
+		return
+	}
+	add := exec.Command("git", append([]string{"add", "-A", "--"}, paths...)...)
+	add.Dir = repoPath
+	_ = add.Run()
 }
 
 // commitApplied records an applied patch as a commit on the target repo.
