@@ -23,7 +23,7 @@ import { DiffView } from "./components/DiffView";
 import { type TranscriptEntry } from "./components/AgentTranscript";
 import { AgentChat } from "./components/AgentChat";
 import { HistoryPanel } from "./components/HistoryPanel";
-import { buildAgentStatus } from "./agentStatus";
+import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
 import {
   type MissionNodeStatus,
   type WorkspaceGraphEdge,
@@ -228,22 +228,23 @@ export function App() {
     }
   };
 
-  // The task window shows chat and changes side by side, so selecting a node
-  // just focuses the relevant part: a file node scrolls the diff to that file,
-  // a verification node opens the verify detail.
+  // Selecting a node opens the task window on that step's surface: task and
+  // agent land in the chat, changes and verify land in the diff.
   const handleSelectNode = (nodeId: string) => {
     setSelectedNodeId(nodeId);
     const node = workspaceGraphNodes.find((item) => item.id === nodeId);
     if (!node) return;
     switch (node.kind) {
-      case "verification":
-      case "test":
+      case "changes":
+        setTaskView("changes");
+        break;
+      case "verify":
         setTaskView("changes");
         setVerifyOpen(true);
         break;
-      case "file":
-        setTaskView("changes");
-        setFocusedDiffFile(node.label);
+      case "task":
+      case "agent":
+        setTaskView("chat");
         break;
       default:
         break;
@@ -267,7 +268,7 @@ export function App() {
   // run id; the manager node uses the mission's top-level run; otherwise the
   // whole mission's agents are shown together.
   const selectedAgentRunId = useMemo(() => {
-    if (!selectedGraphNode || selectedGraphNode.kind !== "worker") return undefined;
+    if (!selectedGraphNode || selectedGraphNode.kind !== "agent") return undefined;
     if (selectedGraphNode.id.endsWith("_manager")) {
       return missionLoopState.agent_runs.filter((run) => run.mission_id === selectedMissionId && !run.parent_run_id).at(-1)?.id;
     }
@@ -302,19 +303,86 @@ export function App() {
       })),
     [runtimeByMission, workspaceMissions],
   );
+  // Enrich each pipeline card with the live data its step operates on: the
+  // task's worker + launchability, the agent's "now" line, the change set's
+  // stats and gate state, the verify command and result.
   const graphNodes = useMemo(
     () =>
       workspaceGraphNodes.map((node) => {
-        const runtime = node.mission_id ? runtimeByMission[node.mission_id] : undefined;
+        const missionId = node.mission_id;
+        const runtime = missionId ? runtimeByMission[missionId] : undefined;
         const status = runtime ? statusFromRuntime(runtime) : undefined;
-        // Surface each mission's assigned worker on its node so the per-mission
-        // choice is visible on the canvas (blocked missions keep their warning).
-        if (node.kind === "mission" && node.mission_id && status !== "blocked") {
-          return { ...node, status, detail: workerModeLabel(workerModeByMission[node.mission_id] ?? "mock") };
+        if (!missionId) return { ...node, status };
+
+        switch (node.kind) {
+          case "task": {
+            const launchable = !runtime || runtime.status === "queued" || runtime.status === "draft";
+            return {
+              ...node,
+              status,
+              meta: {
+                ...node.meta,
+                worker: workerModeLabel(workerModeByMission[missionId] ?? workerModeFromName(workspaceMissions.find((m) => m.id === missionId)?.worker)),
+                launchable,
+              },
+            };
+          }
+          case "agent": {
+            const live = runtime?.status === "running";
+            return {
+              ...node,
+              status,
+              meta: { ...node.meta, live, now: live ? activityByMission[missionId]?.at(-1) : undefined },
+            };
+          }
+          case "changes": {
+            const diff = patchDiffByMission[missionId] ?? "";
+            const files = parseDiffFiles(diff);
+            return {
+              ...node,
+              status,
+              meta: {
+                ...node.meta,
+                files: files.length,
+                additions: files.reduce((sum, file) => sum + file.added, 0),
+                deletions: files.reduce((sum, file) => sum + file.removed, 0),
+                patchState: diff ? runtime?.patchStatus ?? ("pending" as const) : ("none" as const),
+              },
+            };
+          }
+          case "verify": {
+            const output = verificationOutputByMission[missionId] ?? "";
+            const verifyState = runtime?.verified
+              ? ("passed" as const)
+              : output
+                ? ("failed" as const)
+                : runtime?.patchStatus === "approved"
+                  ? ("ready" as const)
+                  : ("idle" as const);
+            return {
+              ...node,
+              status,
+              meta: {
+                ...node.meta,
+                command: verificationCommandByMission[missionId] ?? node.meta?.command,
+                verifyState,
+              },
+            };
+          }
+          default:
+            return { ...node, status };
         }
-        return { ...node, status };
       }),
-    [runtimeByMission, workspaceGraphNodes, workerModeByMission],
+    [
+      runtimeByMission,
+      workspaceGraphNodes,
+      workspaceMissions,
+      workerModeByMission,
+      activityByMission,
+      patchDiffByMission,
+      verificationOutputByMission,
+      verificationCommandByMission,
+    ],
   );
 
   const graphEdges = workspaceGraphEdges;
@@ -613,11 +681,10 @@ export function App() {
     };
     const missionNode: WorkspaceGraphNode = {
       id: missionId,
-      kind: "mission",
+      kind: "task",
       label: missionLabel(title),
-      detail: "mission",
-      x: 27,
-      y: 0,
+      detail: "task",
+      meta: { prompt: title },
       mission_id: missionId,
       repository_id: targetRepositoryId,
     };
@@ -652,8 +719,6 @@ export function App() {
       kind: "campaign",
       label: missionLabel(title),
       detail: `${missionIds.length} repos · 0/${missionIds.length} landed`,
-      x: 4,
-      y: 12,
       mission_id: campaignNodeId,
     };
     const edges: WorkspaceGraphEdge[] = missionIds.map((missionId) => ({
@@ -783,8 +848,9 @@ export function App() {
     setEditingPrompt(true);
   };
 
-  const runVerification = async () => {
-    const command = selectedVerificationCommand.trim();
+  const runVerificationFor = async (missionId: string) => {
+    const mission = workspaceMissions.find((item) => item.id === missionId);
+    const command = (verificationCommandByMission[missionId] ?? mission?.command ?? "").trim();
     if (!command) {
       setMissionLoopError("Verification command is required.");
       return;
@@ -793,10 +859,9 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      const repoPath = selectedRepository?.path ?? activeRepoPath;
-      const nextMissionLoopState = await verifyMissionLoopState(repoPath, selectedMission.id, command);
+      const nextMissionLoopState = await verifyMissionLoopState(repoPathForMission(missionId), missionId, command);
       if (nextMissionLoopState) {
-        applyRepoState(nextMissionLoopState, selectedMission.id);
+        applyRepoState(nextMissionLoopState, missionId);
         return;
       }
     } catch (error) {
@@ -804,8 +869,10 @@ export function App() {
       return;
     }
 
-    updateSelectedRuntime((current) => ({ ...current, verified: true, status: "verified" }));
+    setMissionRuntime(missionId, (current) => ({ ...current, verified: true, status: "verified" }));
   };
+
+  const runVerification = () => runVerificationFor(selectedMission.id);
 
   const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState, preferredNodeId?: string) => {
     const nextWorkspaceView = workspaceViewFromMissionLoop(nextMissionLoopState);
@@ -955,6 +1022,12 @@ export function App() {
         selectedMissionId={selectedMission?.id ?? ""}
         runningMissionIds={runningMissionIds}
         onSelectNode={handleSelectNode}
+        actions={{
+          onRunTask: (missionId) => void dispatchMission(missionId),
+          onApprove: (missionId) => void approveMission(missionId),
+          onReject: (missionId) => void rejectMission(missionId),
+          onVerify: (missionId) => void runVerificationFor(missionId),
+        }}
       />
 
       <header className="topbar">

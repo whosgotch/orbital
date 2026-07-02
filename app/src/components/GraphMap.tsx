@@ -18,11 +18,31 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Boxes, Code2, Crown, Eye, FileCode2, Network, RadioTower, ShieldCheck, Zap } from "lucide-react";
+import {
+  Bot,
+  Boxes,
+  Check,
+  ClipboardList,
+  FolderGit2,
+  GitPullRequest,
+  Loader,
+  Play,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
-import { type GraphNodeKind, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
+import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
+
+// Actions a node card can fire. All are mission-scoped: the card is the
+// operating surface, the callbacks land in App's existing mission plumbing.
+export type NodeActions = {
+  onRunTask: (missionId: string) => void;
+  onApprove: (missionId: string) => void;
+  onReject: (missionId: string) => void;
+  onVerify: (missionId: string) => void;
+};
 
 type OrbitalNodeData = {
   kind: GraphNodeKind;
@@ -30,12 +50,14 @@ type OrbitalNodeData = {
   detail: string;
   status?: MissionNodeStatus;
   missionId?: string;
+  meta?: GraphNodeMeta;
+  actions: NodeActions;
 };
 
 // Fallback node footprint for the lane bounding box before React Flow has
 // measured the real DOM nodes. Matches graphLayout's spacing constants.
-const NODE_WIDTH = 150;
-const NODE_HEIGHT = 86;
+const NODE_WIDTH = 236;
+const NODE_HEIGHT = 118;
 const LANE_PAD_X = 26;
 const LANE_PAD_Y = 22;
 
@@ -46,6 +68,7 @@ type GraphMapProps = {
   selectedMissionId: string;
   runningMissionIds: Set<string>;
   onSelectNode: (nodeId: string) => void;
+  actions: NodeActions;
 };
 
 const EDGE_COLOR: Record<string, string> = {
@@ -70,13 +93,26 @@ function edgeDash(kind: string) {
 
 const nodeTypes = { orbital: OrbitalNode };
 
-export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode }: GraphMapProps) {
+export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // Only nodes the user explicitly dragged are pinned here. Everything else is
   // re-laid-out fresh on every topology change, so adding a repo never collides
   // with an existing one's stale coordinates.
   const manualPositionsRef = useRef<Record<string, NodePosition>>({});
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+  // Stable action proxy so node data doesn't hold stale App closures — cards
+  // always call through to the latest handlers.
+  const stableActions = useMemo<NodeActions>(
+    () => ({
+      onRunTask: (id) => actionsRef.current.onRunTask(id),
+      onApprove: (id) => actionsRef.current.onApprove(id),
+      onReject: (id) => actionsRef.current.onReject(id),
+      onVerify: (id) => actionsRef.current.onVerify(id),
+    }),
+    [],
+  );
 
   const missionByNode = useMemo(() => {
     const map: Record<string, string | undefined> = {};
@@ -85,6 +121,19 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     });
     return map;
   }, [nodes]);
+
+  const toData = useCallback(
+    (node: GraphNode): OrbitalNodeData => ({
+      kind: node.kind,
+      label: node.label,
+      detail: node.detail,
+      status: node.status,
+      missionId: node.mission_id,
+      meta: node.meta,
+      actions: stableActions,
+    }),
+    [stableActions],
+  );
 
   // Re-layout only when the graph's structure changes (nodes or edges added /
   // removed). Manual drag positions are preserved across data/status updates.
@@ -100,7 +149,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         id: node.id,
         type: "orbital",
         position: manualPositionsRef.current[node.id] ?? laidOut[node.id],
-        data: { kind: node.kind, label: node.label, detail: node.detail, status: node.status, missionId: node.mission_id },
+        data: toData(node),
         selected: node.id === selectedNodeId,
       })) as Node<OrbitalNodeData>[],
     );
@@ -116,7 +165,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         if (!source) return rfNode;
         return {
           ...rfNode,
-          data: { kind: source.kind, label: source.label, detail: source.detail, status: source.status, missionId: source.mission_id },
+          data: toData(source),
           selected: source.id === selectedNodeId,
         };
       }),
@@ -218,17 +267,195 @@ function miniMapColor(node: Node) {
   return "#39414f";
 }
 
+const KIND_LABEL: Record<GraphNodeKind, string> = {
+  repo: "Repository",
+  task: "Task",
+  agent: "Agent",
+  changes: "Changes",
+  verify: "Verify",
+  campaign: "Campaign",
+};
+
+function KindGlyph({ kind }: { kind: GraphNodeKind }) {
+  switch (kind) {
+    case "repo":
+      return <FolderGit2 size={14} aria-hidden="true" />;
+    case "task":
+      return <ClipboardList size={14} aria-hidden="true" />;
+    case "agent":
+      return <Bot size={14} aria-hidden="true" />;
+    case "changes":
+      return <GitPullRequest size={14} aria-hidden="true" />;
+    case "verify":
+      return <ShieldCheck size={14} aria-hidden="true" />;
+    case "campaign":
+      return <Boxes size={14} aria-hidden="true" />;
+  }
+}
+
+// One operable card per pipeline step. The header names the function, the body
+// shows its live state, the footer holds the action that step affords: Run on
+// a task, Approve/Reject on changes, Verify on the ship gate.
 function OrbitalNode({ data, selected }: NodeProps) {
   const node = data as OrbitalNodeData;
+  const live = node.meta?.live ?? false;
+
   return (
-    <div className={`graph-node ${node.kind} ${node.status ?? ""} ${selected ? "selected" : ""}`}>
+    <div className={`node-card ${node.kind} ${node.status ?? ""} ${selected ? "selected" : ""} ${live ? "live" : ""}`}>
       <Handle type="target" position={Position.Left} className="rf-handle" isConnectable={false} />
-      <GraphGlyph kind={node.kind} status={node.status} label={node.label} />
-      <span>{node.label}</span>
-      <small>{node.detail}</small>
+      <div className="node-card-head">
+        <span className={`node-card-icon ${node.kind}`}>
+          <KindGlyph kind={node.kind} />
+        </span>
+        <span className="node-card-kind">{KIND_LABEL[node.kind]}</span>
+        {live ? (
+          <Loader size={12} className="spin node-card-live" aria-hidden="true" />
+        ) : (
+          <span className={`node-status-dot ${node.status ?? ""}`} aria-hidden="true" />
+        )}
+      </div>
+      <div className="node-card-title" title={node.meta?.prompt ?? node.label}>{node.label}</div>
+      <NodeBody node={node} />
+      <NodeFooter node={node} />
       <Handle type="source" position={Position.Right} className="rf-handle" isConnectable={false} />
     </div>
   );
+}
+
+function NodeBody({ node }: { node: OrbitalNodeData }) {
+  const meta = node.meta;
+
+  if (node.kind === "task") {
+    return (
+      <div className="node-card-body">
+        <p className="node-card-prompt">{meta?.prompt ?? node.detail}</p>
+        {meta?.worker ? <span className="node-tag">{meta.worker}</span> : null}
+      </div>
+    );
+  }
+
+  if (node.kind === "agent") {
+    return (
+      <div className="node-card-body">
+        <p className={`node-card-now ${meta?.live ? "live" : ""}`}>
+          {meta?.now ?? (meta?.live ? "working…" : "idle — open the chat to steer")}
+        </p>
+      </div>
+    );
+  }
+
+  if (node.kind === "changes") {
+    const files = meta?.files ?? 0;
+    return (
+      <div className="node-card-body">
+        {files > 0 ? (
+          <div className="node-card-stats">
+            <span>
+              {files} file{files === 1 ? "" : "s"}
+            </span>
+            {meta?.additions ? <span className="add">+{meta.additions}</span> : null}
+            {meta?.deletions ? <span className="del">−{meta.deletions}</span> : null}
+          </div>
+        ) : (
+          <p className="node-card-prompt">No change set yet.</p>
+        )}
+        {meta?.patchState === "approved" ? <span className="node-tag ok">approved</span> : null}
+        {meta?.patchState === "rejected" ? <span className="node-tag bad">rejected</span> : null}
+      </div>
+    );
+  }
+
+  if (node.kind === "verify") {
+    return (
+      <div className="node-card-body">
+        {meta?.command ? <code className="node-card-command">{meta.command}</code> : null}
+        {meta?.verifyState === "passed" ? <span className="node-tag ok">passed</span> : null}
+        {meta?.verifyState === "failed" ? <span className="node-tag bad">failed</span> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="node-card-body">
+      <p className="node-card-prompt">{node.detail}</p>
+    </div>
+  );
+}
+
+function NodeFooter({ node }: { node: OrbitalNodeData }) {
+  const missionId = node.missionId;
+  if (!missionId) return null;
+  const meta = node.meta;
+  const act = node.actions;
+
+  // Interactive controls carry `nodrag` so React Flow lets the click through
+  // instead of starting a card drag.
+  if (node.kind === "task" && meta?.launchable) {
+    return (
+      <div className="node-card-actions">
+        <button
+          type="button"
+          className="node-btn primary nodrag"
+          onClick={(event) => {
+            event.stopPropagation();
+            act.onRunTask(missionId);
+          }}
+        >
+          <Play size={12} aria-hidden="true" />
+          Run
+        </button>
+      </div>
+    );
+  }
+
+  if (node.kind === "changes" && meta?.patchState === "pending" && (meta?.files ?? 0) > 0) {
+    return (
+      <div className="node-card-actions">
+        <button
+          type="button"
+          className="node-btn nodrag"
+          onClick={(event) => {
+            event.stopPropagation();
+            act.onReject(missionId);
+          }}
+        >
+          <X size={12} aria-hidden="true" />
+          Reject
+        </button>
+        <button
+          type="button"
+          className="node-btn primary nodrag"
+          onClick={(event) => {
+            event.stopPropagation();
+            act.onApprove(missionId);
+          }}
+        >
+          <Check size={12} aria-hidden="true" />
+          Approve
+        </button>
+      </div>
+    );
+  }
+
+  if (node.kind === "verify" && meta?.verifyState === "ready") {
+    return (
+      <div className="node-card-actions">
+        <button
+          type="button"
+          className="node-btn primary nodrag"
+          onClick={(event) => {
+            event.stopPropagation();
+            act.onVerify(missionId);
+          }}
+        >
+          <ShieldCheck size={12} aria-hidden="true" />
+          Verify
+        </button>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // LaneBands draws a labeled band behind every mission's nodes, computed from
@@ -261,7 +488,7 @@ function LaneBands() {
         maxX = Math.max(maxX, node.position.x + width);
         maxY = Math.max(maxY, node.position.y + height);
         const data = node.data as OrbitalNodeData;
-        if (data.kind === "mission" || data.kind === "campaign") label = data.label;
+        if (data.kind === "task" || data.kind === "campaign") label = data.label;
       });
       result.push({
         missionId,
@@ -293,32 +520,4 @@ function LaneBands() {
       ))}
     </ViewportPortal>
   );
-}
-
-function GraphGlyph({ kind, status, label }: { kind: GraphNodeKind; status?: MissionNodeStatus; label?: string }) {
-  if (kind === "campaign") {
-    return <Boxes size={18} aria-hidden="true" />;
-  }
-  if (kind === "repo") {
-    return <Network size={18} aria-hidden="true" />;
-  }
-  if (kind === "file") {
-    return <FileCode2 size={17} aria-hidden="true" />;
-  }
-  if (kind === "patch") {
-    return <Zap size={17} aria-hidden="true" />;
-  }
-  if (kind === "verification" || kind === "test") {
-    return <ShieldCheck size={17} aria-hidden="true" />;
-  }
-  if (kind === "worker") {
-    const lc = label?.toLowerCase() ?? "";
-    if (lc.includes("manager")) return <Crown size={17} aria-hidden="true" />;
-    if (lc.includes("engineer") || lc.includes("code")) return <Code2 size={17} aria-hidden="true" />;
-    if (lc.includes("qa") || lc.includes("quality")) return <ShieldCheck size={17} aria-hidden="true" />;
-    if (lc.includes("reviewer") || lc.includes("review")) return <Eye size={17} aria-hidden="true" />;
-  }
-
-  const Icon = status === "verified" ? ShieldCheck : status === "review" || status === "approved" ? Zap : RadioTower;
-  return <Icon size={17} aria-hidden="true" />;
 }
