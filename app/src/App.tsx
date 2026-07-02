@@ -6,6 +6,7 @@ import {
   ChevronDown,
   CircleDot,
   Gauge,
+  History,
   Maximize2,
   Network,
   Pencil,
@@ -21,6 +22,7 @@ import { GraphMap } from "./components/GraphMap";
 import { DiffView } from "./components/DiffView";
 import { type TranscriptEntry } from "./components/AgentTranscript";
 import { AgentChat } from "./components/AgentChat";
+import { HistoryPanel } from "./components/HistoryPanel";
 import { buildAgentStatus } from "./agentStatus";
 import {
   type MissionNodeStatus,
@@ -28,7 +30,7 @@ import {
   type WorkspaceGraphNode,
   type WorkspaceMission,
 } from "./mockMission";
-import type { ChatMessage, MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
+import type { ChatMessage, MissionLoopState, PatchProposal, RepoCommit, Repository, WorkflowEvent } from "./domain";
 import {
   roleLabel,
   workspaceViewFromMissionLoop,
@@ -40,7 +42,9 @@ import {
   deleteMissionLoopState,
   demoRepoPath,
   isTauriRuntime,
+  loadCommitDiff,
   loadMissionLoopState,
+  loadRepoHistory,
   openMissionLoopRepository,
   queueMissionLoopState,
   rejectPatchMissionLoopState,
@@ -184,14 +188,45 @@ export function App() {
   // Inline prompt editor for refining a mission's instruction before launch.
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
-  const [openPanel, setOpenPanel] = useState<null | "repo" | "mission" | "control">(null);
-  const togglePanel = (panel: "repo" | "mission" | "control") =>
+  const [openPanel, setOpenPanel] = useState<null | "repo" | "mission" | "control" | "history">(null);
+  // Git history of the active workspace: the commit list, and the commit whose
+  // diff is open in the wide viewer.
+  const [repoHistory, setRepoHistory] = useState<RepoCommit[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyCommit, setHistoryCommit] = useState<RepoCommit | null>(null);
+  const [historyDiff, setHistoryDiff] = useState("");
+  const togglePanel = (panel: "repo" | "mission" | "control" | "history") =>
     setOpenPanel((current) => {
       const next = current === panel ? null : panel;
       // Opening intake starts from the current repo; campaign targets are opt-in.
       if (next === "mission") setCampaignRepoIds([]);
+      // History reads git fresh on every open, so landed patches show up.
+      if (next === "history") void refreshRepoHistory();
       return next;
     });
+
+  const refreshRepoHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      setRepoHistory(await loadRepoHistory(activeRepoPath));
+    } catch (error) {
+      console.error("[orbital] history failed", error);
+      setRepoHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const openHistoryCommit = async (commit: RepoCommit) => {
+    setHistoryCommit(commit);
+    setHistoryDiff("");
+    try {
+      setHistoryDiff(await loadCommitDiff(activeRepoPath, commit.hash));
+    } catch (error) {
+      console.error("[orbital] commit diff failed", error);
+      setHistoryDiff("");
+    }
+  };
 
   // The task window shows chat and changes side by side, so selecting a node
   // just focuses the relevant part: a file node scrolls the diff to that file,
@@ -956,6 +991,15 @@ export function App() {
             {pendingApprovalCount > 0 ? <span className="chip-badge">{pendingApprovalCount}</span> : null}
           </button>
           <button
+            className={`chip ${openPanel === "history" ? "active" : ""}`}
+            type="button"
+            onClick={() => togglePanel("history")}
+            title="Git history"
+          >
+            <History size={15} aria-hidden="true" />
+            <span>History</span>
+          </button>
+          <button
             className="chip icon"
             type="button"
             onClick={refreshMissionLoop}
@@ -1174,6 +1218,15 @@ export function App() {
               );
             })}
           </ul>
+        </section>
+      ) : null}
+
+      {openPanel === "history" ? (
+        <section className="popover history-popover" aria-label="Git history">
+          <div className="section-label">
+            {selectedRepository?.name ?? "workspace"} · history
+          </div>
+          <HistoryPanel commits={repoHistory} loading={historyLoading} onSelect={(commit) => void openHistoryCommit(commit)} />
         </section>
       ) : null}
 
@@ -1418,6 +1471,25 @@ export function App() {
                 <span>Approve + apply</span>
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {historyCommit ? (
+        <div className="diff-modal-backdrop" onClick={() => setHistoryCommit(null)}>
+          <div className="diff-modal" role="dialog" aria-label="Commit" onClick={(event) => event.stopPropagation()}>
+            <div className="diff-modal-head">
+              <div>
+                <div className="section-label">
+                  {selectedRepository?.name ?? "workspace"} · commit <code>{historyCommit.short_hash}</code>
+                </div>
+                <h2>{historyCommit.subject}</h2>
+              </div>
+              <button className="secondary icon-button" type="button" onClick={() => setHistoryCommit(null)} aria-label="Close">
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+            <DiffView diff={historyDiff} emptyLabel="Loading commit…" />
           </div>
         </div>
       ) : null}

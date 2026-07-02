@@ -112,6 +112,14 @@ export type VerificationRun = {
   completed_at?: string;
 };
 
+export type RepoCommit = {
+  hash: string;
+  short_hash: string;
+  author: string;
+  date: string;
+  subject: string;
+};
+
 export type MissionLoopState = {
   repositories: Repository[];
   missions: Mission[];

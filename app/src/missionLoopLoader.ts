@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MissionLoopState } from "./domain";
+import type { MissionLoopState, RepoCommit } from "./domain";
 
 const missionLoopFixturePath = "/workerMissionFixture.json";
 export const demoRepoPath = "/private/tmp/orbital-demo-repo";
@@ -118,6 +118,23 @@ export async function verifyMissionLoopState(repoPath: string, missionId: string
 
   const state = await invoke<string>("verify_mission", { repoPath, missionId, command });
   return JSON.parse(state) as MissionLoopState;
+}
+
+export async function loadRepoHistory(repoPath: string): Promise<RepoCommit[]> {
+  if (!isTauriRuntime()) {
+    return [];
+  }
+
+  const history = await invoke<string>("load_repo_history", { repoPath });
+  return JSON.parse(history) as RepoCommit[];
+}
+
+export async function loadCommitDiff(repoPath: string, hash: string): Promise<string> {
+  if (!isTauriRuntime()) {
+    return "";
+  }
+
+  return invoke<string>("load_commit_diff", { repoPath, hash });
 }
 
 async function loadRuntimeFixture(): Promise<MissionLoopState> {
