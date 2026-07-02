@@ -6,11 +6,11 @@ export type NodePosition = { x: number; y: number };
 // Dagre is fed a single uniform node footprint. Mixing per-kind sizes makes its
 // rank assignment collapse multiple ranks onto the same coordinate, so layout
 // uses one size for spacing while the rendered nodes keep their real CSS sizes.
-const NODE_WIDTH = 150;
-const NODE_HEIGHT = 86;
-const COL_GAP = 96; // horizontal gap between pipeline stages
-const ROW_GAP = 30; // vertical gap between branches inside one lane
-const LANE_GAP = 52; // vertical gap between mission lanes
+const NODE_WIDTH = 236;
+const NODE_HEIGHT = 118;
+const COL_GAP = 72; // horizontal gap between pipeline stages
+const ROW_GAP = 28; // vertical gap between branches inside one lane
+const LANE_GAP = 64; // vertical gap between mission lanes
 const COL_STEP = NODE_WIDTH + COL_GAP; // distance between aligned columns
 
 // layoutGraph arranges the graph as aligned swimlanes: every mission is its own
@@ -99,7 +99,7 @@ export function layoutGraph(nodes: WorkspaceGraphNode[], edges: WorkspaceGraphEd
       };
     });
 
-    const missionNode = lane.find((node) => node.kind === "mission");
+    const missionNode = lane.find((node) => node.kind === "task");
     if (missionNode?.repository_id) {
       const ys = repoMissionYs.get(missionNode.repository_id) ?? [];
       ys.push(centers[missionNode.id].y);

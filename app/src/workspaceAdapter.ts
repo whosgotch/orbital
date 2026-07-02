@@ -105,21 +105,19 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
 }
 
 function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission[]): WorkspaceGraphNode[] {
-  const repoNodes = state.repositories.map((repository, index) => ({
+  const repoNodes = state.repositories.map((repository) => ({
     id: repository.id,
     kind: "repo" as const,
     label: repository.name,
-    detail: "source zone",
-    x: 10,
-    y: 22 + index * 24,
+    detail: "repository",
     repository_id: repository.id,
   }));
 
-  // Data-driven: a node exists only once the thing it represents is real — an
-  // agent that ran, a file that was read, a patch that was proposed, a
-  // verification that executed. No synthetic pipeline placeholders.
-  const missionNodes = missions.flatMap((mission, index) => {
-    const rowY = 24 + index * 15;
+  // Every mission is a pipeline of operable steps: Task (run it) → Agent(s)
+  // (talk to them) → Changes (gate them) → Verify (prove them). Agent and gate
+  // nodes appear once their step is real; the Task node always exists — it's
+  // the starting point.
+  const missionNodes = missions.flatMap((mission) => {
     const topLevelRun = state.agent_runs.filter((run) => run.mission_id === mission.id && !run.parent_run_id).at(-1);
     const childRuns = topLevelRun
       ? state.agent_runs.filter((run) => run.parent_run_id === topLevelRun.id)
@@ -131,11 +129,10 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
     const nodes: WorkspaceGraphNode[] = [
       {
         id: mission.id,
-        kind: "mission",
+        kind: "task",
         label: compactLabel(mission.title),
-        detail: mission.status === "blocked" ? "blocked" : "mission order",
-        x: 24,
-        y: rowY,
+        detail: mission.status === "blocked" ? "blocked" : "task",
+        meta: { prompt: mission.title },
         ...base,
       },
     ];
@@ -143,58 +140,39 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
     if (topLevelRun) {
       nodes.push({
         id: `${mission.id}_manager`,
-        kind: "worker",
+        kind: "agent",
         label: childRuns.length > 0 ? "AI manager" : roleLabel(topLevelRun.worker_name),
         detail: topLevelRun.worker_name,
-        x: 36,
-        y: rowY,
+        meta: { worker: topLevelRun.worker_name },
         ...base,
       });
 
-      childRuns.forEach((child, i) => {
+      childRuns.forEach((child) => {
         nodes.push({
           id: child.id,
-          kind: "worker",
+          kind: "agent",
           label: roleLabel(child.worker_name),
           detail: child.status,
-          x: 49,
-          y: rowY + (i % 2 === 0 ? -4 : 4),
+          meta: { worker: child.worker_name },
           ...base,
         });
       });
     }
 
-    mission.files.slice(0, 2).forEach((file, fileIndex) => {
-      nodes.push({
-        id: `${mission.id}_file_${fileIndex}`,
-        kind: "file",
-        label: file,
-        detail: "context",
-        x: 49,
-        y: rowY + 5 + fileIndex * 7,
-        ...base,
-      });
-    });
-
-    if (hasPatch) {
+    if (hasPatch || hasVerify) {
       nodes.push({
         id: `${mission.id}_patch`,
-        kind: "patch",
-        label: "Patch",
+        kind: "changes",
+        label: "Changes",
         detail: "review gate",
-        x: 72,
-        y: rowY,
         ...base,
       });
-    }
-    if (hasVerify) {
       nodes.push({
         id: `${mission.id}_verify`,
-        kind: "verification",
-        label: "Ship gate",
+        kind: "verify",
+        label: "Verify",
         detail: mission.command,
-        x: 93,
-        y: rowY,
+        meta: { command: mission.command },
         ...base,
       });
     }
@@ -220,13 +198,11 @@ function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopSta
     const childRuns = topLevelRun
       ? state.agent_runs.filter((run) => run.parent_run_id === topLevelRun.id)
       : [];
-    const hasPatch = Boolean(latestPatchForMission(state, mission.id));
-    const hasVerify = Boolean(latestVerification(state, mission.id));
+    const hasGates = Boolean(latestPatchForMission(state, mission.id)) || Boolean(latestVerification(state, mission.id));
 
-    // The node the patch hangs off: the child agents if any, else the manager,
-    // else the mission itself.
+    // The node the change set hangs off: the child agents if any, else the
+    // manager, else the task itself.
     const patchSources = childRuns.length > 0 ? childRuns.map((child) => child.id) : topLevelRun ? [managerID] : [mission.id];
-    const fileSource = topLevelRun ? managerID : mission.id;
 
     if (topLevelRun) {
       edges.push({ id: `${mission.id}_manager`, from: mission.id, to: managerID, kind: "runs" });
@@ -235,24 +211,12 @@ function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopSta
       });
     }
 
-    if (hasPatch) {
+    if (hasGates) {
       patchSources.forEach((source) => {
         edges.push({ id: `${source}_patch`, from: source, to: patchID, kind: "proposes" });
       });
+      edges.push({ id: `${mission.id}_verify`, from: patchID, to: verifyID, kind: "verifies" });
     }
-
-    if (hasVerify) {
-      edges.push({ id: `${mission.id}_verify`, from: hasPatch ? patchID : mission.id, to: verifyID, kind: "verifies" });
-    }
-
-    mission.files.slice(0, 2).forEach((_, index) => {
-      edges.push({
-        id: `${mission.id}_file_${index}`,
-        from: fileSource,
-        to: `${mission.id}_file_${index}`,
-        kind: "reads",
-      });
-    });
 
     return edges;
   });
@@ -288,8 +252,6 @@ function campaignNodes(campaigns: CampaignGroup[]): WorkspaceGraphNode[] {
       kind: "campaign" as const,
       label: compactLabel(campaign.text),
       detail: `${campaign.members.length} repos · ${landed}/${campaign.members.length} landed`,
-      x: 4,
-      y: 12,
       // Own synthetic lane so the swimlane layout gives it a labeled band that
       // sits apart from the repo lanes it fans out into.
       mission_id: `campaign:${campaign.id}`,

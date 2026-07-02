@@ -18,17 +18,33 @@ export type WorkspaceMission = {
   map_position: "north" | "east" | "south" | "west" | "center";
 };
 
-export type GraphNodeKind = "repo" | "mission" | "file" | "worker" | "patch" | "verification" | "test" | "campaign";
+// Every node is a step you operate, not a picture of state: a task you run, an
+// agent you talk to, a change set you gate, a verification you fire.
+export type GraphNodeKind = "repo" | "task" | "agent" | "changes" | "verify" | "campaign";
+
+// Per-kind payload that makes a node card operable and glanceable.
+export type GraphNodeMeta = {
+  prompt?: string; // task: the full instruction
+  worker?: string; // task/agent: assigned worker label
+  launchable?: boolean; // task: Run is available
+  now?: string; // agent: live "doing X" line
+  live?: boolean; // agent: currently running
+  files?: number; // changes: touched file count
+  additions?: number;
+  deletions?: number;
+  patchState?: "none" | "pending" | "approved" | "rejected";
+  command?: string; // verify: the verification command
+  verifyState?: "idle" | "ready" | "passed" | "failed";
+};
 
 export type WorkspaceGraphNode = {
   id: string;
   kind: GraphNodeKind;
   label: string;
   detail: string;
-  x: number;
-  y: number;
   mission_id?: string;
   repository_id?: string;
+  meta?: GraphNodeMeta;
 };
 
 export type WorkspaceGraphEdge = {
