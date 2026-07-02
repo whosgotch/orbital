@@ -42,6 +42,10 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return runMission(ctx, args, stdout)
 	case "status":
 		return showStatus(args, stdout)
+	case "history":
+		return showHistory(args, stdout)
+	case "show":
+		return showCommit(args, stdout)
 	case "demo-fixture":
 		return createDemoFixture(args, stdout)
 	default:
@@ -50,5 +54,5 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 }
 
 func usageError() error {
-	return fmt.Errorf("usage: orbital open <repo-path>\n       orbital queue <repo-path> <mission-text>\n       orbital edit-mission <repo-path> <mission-id> <text>\n       orbital start-run <repo-path> <mission-id>\n       orbital send-message <repo-path> <mission-id> <text>\n       orbital approve <repo-path> <mission-id>\n       orbital reject <repo-path> <mission-id>\n       orbital verify <repo-path> <mission-id> <verification-command>\n       orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital demo-fixture <repo-path>")
+	return fmt.Errorf("usage: orbital open <repo-path>\n       orbital queue <repo-path> <mission-text>\n       orbital edit-mission <repo-path> <mission-id> <text>\n       orbital start-run <repo-path> <mission-id>\n       orbital send-message <repo-path> <mission-id> <text>\n       orbital approve <repo-path> <mission-id>\n       orbital reject <repo-path> <mission-id>\n       orbital verify <repo-path> <mission-id> <verification-command>\n       orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital history <repo-path>\n       orbital history --json <repo-path>\n       orbital show <repo-path> <commit-hash>\n       orbital demo-fixture <repo-path>")
 }
