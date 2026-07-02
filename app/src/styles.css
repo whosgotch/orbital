@@ -419,6 +419,134 @@ h3 {
   border-bottom-left-radius: 4px;
 }
 
+/* Markdown inside assistant bubbles: calm, readable, code-forward. */
+.chat-bubble.assistant {
+  white-space: normal;
+}
+
+.markdown > * + * {
+  margin-top: 8px;
+}
+
+.markdown p {
+  margin: 0;
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.md-heading {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.md-heading.level-1 { font-size: 14px; }
+.md-heading.level-2 { font-size: 13.5px; }
+
+.md-code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(139, 147, 161, 0.14);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.md-pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  background: #0a0d11;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* The chat-side changes card: what the agent touched, one click from the diff. */
+.chat-changes {
+  align-self: stretch;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.chat-changes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chat-changes-stat,
+.chat-changes-counts {
+  display: inline-flex;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chat-changes .add { color: #4fbf7b; }
+.chat-changes .del { color: #e2615f; }
+
+.chat-changes-list {
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-changes-file {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--soft);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat-changes-file:hover {
+  background: rgba(139, 147, 161, 0.1);
+  color: var(--text);
+}
+
+.chat-changes-glyph {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.chat-changes-file.added .chat-changes-glyph { color: #4fbf7b; }
+.chat-changes-file.deleted .chat-changes-glyph { color: #e2615f; }
+
+.chat-changes-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The agent's live work (phase spine + reasoning) sits inline under the thread. */
 .chat-work {
   align-self: stretch;
@@ -1959,25 +2087,41 @@ button.node-action.danger:hover:not(:disabled) {
 }
 
 .diff-file + .diff-file {
-  margin-top: 10px;
+  border-top: 1px solid var(--line);
 }
 
+/* Each file is a collapsible section; its header sticks under the summary bar
+   so you always know which file you're scrolled into. */
 .diff-file-head {
   position: sticky;
   top: 0;
   z-index: 1;
+  width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   padding: 7px 12px;
+  border: none;
   background: #11161d;
   border-bottom: 1px solid var(--line);
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
+  color: var(--muted);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* With a summary bar present, file headers stick just below it. */
+.diff-view:has(.diff-summary) .diff-file-head {
+  top: 31px;
+}
+
+.diff-file-head:hover {
+  background: #151b23;
 }
 
 .diff-file-path {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--soft);
@@ -2113,80 +2257,71 @@ button.node-action.danger:hover:not(:disabled) {
   margin-top: 14px;
 }
 
-/* File switcher tabs (multi-file diffs). */
-.diff-tabs {
+/* Change-set summary pinned above the stacked file sections. */
+.diff-summary {
   position: sticky;
   top: 0;
   z-index: 2;
   display: flex;
-  gap: 2px;
-  padding: 6px 6px 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
   background: #0a0d11;
   border-bottom: 1px solid var(--line);
-  overflow-x: auto;
+  color: var(--soft);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-ui, inherit);
 }
 
-.diff-tab {
+.diff-summary-count {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 11px;
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-top-left-radius: 7px;
-  border-top-right-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
+  gap: 8px;
 }
 
-.diff-tab:hover {
-  color: var(--soft);
-  background: rgba(139, 147, 161, 0.06);
+/* Word-level change marks inside add/del lines. */
+.diff-mark.add {
+  background: rgba(79, 191, 123, 0.32);
+  border-radius: 2px;
 }
 
-.diff-tab.active {
-  color: var(--soft);
-  background: #11161d;
-  border-color: var(--line);
+.diff-mark.del {
+  background: rgba(226, 97, 95, 0.34);
+  border-radius: 2px;
 }
 
-.diff-tab-name {
-  font-weight: 600;
+.diff-change {
+  flex-shrink: 0;
 }
 
-.diff-tab-stat {
-  display: inline-flex;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-}
+.diff-change.added { color: #4fbf7b; }
+.diff-change.deleted { color: #e2615f; }
+.diff-change.modified { color: var(--muted); }
 
-/* Compact dark syntax theme for highlight.js tokens inside the diff. */
-.diff-code.hljs { background: transparent; padding: 0; }
-.diff-code .hljs-keyword,
-.diff-code .hljs-selector-tag,
-.diff-code .hljs-literal { color: #c678dd; }
-.diff-code .hljs-string,
-.diff-code .hljs-meta-string { color: #98c379; }
-.diff-code .hljs-number,
-.diff-code .hljs-symbol { color: #d19a66; }
-.diff-code .hljs-title,
-.diff-code .hljs-title.function_,
-.diff-code .hljs-section { color: #61afef; }
-.diff-code .hljs-built_in,
-.diff-code .hljs-type,
-.diff-code .hljs-class .hljs-title { color: #56b6c2; }
-.diff-code .hljs-attr,
-.diff-code .hljs-attribute,
-.diff-code .hljs-property,
-.diff-code .hljs-variable { color: #e06c75; }
-.diff-code .hljs-comment,
-.diff-code .hljs-quote { color: #5c6370; font-style: italic; }
-.diff-code .hljs-meta { color: #7f848e; }
+/* Compact dark syntax theme for highlight.js tokens (diff lines + chat code). */
+.diff-code.hljs, .md-pre .hljs { background: transparent; padding: 0; }
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal { color: #c678dd; }
+.hljs-string,
+.hljs-meta-string { color: #98c379; }
+.hljs-number,
+.hljs-symbol { color: #d19a66; }
+.hljs-title,
+.hljs-title.function_,
+.hljs-section { color: #61afef; }
+.hljs-built_in,
+.hljs-type,
+.hljs-class .hljs-title { color: #56b6c2; }
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-variable { color: #e06c75; }
+.hljs-comment,
+.hljs-quote { color: #5c6370; font-style: italic; }
+.hljs-meta { color: #7f848e; }
 
 .actions {
   display: flex;
