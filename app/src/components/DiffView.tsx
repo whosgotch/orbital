@@ -1,63 +1,10 @@
 // A dependency-light unified-diff renderer: parses `git diff` text into files,
-// hunks and lines, adds per-line syntax highlighting, and lets you tab between
-// changed files — the familiar git / GitHub / Cursor look.
-import { useEffect, useMemo, useState } from "react";
-import hljs from "highlight.js/lib/core";
-import typescript from "highlight.js/lib/languages/typescript";
-import javascript from "highlight.js/lib/languages/javascript";
-import go from "highlight.js/lib/languages/go";
-import json from "highlight.js/lib/languages/json";
-import css from "highlight.js/lib/languages/css";
-import xml from "highlight.js/lib/languages/xml";
-import bash from "highlight.js/lib/languages/bash";
-import python from "highlight.js/lib/languages/python";
-import rust from "highlight.js/lib/languages/rust";
-import markdown from "highlight.js/lib/languages/markdown";
-import yaml from "highlight.js/lib/languages/yaml";
-
-hljs.registerLanguage("typescript", typescript);
-hljs.registerLanguage("javascript", javascript);
-hljs.registerLanguage("go", go);
-hljs.registerLanguage("json", json);
-hljs.registerLanguage("css", css);
-hljs.registerLanguage("xml", xml);
-hljs.registerLanguage("bash", bash);
-hljs.registerLanguage("python", python);
-hljs.registerLanguage("rust", rust);
-hljs.registerLanguage("markdown", markdown);
-hljs.registerLanguage("yaml", yaml);
-
-const EXT_LANGUAGE: Record<string, string> = {
-  ts: "typescript", tsx: "typescript", mts: "typescript", cts: "typescript",
-  js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
-  go: "go", json: "json", css: "css", scss: "css",
-  html: "xml", xml: "xml", svg: "xml", vue: "xml",
-  sh: "bash", bash: "bash", zsh: "bash",
-  py: "python", rs: "rust", md: "markdown", markdown: "markdown",
-  yml: "yaml", yaml: "yaml",
-};
-
-function languageFor(path: string): string | undefined {
-  const ext = path.split(".").pop()?.toLowerCase() ?? "";
-  return EXT_LANGUAGE[ext];
-}
-
-function escapeHtml(text: string) {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-// Highlight a single line. Per-line highlighting can't see multi-line context
-// (block comments, template literals spanning lines), which is an acceptable
-// trade for a synchronous, diff-friendly renderer.
-function highlightLine(text: string, language: string | undefined): string {
-  if (text === "") return " ";
-  if (!language) return escapeHtml(text);
-  try {
-    return hljs.highlight(text, { language, ignoreIllegals: true }).value;
-  } catch {
-    return escapeHtml(text);
-  }
-}
+// hunks and lines, adds per-line syntax highlighting plus word-level change
+// marks, and stacks every file into one scroll with sticky, collapsible
+// headers — the familiar GitHub review look.
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus } from "lucide-react";
+import { escapeHtml, highlightCode, languageForPath } from "../highlight";
 
 type DiffLineKind = "add" | "del" | "context" | "hunk";
 
@@ -66,10 +13,17 @@ type DiffLine = {
   text: string;
   oldNo?: number;
   newNo?: number;
+  // Word-level change range [start, end) inside `text`, when this line pairs
+  // with its counterpart on the other side of the change.
+  markStart?: number;
+  markEnd?: number;
 };
+
+type FileChange = "added" | "deleted" | "modified";
 
 type DiffFile = {
   path: string;
+  change: FileChange;
   additions: number;
   deletions: number;
   lines: DiffLine[];
@@ -80,6 +34,51 @@ function stripPrefix(path: string) {
   return path.replace(/^[ab]\//, "");
 }
 
+// Mark what actually changed inside paired del/add lines: the common prefix
+// and suffix stay plain, the differing middle gets a highlight. Pairs are only
+// made when a run of deletions is followed by an equally long run of additions
+// (the classic "edited these lines" shape); anything else stays line-level.
+function markIntraline(lines: DiffLine[]) {
+  let index = 0;
+  while (index < lines.length) {
+    if (lines[index].kind !== "del") {
+      index += 1;
+      continue;
+    }
+    const delStart = index;
+    while (index < lines.length && lines[index].kind === "del") index += 1;
+    const addStart = index;
+    while (index < lines.length && lines[index].kind === "add") index += 1;
+
+    const delCount = addStart - delStart;
+    const addCount = index - addStart;
+    if (delCount !== addCount) continue;
+
+    for (let offset = 0; offset < delCount; offset += 1) {
+      const del = lines[delStart + offset];
+      const add = lines[addStart + offset];
+      const a = del.text;
+      const b = add.text;
+      let prefix = 0;
+      while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix += 1;
+      let suffix = 0;
+      while (
+        suffix < a.length - prefix &&
+        suffix < b.length - prefix &&
+        a[a.length - 1 - suffix] === b[b.length - 1 - suffix]
+      ) {
+        suffix += 1;
+      }
+      // Entirely different lines gain nothing from a full-width mark.
+      if (prefix === 0 && suffix === 0) continue;
+      del.markStart = prefix;
+      del.markEnd = a.length - suffix;
+      add.markStart = prefix;
+      add.markEnd = b.length - suffix;
+    }
+  }
+}
+
 export function parseUnifiedDiff(diff: string): DiffFile[] {
   const files: DiffFile[] = [];
   let current: DiffFile | undefined;
@@ -87,7 +86,7 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
   let newNo = 0;
 
   const pushFile = (path: string): DiffFile => {
-    const file: DiffFile = { path, additions: 0, deletions: 0, lines: [] };
+    const file: DiffFile = { path, change: "modified", additions: 0, deletions: 0, lines: [] };
     files.push(file);
     return file;
   };
@@ -106,7 +105,15 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
       if (current) current.path = stripPrefix(raw.slice(4));
       continue;
     }
-    if (raw.startsWith("index ") || raw.startsWith("new file") || raw.startsWith("deleted file") || raw.startsWith("similarity ") || raw.startsWith("rename ") || raw.startsWith("\\ No newline")) {
+    if (current && raw.startsWith("new file")) {
+      current.change = "added";
+      continue;
+    }
+    if (current && raw.startsWith("deleted file")) {
+      current.change = "deleted";
+      continue;
+    }
+    if (raw.startsWith("index ") || raw.startsWith("similarity ") || raw.startsWith("rename ") || raw.startsWith("\\ No newline")) {
       continue;
     }
     if (!current) continue;
@@ -136,70 +143,61 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
     }
   }
 
+  for (const file of files) markIntraline(file.lines);
   return files;
 }
 
-export function DiffView({ diff, emptyLabel, focusPath }: { diff: string; emptyLabel: string; focusPath?: string }) {
-  const files = useMemo(() => (diff.trim() ? parseUnifiedDiff(diff) : []), [diff]);
-  const signature = files.map((file) => file.path).join("|");
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  // Reset to the first file whenever the changed-file set changes (new mission).
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [signature]);
-
-  // Jump to a specific file when a file node is clicked (match by path suffix,
-  // since event file paths and diff paths can differ in their leading segments).
-  useEffect(() => {
-    if (!focusPath) return;
-    const index = files.findIndex((file) => file.path === focusPath || file.path.endsWith(focusPath) || focusPath.endsWith(file.path));
-    if (index >= 0) setActiveIndex(index);
-  }, [focusPath, signature]);
-
-  if (files.length === 0) {
-    return <div className="diff-empty">{emptyLabel}</div>;
+// Render one code line: syntax highlighting, with the word-level changed range
+// wrapped in a mark. Segments are highlighted independently — tokens can split
+// at the mark boundary, an acceptable trade for keeping the renderer synchronous.
+function lineHtml(line: DiffLine, language: string | undefined): string {
+  const { markStart, markEnd, text } = line;
+  if (markStart == null || markEnd == null || markStart >= markEnd) {
+    return highlightCode(text, language);
   }
+  const markClass = line.kind === "add" ? "diff-mark add" : "diff-mark del";
+  return (
+    highlightCode(text.slice(0, markStart), language) +
+    `<span class="${markClass}">` +
+    escapeHtml(text.slice(markStart, markEnd)) +
+    "</span>" +
+    highlightCode(text.slice(markEnd), language)
+  );
+}
 
-  const active = files[Math.min(activeIndex, files.length - 1)];
-  const language = languageFor(active.path);
+function ChangeBadge({ change }: { change: FileChange }) {
+  if (change === "added") return <FilePlus size={13} className="diff-change added" aria-hidden="true" />;
+  if (change === "deleted") return <FileMinus size={13} className="diff-change deleted" aria-hidden="true" />;
+  return <FilePen size={13} className="diff-change modified" aria-hidden="true" />;
+}
+
+function FileSection({
+  file,
+  collapsed,
+  onToggle,
+  sectionRef,
+}: {
+  file: DiffFile;
+  collapsed: boolean;
+  onToggle: () => void;
+  sectionRef: (node: HTMLDivElement | null) => void;
+}) {
+  const language = languageForPath(file.path);
 
   return (
-    <div className="diff-view">
-      {files.length > 1 ? (
-        <div className="diff-tabs" role="tablist">
-          {files.map((file, index) => (
-            <button
-              key={file.path}
-              type="button"
-              role="tab"
-              aria-selected={index === activeIndex}
-              className={`diff-tab ${index === activeIndex ? "active" : ""}`}
-              onClick={() => setActiveIndex(index)}
-              title={file.path}
-            >
-              <span className="diff-tab-name">{file.path.split("/").pop()}</span>
-              <span className="diff-tab-stat">
-                {file.additions > 0 ? <span className="diff-add-count">+{file.additions}</span> : null}
-                {file.deletions > 0 ? <span className="diff-del-count">−{file.deletions}</span> : null}
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="diff-file">
-        {files.length === 1 ? (
-          <div className="diff-file-head">
-            <span className="diff-file-path">{active.path}</span>
-            <span className="diff-file-stat">
-              {active.additions > 0 ? <span className="diff-add-count">+{active.additions}</span> : null}
-              {active.deletions > 0 ? <span className="diff-del-count">−{active.deletions}</span> : null}
-            </span>
-          </div>
-        ) : null}
+    <div className="diff-file" ref={sectionRef}>
+      <button className="diff-file-head" type="button" onClick={onToggle} aria-expanded={!collapsed}>
+        {collapsed ? <ChevronRight size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+        <ChangeBadge change={file.change} />
+        <span className="diff-file-path" title={file.path}>{file.path}</span>
+        <span className="diff-file-stat">
+          {file.additions > 0 ? <span className="diff-add-count">+{file.additions}</span> : null}
+          {file.deletions > 0 ? <span className="diff-del-count">−{file.deletions}</span> : null}
+        </span>
+      </button>
+      {!collapsed ? (
         <div className="diff-body">
-          {active.lines.map((line, index) => (
+          {file.lines.map((line, index) => (
             <div className={`diff-line ${line.kind}`} key={index}>
               {line.kind === "hunk" ? (
                 <span className="diff-hunk-text">{line.text || "…"}</span>
@@ -208,13 +206,84 @@ export function DiffView({ diff, emptyLabel, focusPath }: { diff: string; emptyL
                   <span className="diff-gutter">{line.oldNo ?? ""}</span>
                   <span className="diff-gutter">{line.newNo ?? ""}</span>
                   <span className="diff-sign">{line.kind === "add" ? "+" : line.kind === "del" ? "−" : " "}</span>
-                  <span className="diff-code hljs" dangerouslySetInnerHTML={{ __html: highlightLine(line.text, language) }} />
+                  <span className="diff-code hljs" dangerouslySetInnerHTML={{ __html: lineHtml(line, language) }} />
                 </>
               )}
             </div>
           ))}
         </div>
-      </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function DiffView({ diff, emptyLabel, focusPath }: { diff: string; emptyLabel: string; focusPath?: string }) {
+  const files = useMemo(() => (diff.trim() ? parseUnifiedDiff(diff) : []), [diff]);
+  const signature = files.map((file) => file.path).join("|");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // A new change set starts fully expanded.
+  useEffect(() => {
+    setCollapsed({});
+  }, [signature]);
+
+  // Jump to a specific file when a file is picked in chat or on the canvas
+  // (match by path suffix, since event paths and diff paths can differ in
+  // their leading segments). Expand it if it was collapsed.
+  useEffect(() => {
+    if (!focusPath) return;
+    const file = files.find((f) => f.path === focusPath || f.path.endsWith(focusPath) || focusPath.endsWith(f.path));
+    if (!file) return;
+    setCollapsed((current) => ({ ...current, [file.path]: false }));
+    // Let the section expand before scrolling to it.
+    requestAnimationFrame(() => {
+      sectionRefs.current[file.path]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [focusPath, signature]);
+
+  if (files.length === 0) {
+    return <div className="diff-empty">{emptyLabel}</div>;
+  }
+
+  const totalAdditions = files.reduce((sum, file) => sum + file.additions, 0);
+  const totalDeletions = files.reduce((sum, file) => sum + file.deletions, 0);
+  const allCollapsed = files.every((file) => collapsed[file.path]);
+
+  return (
+    <div className="diff-view">
+      {files.length > 1 ? (
+        <div className="diff-summary">
+          <span className="diff-summary-count">
+            {files.length} files
+            <span className="diff-file-stat">
+              {totalAdditions > 0 ? <span className="diff-add-count">+{totalAdditions}</span> : null}
+              {totalDeletions > 0 ? <span className="diff-del-count">−{totalDeletions}</span> : null}
+            </span>
+          </span>
+          <button
+            type="button"
+            className="ghost mini-text"
+            onClick={() =>
+              setCollapsed(allCollapsed ? {} : Object.fromEntries(files.map((file) => [file.path, true])))
+            }
+          >
+            {allCollapsed ? "Expand all" : "Collapse all"}
+          </button>
+        </div>
+      ) : null}
+
+      {files.map((file) => (
+        <FileSection
+          key={file.path}
+          file={file}
+          collapsed={Boolean(collapsed[file.path])}
+          onToggle={() => setCollapsed((current) => ({ ...current, [file.path]: !current[file.path] }))}
+          sectionRef={(node) => {
+            sectionRefs.current[file.path] = node;
+          }}
+        />
+      ))}
     </div>
   );
 }
