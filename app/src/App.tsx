@@ -68,6 +68,10 @@ const emptyMissionLoopState: MissionLoopState = {
 const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState);
 type WorkerMode = "mock" | "local-command" | "claude-manager";
 
+// The single canvas draft-task card. It exists only in the rendered graph until
+// Queue/Run turns it into a real mission, so one well-known id is enough.
+const DRAFT_TASK_NODE_ID = "task_draft";
+
 // Map a mission's actual worker name to the selectable mode, so the per-mission
 // dropdown reflects whoever last ran it (any claude-* agent reads as Claude).
 function workerModeFromName(workerName: string | undefined): WorkerMode {
@@ -185,6 +189,8 @@ export function App() {
   const [focusedDiffFile, setFocusedDiffFile] = useState<string | undefined>(undefined);
   // Worker chosen at launch time (intake), applied to every mission queued.
   const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-manager");
+  // Whether a draft task card is open on the canvas ("+ Task" was clicked).
+  const [draftingTask, setDraftingTask] = useState(false);
   // Inline prompt editor for refining a mission's instruction before launch.
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
@@ -231,6 +237,9 @@ export function App() {
   // Selecting a node opens the task window on that step's surface: task and
   // agent land in the chat, changes and verify land in the diff.
   const handleSelectNode = (nodeId: string) => {
+    // The draft card is an input surface, not a mission — clicking it while
+    // typing must not steal the selection onto some other node.
+    if (nodeId === DRAFT_TASK_NODE_ID) return;
     setSelectedNodeId(nodeId);
     const node = workspaceGraphNodes.find((item) => item.id === nodeId);
     if (!node) return;
@@ -387,6 +396,66 @@ export function App() {
 
   const graphEdges = workspaceGraphEdges;
 
+  // The repository that will own a task drafted on the canvas: the selected
+  // one, else the active workspace, else whatever is connected.
+  const draftRepository =
+    selectedRepository ??
+    missionLoopState.repositories.find((repo) => repo.path === activeRepoPath) ??
+    missionLoopState.repositories[0];
+
+  // While "+ Task" is open, the canvas shows one extra draft card wired to its
+  // repo, in its own lane — authored in place, committed via Queue/Run.
+  const canvasNodes = useMemo(() => {
+    if (!draftingTask) return graphNodes;
+    return [
+      ...graphNodes,
+      {
+        id: DRAFT_TASK_NODE_ID,
+        kind: "task" as const,
+        label: "New task",
+        detail: "task",
+        mission_id: DRAFT_TASK_NODE_ID,
+        repository_id: draftRepository?.id,
+        meta: { draft: true, worker: workerModeLabel(intakeWorkerMode) },
+      },
+    ];
+  }, [graphNodes, draftingTask, draftRepository?.id, intakeWorkerMode]);
+
+  const canvasEdges = useMemo(() => {
+    if (!draftingTask || !draftRepository) return graphEdges;
+    return [
+      ...graphEdges,
+      { id: "edge_task_draft", from: draftRepository.id, to: DRAFT_TASK_NODE_ID, kind: "owns" as const },
+    ];
+  }, [graphEdges, draftingTask, draftRepository]);
+
+  // Turn the canvas draft into a real mission: queue it in the owning repo and
+  // optionally launch it right away. The fresh state hasn't landed in React
+  // state yet, so the repo path and worker are passed to dispatch explicitly.
+  const createTaskOnCanvas = async (text: string, run: boolean) => {
+    setDraftingTask(false);
+    if (!draftRepository) return;
+    setMissionLoopError("");
+
+    if (!isTauriRuntime()) {
+      const missionId = addLocalMission(text, 0, draftRepository.id);
+      if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: intakeWorkerMode });
+      return;
+    }
+
+    try {
+      const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, text);
+      const missionId = nextMissionLoopState?.missions.at(-1)?.id;
+      if (nextMissionLoopState) applyRepoState(nextMissionLoopState, missionId);
+      if (missionId) {
+        setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
+        if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: intakeWorkerMode });
+      }
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to create task."));
+    }
+  };
+
   const runningMissionIds = useMemo(
     () => new Set(workspaceMissions.filter((m) => runtimeByMission[m.id]?.status === "running").map((m) => m.id)),
     [workspaceMissions, runtimeByMission],
@@ -425,12 +494,13 @@ export function App() {
   };
 
   // dispatchMission starts one mission by id, independent of the current
-  // selection, so several can be fired concurrently.
-  const dispatchMission = async (missionId: string) => {
+  // selection, so several can be fired concurrently. Overrides cover missions
+  // created a moment ago whose state isn't in this closure yet.
+  const dispatchMission = async (missionId: string, overrides?: { repoPath?: string; workerMode?: WorkerMode }) => {
     setMissionLoopError("");
-    const repoPath = repoPathForMission(missionId);
+    const repoPath = overrides?.repoPath ?? repoPathForMission(missionId);
     const mission = workspaceMissions.find((item) => item.id === missionId);
-    const workerMode = workerModeByMission[missionId] ?? workerModeFromName(mission?.worker);
+    const workerMode = overrides?.workerMode ?? workerModeByMission[missionId] ?? workerModeFromName(mission?.worker);
     const localCommand = localCommandByMission[missionId] ?? defaultLocalCommand();
 
     // Optimistically mark it running so the canvas pulses immediately.
@@ -1016,17 +1086,21 @@ export function App() {
   return (
     <main className="canvas-shell">
       <GraphMap
-        nodes={graphNodes}
-        edges={graphEdges}
+        nodes={canvasNodes}
+        edges={canvasEdges}
         selectedNodeId={selectedGraphNode?.id ?? ""}
         selectedMissionId={selectedMission?.id ?? ""}
         runningMissionIds={runningMissionIds}
         onSelectNode={handleSelectNode}
+        onAddTask={() => setDraftingTask(true)}
+        canAddTask={Boolean(draftRepository)}
         actions={{
           onRunTask: (missionId) => void dispatchMission(missionId),
           onApprove: (missionId) => void approveMission(missionId),
           onReject: (missionId) => void rejectMission(missionId),
           onVerify: (missionId) => void runVerificationFor(missionId),
+          onCreateTask: (text, run) => void createTaskOnCanvas(text, run),
+          onCancelDraft: () => setDraftingTask(false),
         }}
       />
 

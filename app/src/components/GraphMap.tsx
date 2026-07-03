@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -6,6 +6,7 @@ import {
   Handle,
   MarkerType,
   MiniMap,
+  Panel,
   Position,
   ReactFlow,
   SelectionMode,
@@ -27,6 +28,7 @@ import {
   GitPullRequest,
   Loader,
   Play,
+  Plus,
   ShieldCheck,
   X,
 } from "lucide-react";
@@ -42,6 +44,10 @@ export type NodeActions = {
   onApprove: (missionId: string) => void;
   onReject: (missionId: string) => void;
   onVerify: (missionId: string) => void;
+  // Draft task card: turn the typed prompt into a real mission (optionally
+  // launching it immediately), or discard the draft.
+  onCreateTask: (text: string, run: boolean) => void;
+  onCancelDraft: () => void;
 };
 
 type OrbitalNodeData = {
@@ -69,6 +75,10 @@ type GraphMapProps = {
   runningMissionIds: Set<string>;
   onSelectNode: (nodeId: string) => void;
   actions: NodeActions;
+  // "+ Task" affordance: opens a draft task card on the canvas. Disabled until
+  // a repository is connected to own the new task.
+  onAddTask: () => void;
+  canAddTask: boolean;
 };
 
 const EDGE_COLOR: Record<string, string> = {
@@ -93,7 +103,7 @@ function edgeDash(kind: string) {
 
 const nodeTypes = { orbital: OrbitalNode };
 
-export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions }: GraphMapProps) {
+export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions, onAddTask, canAddTask }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // Only nodes the user explicitly dragged are pinned here. Everything else is
@@ -110,6 +120,8 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       onApprove: (id) => actionsRef.current.onApprove(id),
       onReject: (id) => actionsRef.current.onReject(id),
       onVerify: (id) => actionsRef.current.onVerify(id),
+      onCreateTask: (text, run) => actionsRef.current.onCreateTask(text, run),
+      onCancelDraft: () => actionsRef.current.onCancelDraft(),
     }),
     [],
   );
@@ -221,6 +233,20 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         selectNodesOnDrag
       >
         <LaneBands />
+        {/* Top-left: the right side of the window belongs to the task inspector,
+            which would cover (and swallow clicks meant for) anything placed there. */}
+        <Panel position="top-left" className="canvas-actions">
+          <button
+            type="button"
+            className="canvas-add-task"
+            onClick={onAddTask}
+            disabled={!canAddTask}
+            title={canAddTask ? "Add a task node" : "Connect a repository first"}
+          >
+            <Plus size={14} aria-hidden="true" />
+            Task
+          </button>
+        </Panel>
         <Background variant={BackgroundVariant.Dots} gap={26} size={1} color="rgba(139, 147, 161, 0.16)" />
         <MiniMap
           position="bottom-left"
@@ -300,6 +326,10 @@ function OrbitalNode({ data, selected }: NodeProps) {
   const node = data as OrbitalNodeData;
   const live = node.meta?.live ?? false;
 
+  if (node.kind === "task" && node.meta?.draft) {
+    return <DraftTaskNode node={node} selected={selected ?? false} />;
+  }
+
   return (
     <div className={`node-card ${node.kind} ${node.status ?? ""} ${selected ? "selected" : ""} ${live ? "live" : ""}`}>
       <Handle type="target" position={Position.Left} className="rf-handle" isConnectable={false} />
@@ -317,6 +347,94 @@ function OrbitalNode({ data, selected }: NodeProps) {
       <div className="node-card-title" title={node.meta?.prompt ?? node.label}>{node.label}</div>
       <NodeBody node={node} />
       <NodeFooter node={node} />
+      <Handle type="source" position={Position.Right} className="rf-handle" isConnectable={false} />
+    </div>
+  );
+}
+
+// DraftTaskNode is a task card in authoring mode: the prompt is typed straight
+// into the node, then Queue adds it to the backlog and Run launches it at once.
+// The draft's text stays local to the card so typing never re-renders the graph.
+function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: boolean }) {
+  const [text, setText] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = (run: boolean) => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      inputRef.current?.focus();
+      return;
+    }
+    node.actions.onCreateTask(trimmed, run);
+  };
+
+  return (
+    <div className={`node-card task draft ${selected ? "selected" : ""}`}>
+      <Handle type="target" position={Position.Left} className="rf-handle" isConnectable={false} />
+      <div className="node-card-head">
+        <span className="node-card-icon task">
+          <ClipboardList size={14} aria-hidden="true" />
+        </span>
+        <span className="node-card-kind">New task</span>
+        <button
+          type="button"
+          className="node-draft-close nodrag"
+          title="Discard draft"
+          onClick={(event) => {
+            event.stopPropagation();
+            node.actions.onCancelDraft();
+          }}
+        >
+          <X size={12} aria-hidden="true" />
+        </button>
+      </div>
+      <textarea
+        ref={inputRef}
+        className="node-draft-input nodrag nowheel"
+        placeholder="What should get done?"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onMouseDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === "Escape") node.actions.onCancelDraft();
+          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            submit(true);
+          }
+        }}
+      />
+      <div className="node-card-body">
+        {node.meta?.worker ? <span className="node-tag">{node.meta.worker}</span> : null}
+      </div>
+      <div className="node-card-actions">
+        <button
+          type="button"
+          className="node-btn nodrag"
+          onClick={(event) => {
+            event.stopPropagation();
+            submit(false);
+          }}
+        >
+          Queue
+        </button>
+        <button
+          type="button"
+          className="node-btn primary nodrag"
+          title="Create and launch (⌘↵)"
+          onClick={(event) => {
+            event.stopPropagation();
+            submit(true);
+          }}
+        >
+          <Play size={12} aria-hidden="true" />
+          Run
+        </button>
+      </div>
       <Handle type="source" position={Position.Right} className="rf-handle" isConnectable={false} />
     </div>
   );

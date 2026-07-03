@@ -24,6 +24,7 @@ export type GraphNodeKind = "repo" | "task" | "agent" | "changes" | "verify" | "
 
 // Per-kind payload that makes a node card operable and glanceable.
 export type GraphNodeMeta = {
+  draft?: boolean; // task: an unsaved canvas draft still being typed
   prompt?: string; // task: the full instruction
   worker?: string; // task/agent: assigned worker label
   launchable?: boolean; // task: Run is available
