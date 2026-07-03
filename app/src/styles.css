@@ -1677,6 +1677,33 @@ dd {
   pointer-events: none;
 }
 
+/* Connectable handles (task cards) are real grab points for drawing a chain
+   edge, so unlike the decorative ones they must be visible and grabbable.
+   React Flow marks them with .connectionindicator. */
+.react-flow__handle.connectionindicator {
+  width: 11px;
+  height: 11px;
+  min-width: 11px;
+  min-height: 11px;
+  border-radius: 50%;
+  background: #10141a;
+  border: 2px solid rgba(79, 191, 123, 0.55);
+  opacity: 1;
+  pointer-events: all;
+  cursor: crosshair;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.node-card:hover .react-flow__handle.connectionindicator,
+.react-flow__handle.connectionindicator:hover {
+  border-color: #4fbf7b;
+  background: rgba(79, 191, 123, 0.3);
+  box-shadow: 0 0 0 3px rgba(79, 191, 123, 0.18);
+}
+
 .react-flow__edge-path {
   transition: stroke 180ms ease;
 }
