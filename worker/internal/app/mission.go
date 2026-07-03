@@ -141,6 +141,23 @@ func (s *Service) DeleteMission(missionID string) error {
 		state.WorkflowEvents = remainingEvents
 
 		state.Missions = append(state.Missions[:missionIndex], state.Missions[missionIndex+1:]...)
+
+		// Drop the deleted mission from every other mission's dependency list so
+		// no task is left waiting on an upstream that no longer exists.
+		for index := range state.Missions {
+			deps := state.Missions[index].DependsOn
+			remaining := deps[:0]
+			for _, id := range deps {
+				if id != missionID {
+					remaining = append(remaining, id)
+				}
+			}
+			if len(remaining) == 0 {
+				state.Missions[index].DependsOn = nil
+			} else {
+				state.Missions[index].DependsOn = remaining
+			}
+		}
 		return nil
 	})
 	if err != nil {

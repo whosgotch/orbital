@@ -27,4 +27,7 @@ type Mission struct {
 	// change. Each repo keeps its own state file, so a campaign is reconstructed
 	// by grouping missions that share this id across the combined workspace.
 	CampaignID string `json:"campaign_id,omitempty"`
+	// DependsOn lists upstream missions in the same repo whose patches must land
+	// before this mission's agent starts — a task→task edge on the canvas.
+	DependsOn []string `json:"depends_on,omitempty"`
 }
