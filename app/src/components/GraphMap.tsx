@@ -262,6 +262,10 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         isValidConnection={isValidConnection}
+        // Forgiving connecting: releasing anywhere near a task card's handle
+        // snaps the chain edge onto it.
+        connectionRadius={48}
+        connectionLineStyle={{ stroke: "#4fbf7b", strokeWidth: 2 }}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.3}
