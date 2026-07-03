@@ -93,6 +93,32 @@ export async function deleteMissionLoopState(repoPath: string, missionId: string
   return JSON.parse(state) as MissionLoopState;
 }
 
+export async function linkMissionsLoopState(
+  repoPath: string,
+  fromMissionId: string,
+  toMissionId: string,
+): Promise<MissionLoopState | undefined> {
+  if (!isTauriRuntime()) {
+    return undefined;
+  }
+
+  const state = await invoke<string>("link_missions", { repoPath, fromMissionId, toMissionId });
+  return JSON.parse(state) as MissionLoopState;
+}
+
+export async function unlinkMissionsLoopState(
+  repoPath: string,
+  fromMissionId: string,
+  toMissionId: string,
+): Promise<MissionLoopState | undefined> {
+  if (!isTauriRuntime()) {
+    return undefined;
+  }
+
+  const state = await invoke<string>("unlink_missions", { repoPath, fromMissionId, toMissionId });
+  return JSON.parse(state) as MissionLoopState;
+}
+
 export async function approvePatchMissionLoopState(repoPath: string, missionId: string): Promise<MissionLoopState | undefined> {
   if (!isTauriRuntime()) {
     return undefined;

@@ -195,6 +195,16 @@ fn load_commit_diff(repo_path: String, hash: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn link_missions(repo_path: String, from_mission_id: String, to_mission_id: String) -> Result<String, String> {
+    run_worker(&["link", repo_path.trim(), from_mission_id.trim(), to_mission_id.trim()])
+}
+
+#[tauri::command]
+fn unlink_missions(repo_path: String, from_mission_id: String, to_mission_id: String) -> Result<String, String> {
+    run_worker(&["unlink", repo_path.trim(), from_mission_id.trim(), to_mission_id.trim()])
+}
+
+#[tauri::command]
 fn approve_patch(repo_path: String, mission_id: String) -> Result<String, String> {
     run_worker(&["approve", repo_path.trim(), mission_id.trim()])
 }
@@ -357,6 +367,8 @@ pub fn run() {
             start_agent_run,
             send_agent_message,
             delete_mission,
+            link_missions,
+            unlink_missions,
             approve_patch,
             reject_patch,
             verify_mission,
