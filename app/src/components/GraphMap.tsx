@@ -14,6 +14,7 @@ import {
   useNodes,
   useNodesState,
   ViewportPortal,
+  type Connection,
   type Edge,
   type Node,
   type NodeProps,
@@ -48,6 +49,10 @@ export type NodeActions = {
   // launching it immediately), or discard the draft.
   onCreateTask: (text: string, run: boolean) => void;
   onCancelDraft: () => void;
+  // Task chains: a drawn task→task edge makes the downstream task wait for the
+  // upstream patch to land; deleting the edge dissolves the dependency.
+  onLinkTasks: (fromMissionId: string, toMissionId: string) => void;
+  onUnlinkTasks: (fromMissionId: string, toMissionId: string) => void;
 };
 
 type OrbitalNodeData = {
@@ -88,6 +93,7 @@ const EDGE_COLOR: Record<string, string> = {
   spawns: "#5b8bff",
   coordinates: "#b07cff",
   blocks: "#e2615f",
+  then: "#4fbf7b",
 };
 const NEUTRAL_EDGE = "rgba(139, 147, 161, 0.42)";
 
@@ -122,8 +128,45 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       onVerify: (id) => actionsRef.current.onVerify(id),
       onCreateTask: (text, run) => actionsRef.current.onCreateTask(text, run),
       onCancelDraft: () => actionsRef.current.onCancelDraft(),
+      onLinkTasks: (from, to) => actionsRef.current.onLinkTasks(from, to),
+      onUnlinkTasks: (from, to) => actionsRef.current.onUnlinkTasks(from, to),
     }),
     [],
+  );
+
+  // Node kinds by id, for validating hand-drawn connections: only task→task
+  // edges mean anything, so only those are allowed to form.
+  const kindByNodeRef = useRef<Record<string, GraphNodeKind>>({});
+  kindByNodeRef.current = Object.fromEntries(nodes.map((node) => [node.id, node.kind]));
+
+  const isValidConnection = useCallback((connection: Edge | Connection) => {
+    const { source, target } = connection;
+    return Boolean(
+      source &&
+        target &&
+        source !== target &&
+        kindByNodeRef.current[source] === "task" &&
+        kindByNodeRef.current[target] === "task",
+    );
+  }, []);
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      stableActions.onLinkTasks(connection.source, connection.target);
+    },
+    [stableActions],
+  );
+
+  const onEdgesDelete = useCallback(
+    (deleted: Edge[]) => {
+      deleted.forEach((edge) => {
+        if ((edge.data as { kind?: string } | undefined)?.kind === "then") {
+          stableActions.onUnlinkTasks(edge.source, edge.target);
+        }
+      });
+    },
+    [stableActions],
   );
 
   const missionByNode = useMemo(() => {
@@ -216,12 +259,15 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         onNodeDragStop={onNodeDragStop}
         onSelectionDragStop={onSelectionDragStop}
         onNodeClick={onNodeClick}
+        onConnect={onConnect}
+        onEdgesDelete={onEdgesDelete}
+        isValidConnection={isValidConnection}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.3}
         maxZoom={1.8}
         proOptions={{ hideAttribution: true }}
-        nodesConnectable={false}
+        nodesConnectable
         edgesFocusable={false}
         // Finder-style marquee: left-drag the canvas draws a selection box;
         // hold Space (or middle/right mouse) to pan instead. Selected nodes
@@ -275,12 +321,20 @@ function toRfEdge(
     (fromMission != null && runningMissionIds.has(fromMission)) || (toMission != null && runningMissionIds.has(toMission));
   const color = selected ? "#5b8bff" : edgeColor(edge.kind);
 
+  // Hand-drawn chain edges stay interactive so they can be selected and
+  // deleted (= unlink); generated pipeline edges are wallpaper.
+  const isChain = edge.kind === "then";
+
   return {
     id: edge.id,
     source: edge.from,
     target: edge.to,
     animated: active,
-    style: { stroke: color, strokeWidth: selected ? 2 : 1.4, strokeDasharray: edgeDash(edge.kind) },
+    data: { kind: edge.kind },
+    deletable: isChain,
+    focusable: isChain,
+    selectable: isChain,
+    style: { stroke: color, strokeWidth: selected || isChain ? 2 : 1.4, strokeDasharray: edgeDash(edge.kind) },
     markerEnd: { type: MarkerType.ArrowClosed, width: 13, height: 13, color },
   };
 }
@@ -330,9 +384,13 @@ function OrbitalNode({ data, selected }: NodeProps) {
     return <DraftTaskNode node={node} selected={selected ?? false} />;
   }
 
+  // Only task cards accept hand-drawn connections: a task→task edge chains the
+  // downstream task to start when the upstream patch lands.
+  const connectable = node.kind === "task";
+
   return (
     <div className={`node-card ${node.kind} ${node.status ?? ""} ${selected ? "selected" : ""} ${live ? "live" : ""}`}>
-      <Handle type="target" position={Position.Left} className="rf-handle" isConnectable={false} />
+      <Handle type="target" position={Position.Left} className="rf-handle" isConnectable={connectable} />
       <div className="node-card-head">
         <span className={`node-card-icon ${node.kind}`}>
           <KindGlyph kind={node.kind} />
@@ -347,7 +405,7 @@ function OrbitalNode({ data, selected }: NodeProps) {
       <div className="node-card-title" title={node.meta?.prompt ?? node.label}>{node.label}</div>
       <NodeBody node={node} />
       <NodeFooter node={node} />
-      <Handle type="source" position={Position.Right} className="rf-handle" isConnectable={false} />
+      <Handle type="source" position={Position.Right} className="rf-handle" isConnectable={connectable} />
     </div>
   );
 }
@@ -447,6 +505,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
     return (
       <div className="node-card-body">
         <p className="node-card-prompt">{meta?.prompt ?? node.detail}</p>
+        {meta?.waitingFor ? <span className="node-tag wait">after: {meta.waitingFor}</span> : null}
         {meta?.worker ? <span className="node-tag">{meta.worker}</span> : null}
       </div>
     );

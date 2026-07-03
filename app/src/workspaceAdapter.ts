@@ -101,6 +101,7 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
     patch_status: patchStatus(patch?.status),
     verified: verification?.status === "passed",
     map_position: ["north", "east", "south", "west", "center"][index % 5] as WorkspaceMission["map_position"],
+    depends_on: mission.depends_on,
   };
 }
 
@@ -186,6 +187,7 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
 // Edges connect only the nodes that actually exist (see graphNodesFromState),
 // so the graph never draws a line to a stage that hasn't happened yet.
 function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopState): WorkspaceGraphEdge[] {
+  const present = new Set(missions.map((mission) => mission.id));
   return missions.flatMap((mission) => {
     const managerID = `${mission.id}_manager`;
     const patchID = `${mission.id}_patch`;
@@ -193,6 +195,14 @@ function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopSta
     const edges: WorkspaceGraphEdge[] = [
       { id: `${mission.repository_id}_${mission.id}`, from: mission.repository_id, to: mission.id, kind: "owns" },
     ];
+
+    // Task chains: an upstream task's card feeds this task's card, so the
+    // canvas shows the execution order the auto-dispatcher will follow.
+    (mission.depends_on ?? []).forEach((upstreamId) => {
+      if (present.has(upstreamId)) {
+        edges.push({ id: `then_${upstreamId}_${mission.id}`, from: upstreamId, to: mission.id, kind: "then" });
+      }
+    });
 
     const topLevelRun = state.agent_runs.filter((run) => run.mission_id === mission.id && !run.parent_run_id).at(-1);
     const childRuns = topLevelRun

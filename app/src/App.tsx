@@ -42,6 +42,7 @@ import {
   deleteMissionLoopState,
   demoRepoPath,
   isTauriRuntime,
+  linkMissionsLoopState,
   loadCommitDiff,
   loadMissionLoopState,
   loadRepoHistory,
@@ -51,6 +52,7 @@ import {
   refreshMissionLoopState,
   sendAgentMessageLoopState,
   startAgentRunMissionLoopState,
+  unlinkMissionsLoopState,
   updateMissionTextLoopState,
   verifyMissionLoopState,
 } from "./missionLoopLoader";
@@ -325,14 +327,23 @@ export function App() {
 
         switch (node.kind) {
           case "task": {
-            const launchable = !runtime || runtime.status === "queued" || runtime.status === "draft";
+            const mission = workspaceMissions.find((m) => m.id === missionId);
+            // A chained task waits until every upstream patch has landed; while
+            // waiting it can't be launched by hand either — the chain owns it.
+            const pendingUpstreams = (mission?.depends_on ?? []).filter(
+              (id) => runtimeByMission[id]?.patchStatus !== "approved",
+            );
+            const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
+            const launchable =
+              (!runtime || runtime.status === "queued" || runtime.status === "draft") && pendingUpstreams.length === 0;
             return {
               ...node,
               status,
               meta: {
                 ...node.meta,
-                worker: workerModeLabel(workerModeByMission[missionId] ?? workerModeFromName(workspaceMissions.find((m) => m.id === missionId)?.worker)),
+                worker: workerModeLabel(workerModeByMission[missionId] ?? workerModeFromName(mission?.worker)),
                 launchable,
+                waitingFor: firstUpstream ? missionLabel(firstUpstream.title) : undefined,
               },
             };
           }
@@ -454,6 +465,86 @@ export function App() {
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to create task."));
     }
+  };
+
+  // linkTasks records a drawn task→task chain: the downstream task will start
+  // automatically once the upstream patch lands. Links live in the worker's
+  // state; the browser demo keeps them locally so the chain still executes.
+  const linkTasks = async (fromMissionId: string, toMissionId: string) => {
+    setMissionLoopError("");
+    const from = workspaceMissions.find((m) => m.id === fromMissionId);
+    const to = workspaceMissions.find((m) => m.id === toMissionId);
+    if (!from || !to) return;
+    if (from.repository_id !== to.repository_id) {
+      setMissionLoopError("Chained tasks must live in the same repository.");
+      return;
+    }
+
+    if (isTauriRuntime()) {
+      try {
+        const next = await linkMissionsLoopState(repoPathForMission(toMissionId), fromMissionId, toMissionId);
+        if (next) applyRepoState(next);
+      } catch (error) {
+        setMissionLoopError(errorMessage(error, "Failed to link tasks."));
+      }
+      return;
+    }
+
+    if (locallyDependsOn(fromMissionId, toMissionId)) {
+      setMissionLoopError("That link would create a cycle.");
+      return;
+    }
+    setWorkspaceMissions((current) =>
+      current.map((mission) =>
+        mission.id === toMissionId && !(mission.depends_on ?? []).includes(fromMissionId)
+          ? { ...mission, depends_on: [...(mission.depends_on ?? []), fromMissionId] }
+          : mission,
+      ),
+    );
+    setWorkspaceGraphEdges((current) =>
+      current.some((edge) => edge.id === `then_${fromMissionId}_${toMissionId}`)
+        ? current
+        : [...current, { id: `then_${fromMissionId}_${toMissionId}`, from: fromMissionId, to: toMissionId, kind: "then" }],
+    );
+  };
+
+  const unlinkTasks = async (fromMissionId: string, toMissionId: string) => {
+    setMissionLoopError("");
+
+    if (isTauriRuntime()) {
+      try {
+        const next = await unlinkMissionsLoopState(repoPathForMission(toMissionId), fromMissionId, toMissionId);
+        if (next) applyRepoState(next);
+      } catch (error) {
+        setMissionLoopError(errorMessage(error, "Failed to unlink tasks."));
+      }
+      return;
+    }
+
+    setWorkspaceMissions((current) =>
+      current.map((mission) =>
+        mission.id === toMissionId
+          ? { ...mission, depends_on: (mission.depends_on ?? []).filter((id) => id !== fromMissionId) }
+          : mission,
+      ),
+    );
+    setWorkspaceGraphEdges((current) => current.filter((edge) => edge.id !== `then_${fromMissionId}_${toMissionId}`));
+  };
+
+  // Does `missionId` already depend on `targetId`, directly or through a chain?
+  // Mirrors the worker's cycle guard for the browser demo.
+  const locallyDependsOn = (missionId: string, targetId: string): boolean => {
+    const depsById = new Map(workspaceMissions.map((mission) => [mission.id, mission.depends_on ?? []]));
+    const seen = new Set<string>();
+    const stack = [missionId];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (current === targetId) return true;
+      if (seen.has(current)) continue;
+      seen.add(current);
+      stack.push(...(depsById.get(current) ?? []));
+    }
+    return false;
   };
 
   const runningMissionIds = useMemo(
@@ -818,6 +909,7 @@ export function App() {
       const nextMissionLoopState = await approvePatchMissionLoopState(repoPathForMission(missionId), missionId);
       if (nextMissionLoopState) {
         applyRepoState(nextMissionLoopState, missionId);
+        autoDispatchChained(missionId, nextMissionLoopState);
         return;
       }
     } catch (error) {
@@ -826,6 +918,41 @@ export function App() {
     }
 
     setMissionRuntime(missionId, (current) => ({ ...current, patchStatus: "approved", status: "approved" }));
+
+    // Browser demo: release chained tasks using the local runtime, treating the
+    // mission just approved as landed (its state update is still in flight).
+    const landedLocally = (id: string) => id === missionId || runtimeByMission[id]?.patchStatus === "approved";
+    workspaceMissions.forEach((mission) => {
+      const deps = mission.depends_on ?? [];
+      if (!deps.includes(missionId)) return;
+      const status = runtimeByMission[mission.id]?.status ?? "queued";
+      if (status !== "queued" && status !== "draft") return;
+      if (!deps.every(landedLocally)) return;
+      void dispatchMission(mission.id);
+    });
+  };
+
+  // A landed patch releases the tasks chained behind it: every mission that
+  // depends on the landed one — and whose other upstreams have all landed too —
+  // dispatches automatically. This is what makes a drawn chain execute.
+  const autoDispatchChained = (landedMissionId: string, state: MissionLoopState) => {
+    const landed = new Set(
+      state.missions
+        .filter((mission) => mission.status === "approved" || mission.status === "applied" || mission.status === "verified")
+        .map((mission) => mission.id),
+    );
+    landed.add(landedMissionId);
+
+    state.missions.forEach((mission) => {
+      const deps = mission.depends_on ?? [];
+      if (!deps.includes(landedMissionId)) return;
+      // Only tasks that never ran wait in "draft"; anything else already
+      // started (or finished) and must not be re-fired.
+      if (mission.status !== "draft") return;
+      if (!deps.every((id) => landed.has(id))) return;
+      const repoPath = state.repositories.find((repo) => repo.id === mission.repository_id)?.path;
+      void dispatchMission(mission.id, { repoPath });
+    });
   };
 
   const rejectMission = async (missionId: string) => {
@@ -1101,6 +1228,8 @@ export function App() {
           onVerify: (missionId) => void runVerificationFor(missionId),
           onCreateTask: (text, run) => void createTaskOnCanvas(text, run),
           onCancelDraft: () => setDraftingTask(false),
+          onLinkTasks: (from, to) => void linkTasks(from, to),
+          onUnlinkTasks: (from, to) => void unlinkTasks(from, to),
         }}
       />
 

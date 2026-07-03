@@ -1917,6 +1917,12 @@ dd {
   color: #e2615f;
 }
 
+/* A chained task waiting for its upstream patch to land. */
+.node-tag.wait {
+  background: rgba(217, 164, 65, 0.16);
+  color: var(--amber);
+}
+
 .node-card-actions {
   display: flex;
   justify-content: flex-end;

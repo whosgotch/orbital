@@ -16,6 +16,8 @@ export type WorkspaceMission = {
   patch_status: Extract<PatchStatus, "pending" | "approved" | "rejected">;
   verified: boolean;
   map_position: "north" | "east" | "south" | "west" | "center";
+  // Upstream missions whose patches must land before this one auto-starts.
+  depends_on?: string[];
 };
 
 // Every node is a step you operate, not a picture of state: a task you run, an
@@ -36,6 +38,7 @@ export type GraphNodeMeta = {
   patchState?: "none" | "pending" | "approved" | "rejected";
   command?: string; // verify: the verification command
   verifyState?: "idle" | "ready" | "passed" | "failed";
+  waitingFor?: string; // task: label of the upstream task it waits on
 };
 
 export type WorkspaceGraphNode = {
@@ -52,5 +55,5 @@ export type WorkspaceGraphEdge = {
   id: string;
   from: string;
   to: string;
-  kind: "owns" | "reads" | "runs" | "proposes" | "verifies" | "blocks" | "spawns" | "coordinates";
+  kind: "owns" | "reads" | "runs" | "proposes" | "verifies" | "blocks" | "spawns" | "coordinates" | "then";
 };
