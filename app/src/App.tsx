@@ -501,11 +501,14 @@ export function App() {
           : mission,
       ),
     );
-    setWorkspaceGraphEdges((current) =>
-      current.some((edge) => edge.id === `then_${fromMissionId}_${toMissionId}`)
-        ? current
-        : [...current, { id: `then_${fromMissionId}_${toMissionId}`, from: fromMissionId, to: toMissionId, kind: "then" }],
-    );
+    setWorkspaceGraphEdges((current) => {
+      // A chained task hangs off its upstream, not the repo (mirrors the
+      // adapter's rule for worker-derived graphs).
+      const withoutOwns = current.filter((edge) => !(edge.kind === "owns" && edge.to === toMissionId));
+      return withoutOwns.some((edge) => edge.id === `then_${fromMissionId}_${toMissionId}`)
+        ? withoutOwns
+        : [...withoutOwns, { id: `then_${fromMissionId}_${toMissionId}`, from: fromMissionId, to: toMissionId, kind: "then" }];
+    });
   };
 
   const unlinkTasks = async (fromMissionId: string, toMissionId: string) => {
@@ -528,7 +531,17 @@ export function App() {
           : mission,
       ),
     );
-    setWorkspaceGraphEdges((current) => current.filter((edge) => edge.id !== `then_${fromMissionId}_${toMissionId}`));
+    setWorkspaceGraphEdges((current) => {
+      const next = current.filter((edge) => edge.id !== `then_${fromMissionId}_${toMissionId}`);
+      // Unlinking the last upstream turns the task back into a chain head, so
+      // it reattaches to its repo.
+      const to = workspaceMissions.find((mission) => mission.id === toMissionId);
+      const remaining = (to?.depends_on ?? []).filter((id) => id !== fromMissionId);
+      if (to && remaining.length === 0 && !next.some((edge) => edge.kind === "owns" && edge.to === toMissionId)) {
+        next.push({ id: `edge_${to.repository_id}_${toMissionId}`, from: to.repository_id, to: toMissionId, kind: "owns" });
+      }
+      return next;
+    });
   };
 
   // Does `missionId` already depend on `targetId`, directly or through a chain?

@@ -192,16 +192,18 @@ function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopSta
     const managerID = `${mission.id}_manager`;
     const patchID = `${mission.id}_patch`;
     const verifyID = `${mission.id}_verify`;
-    const edges: WorkspaceGraphEdge[] = [
-      { id: `${mission.repository_id}_${mission.id}`, from: mission.repository_id, to: mission.id, kind: "owns" },
-    ];
+    const edges: WorkspaceGraphEdge[] = [];
 
     // Task chains: an upstream task's card feeds this task's card, so the
-    // canvas shows the execution order the auto-dispatcher will follow.
-    (mission.depends_on ?? []).forEach((upstreamId) => {
-      if (present.has(upstreamId)) {
-        edges.push({ id: `then_${upstreamId}_${mission.id}`, from: upstreamId, to: mission.id, kind: "then" });
-      }
+    // canvas shows the execution order the auto-dispatcher will follow. A
+    // chained task hangs off its upstream, not the repo — only chain heads
+    // (tasks with no upstream on the canvas) connect to the repo node.
+    const upstreams = (mission.depends_on ?? []).filter((upstreamId) => present.has(upstreamId));
+    if (upstreams.length === 0) {
+      edges.push({ id: `${mission.repository_id}_${mission.id}`, from: mission.repository_id, to: mission.id, kind: "owns" });
+    }
+    upstreams.forEach((upstreamId) => {
+      edges.push({ id: `then_${upstreamId}_${mission.id}`, from: upstreamId, to: mission.id, kind: "then" });
     });
 
     const topLevelRun = state.agent_runs.filter((run) => run.mission_id === mission.id && !run.parent_run_id).at(-1);
