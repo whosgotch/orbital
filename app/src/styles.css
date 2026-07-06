@@ -2005,13 +2005,20 @@ dd {
 
 /* Draft task card: the node in authoring mode. Dashed border reads "not real
    yet"; the textarea is the card's whole point, so it gets the space. */
-.node-card.task.draft {
+.node-card.task.draft,
+.node-card.tool.draft {
   border-style: dashed;
   border-color: rgba(91, 139, 255, 0.55);
 }
 
+.node-card.tool.draft {
+  border-color: rgba(95, 184, 217, 0.55);
+}
+
 .node-card.task.draft:hover,
-.node-card.task.draft.selected {
+.node-card.task.draft.selected,
+.node-card.tool.draft:hover,
+.node-card.tool.draft.selected {
   border-style: dashed;
 }
 
@@ -2036,6 +2043,37 @@ dd {
 
 .node-draft-input::placeholder {
   color: var(--muted);
+}
+
+.node-draft-input.mono {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+}
+
+/* The Task/Tool switch in a draft card's header. */
+.node-draft-kind {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.node-draft-kind-option {
+  padding: 1px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.node-draft-kind-option.active {
+  background: var(--panel);
+  color: var(--text);
 }
 
 .node-draft-close {

@@ -48,7 +48,7 @@ export type NodeActions = {
   onVerify: (missionId: string) => void;
   // Draft task card: turn the typed prompt into a real mission (optionally
   // launching it immediately), or discard the draft.
-  onCreateTask: (text: string, run: boolean) => void;
+  onCreateTask: (text: string, run: boolean, kind: "task" | "tool") => void;
   onCancelDraft: () => void;
   // Task chains: a drawn task→task edge makes the downstream task wait for the
   // upstream patch to land; deleting the edge dissolves the dependency.
@@ -127,7 +127,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       onApprove: (id) => actionsRef.current.onApprove(id),
       onReject: (id) => actionsRef.current.onReject(id),
       onVerify: (id) => actionsRef.current.onVerify(id),
-      onCreateTask: (text, run) => actionsRef.current.onCreateTask(text, run),
+      onCreateTask: (text, run, kind) => actionsRef.current.onCreateTask(text, run, kind),
       onCancelDraft: () => actionsRef.current.onCancelDraft(),
       onLinkTasks: (from, to) => actionsRef.current.onLinkTasks(from, to),
       onUnlinkTasks: (from, to) => actionsRef.current.onUnlinkTasks(from, to),
@@ -418,9 +418,12 @@ function OrbitalNode({ data, selected }: NodeProps) {
 
 // DraftTaskNode is a task card in authoring mode: the prompt is typed straight
 // into the node, then Queue adds it to the backlog and Run launches it at once.
-// The draft's text stays local to the card so typing never re-renders the graph.
+// The draft's text and kind stay local to the card so neither typing nor
+// flipping the Task/Tool switch re-renders the graph. On the Tool side the
+// same field holds a shell command instead of a prompt.
 function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: boolean }) {
   const [text, setText] = useState("");
+  const [kind, setKind] = useState<"task" | "tool">("task");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -433,17 +436,47 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
       inputRef.current?.focus();
       return;
     }
-    node.actions.onCreateTask(trimmed, run);
+    node.actions.onCreateTask(trimmed, run, kind);
+  };
+
+  const pickKind = (next: "task" | "tool") => {
+    setKind(next);
+    inputRef.current?.focus();
   };
 
   return (
-    <div className={`node-card task draft ${selected ? "selected" : ""}`}>
+    <div className={`node-card ${kind} draft ${selected ? "selected" : ""}`}>
       <Handle type="target" position={Position.Left} className="rf-handle" isConnectable={false} />
       <div className="node-card-head">
-        <span className="node-card-icon task">
-          <ClipboardList size={14} aria-hidden="true" />
+        <span className={`node-card-icon ${kind}`}>
+          {kind === "tool" ? <Terminal size={14} aria-hidden="true" /> : <ClipboardList size={14} aria-hidden="true" />}
         </span>
-        <span className="node-card-kind">New task</span>
+        <div className="node-draft-kind nodrag" role="tablist" aria-label="Node type">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={kind === "task"}
+            className={`node-draft-kind-option ${kind === "task" ? "active" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              pickKind("task");
+            }}
+          >
+            Task
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={kind === "tool"}
+            className={`node-draft-kind-option ${kind === "tool" ? "active" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              pickKind("tool");
+            }}
+          >
+            Tool
+          </button>
+        </div>
         <button
           type="button"
           className="node-draft-close nodrag"
@@ -458,8 +491,8 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
       </div>
       <textarea
         ref={inputRef}
-        className="node-draft-input nodrag nowheel"
-        placeholder="What should get done?"
+        className={`node-draft-input nodrag nowheel ${kind === "tool" ? "mono" : ""}`}
+        placeholder={kind === "tool" ? "Command to run (sh -c in the repo)" : "What should get done?"}
         value={text}
         onChange={(event) => setText(event.target.value)}
         onMouseDown={(event) => event.stopPropagation()}
@@ -473,7 +506,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
         }}
       />
       <div className="node-card-body">
-        {node.meta?.worker ? <span className="node-tag">{node.meta.worker}</span> : null}
+        {kind === "task" && node.meta?.worker ? <span className="node-tag">{node.meta.worker}</span> : null}
       </div>
       <div className="node-card-actions">
         <button

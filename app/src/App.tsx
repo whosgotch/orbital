@@ -470,24 +470,27 @@ export function App() {
   // Turn the canvas draft into a real mission: queue it in the owning repo and
   // optionally launch it right away. The fresh state hasn't landed in React
   // state yet, so the repo path and worker are passed to dispatch explicitly.
-  const createTaskOnCanvas = async (text: string, run: boolean) => {
+  // A tool draft's text doubles as its shell command; the worker resolves its
+  // execution itself, so no worker mode is stamped or passed for tools.
+  const createTaskOnCanvas = async (text: string, run: boolean, kind: "task" | "tool") => {
     setDraftingTask(false);
     if (!draftRepository) return;
     setMissionLoopError("");
+    const isTool = kind === "tool";
 
     if (!isTauriRuntime()) {
-      const missionId = addLocalMission(text, 0, draftRepository.id);
-      if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: intakeWorkerMode });
+      const missionId = addLocalMission(text, 0, draftRepository.id, isTool ? text : undefined);
+      if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : intakeWorkerMode });
       return;
     }
 
     try {
-      const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, text);
+      const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, text, undefined, isTool ? text : undefined);
       const missionId = nextMissionLoopState?.missions.at(-1)?.id;
       if (nextMissionLoopState) applyRepoState(nextMissionLoopState, missionId);
       if (missionId) {
-        setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
-        if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: intakeWorkerMode });
+        if (!isTool) setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
+        if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : intakeWorkerMode });
       }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to create task."));
@@ -687,6 +690,14 @@ export function App() {
       );
       if (nextMissionLoopState) {
         applyRepoState(nextMissionLoopState, missionId);
+        // A tool mission lands the moment its command exits cleanly — there is
+        // no approve gate to fire the chain from, so release downstream tasks
+        // here. AI missions end a run in waiting_approval, making this a no-op;
+        // their cascade stays with approveMission.
+        const finished = nextMissionLoopState.missions.find((mission) => mission.id === missionId);
+        if (finished && ["approved", "applied", "verified"].includes(finished.status)) {
+          autoDispatchChained(missionId, nextMissionLoopState);
+        }
         return;
       }
     } catch (error) {
@@ -864,31 +875,43 @@ export function App() {
 
   // Optimistic, non-Tauri-only mission so the browser demo can line up a backlog.
   // Returns the new mission id so a campaign fan-out can tie the lanes together.
-  const addLocalMission = (title: string, offset: number, repositoryId: string): string => {
+  const addLocalMission = (title: string, offset: number, repositoryId: string, toolCommand?: string): string => {
     const missionId = `mission_${Date.now()}_${offset}`;
     const targetRepositoryId = repositoryId;
+    const isTool = Boolean(toolCommand);
     const mission: WorkspaceMission = {
       id: missionId,
       repository_id: targetRepositoryId,
       title,
       status: "queued",
       worker: intakeWorkerMode,
-      command: "npm run build",
+      command: toolCommand ?? "npm run build",
       files: [],
       step: -1,
       patch_status: "pending",
       verified: false,
       map_position: "center",
+      kind: isTool ? "tool" : undefined,
     };
-    const missionNode: WorkspaceGraphNode = {
-      id: missionId,
-      kind: "task",
-      label: missionLabel(title),
-      detail: "task",
-      meta: { prompt: title },
-      mission_id: missionId,
-      repository_id: targetRepositoryId,
-    };
+    const missionNode: WorkspaceGraphNode = isTool
+      ? {
+          id: missionId,
+          kind: "tool",
+          label: missionLabel(title),
+          detail: toolCommand ?? "",
+          meta: { prompt: title, command: toolCommand },
+          mission_id: missionId,
+          repository_id: targetRepositoryId,
+        }
+      : {
+          id: missionId,
+          kind: "task",
+          label: missionLabel(title),
+          detail: "task",
+          meta: { prompt: title },
+          mission_id: missionId,
+          repository_id: targetRepositoryId,
+        };
     const edge: WorkspaceGraphEdge = {
       id: `edge_${targetRepositoryId}_${missionId}`,
       from: targetRepositoryId,
@@ -1266,7 +1289,7 @@ export function App() {
           onApprove: (missionId) => void approveMission(missionId),
           onReject: (missionId) => void rejectMission(missionId),
           onVerify: (missionId) => void runVerificationFor(missionId),
-          onCreateTask: (text, run) => void createTaskOnCanvas(text, run),
+          onCreateTask: (text, run, kind) => void createTaskOnCanvas(text, run, kind),
           onCancelDraft: () => setDraftingTask(false),
           onLinkTasks: (from, to) => void linkTasks(from, to),
           onUnlinkTasks: (from, to) => void unlinkTasks(from, to),
