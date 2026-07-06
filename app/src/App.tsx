@@ -255,6 +255,7 @@ export function App() {
         break;
       case "task":
       case "agent":
+      case "tool":
         setTaskView("chat");
         break;
       default:
@@ -317,8 +318,15 @@ export function App() {
   // Enrich each pipeline card with the live data its step operates on: the
   // task's worker + launchability, the agent's "now" line, the change set's
   // stats and gate state, the verify command and result.
-  const graphNodes = useMemo(
-    () =>
+  const graphNodes = useMemo(() => {
+    // An upstream has landed when its patch was approved or — for tool steps,
+    // which have no patch gate — when its command finished as verified.
+    const upstreamLanded = (id: string) => {
+      const upstream = runtimeByMission[id];
+      return upstream?.patchStatus === "approved" || upstream?.status === "approved" || upstream?.status === "verified";
+    };
+
+    return (
       workspaceGraphNodes.map((node) => {
         const missionId = node.mission_id;
         const runtime = missionId ? runtimeByMission[missionId] : undefined;
@@ -330,9 +338,7 @@ export function App() {
             const mission = workspaceMissions.find((m) => m.id === missionId);
             // A chained task waits until every upstream patch has landed; while
             // waiting it can't be launched by hand either — the chain owns it.
-            const pendingUpstreams = (mission?.depends_on ?? []).filter(
-              (id) => runtimeByMission[id]?.patchStatus !== "approved",
-            );
+            const pendingUpstreams = (mission?.depends_on ?? []).filter((id) => !upstreamLanded(id));
             const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
             const launchable =
               (!runtime || runtime.status === "queued" || runtime.status === "draft") && pendingUpstreams.length === 0;
@@ -344,6 +350,27 @@ export function App() {
                 worker: workerModeLabel(workerModeByMission[missionId] ?? workerModeFromName(mission?.worker)),
                 launchable,
                 waitingFor: firstUpstream ? missionLabel(firstUpstream.title) : undefined,
+              },
+            };
+          }
+          case "tool": {
+            const mission = workspaceMissions.find((m) => m.id === missionId);
+            const pendingUpstreams = (mission?.depends_on ?? []).filter((id) => !upstreamLanded(id));
+            const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
+            // "blocked" here means the command failed — offering Run again is
+            // the re-run affordance (tools have no reject path to collide with).
+            const launchable =
+              (!runtime || runtime.status === "queued" || runtime.status === "draft" || runtime.status === "blocked") &&
+              pendingUpstreams.length === 0;
+            return {
+              ...node,
+              status,
+              meta: {
+                ...node.meta,
+                launchable,
+                live: runtime?.status === "running",
+                waitingFor: firstUpstream ? missionLabel(firstUpstream.title) : undefined,
+                verifyState: status === "verified" ? ("passed" as const) : status === "blocked" ? ("failed" as const) : undefined,
               },
             };
           }
@@ -392,18 +419,18 @@ export function App() {
           default:
             return { ...node, status };
         }
-      }),
-    [
-      runtimeByMission,
-      workspaceGraphNodes,
-      workspaceMissions,
-      workerModeByMission,
-      activityByMission,
-      patchDiffByMission,
-      verificationOutputByMission,
-      verificationCommandByMission,
-    ],
-  );
+      })
+    );
+  }, [
+    runtimeByMission,
+    workspaceGraphNodes,
+    workspaceMissions,
+    workerModeByMission,
+    activityByMission,
+    patchDiffByMission,
+    verificationOutputByMission,
+    verificationCommandByMission,
+  ]);
 
   const graphEdges = workspaceGraphEdges;
 
@@ -1631,6 +1658,7 @@ export function App() {
                   }}
                   sending={selectedChatSending}
                   onSend={(text) => void sendAgentChat(selectedMission.id, text)}
+                  readOnly={selectedMission.kind === "tool"}
                 />
               ) : (
                 <div className="task-changes">

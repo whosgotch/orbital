@@ -66,6 +66,7 @@ export function AgentChat({
   onOpenFile,
   onSend,
   sending,
+  readOnly = false,
 }: {
   messages: ChatMessage[];
   statusModel: AgentStatusModel;
@@ -74,6 +75,9 @@ export function AgentChat({
   onOpenFile: (path: string) => void;
   onSend: (text: string) => void;
   sending: boolean;
+  // A tool step is a deterministic command, not a conversation — its panel
+  // shows the run log but offers no composer to chat with.
+  readOnly?: boolean;
 }) {
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
@@ -95,8 +99,9 @@ export function AgentChat({
       <div className="chat-log" ref={logRef}>
         {messages.length === 0 && !statusModel.hasActivity ? (
           <div className="chat-empty">
-            Tell this agent what to build. It keeps its context across messages, so you can refine
-            with follow-ups instead of starting over.
+            {readOnly
+              ? "This tool step runs its command when its turn comes; the run log shows up here."
+              : "Tell this agent what to build. It keeps its context across messages, so you can refine with follow-ups instead of starting over."}
           </div>
         ) : null}
 
@@ -119,6 +124,7 @@ export function AgentChat({
         {!sending && files.length > 0 ? <ChangesCard files={files} onOpenFile={onOpenFile} /> : null}
       </div>
 
+      {readOnly ? null : (
       <div className="chat-composer">
         <textarea
           className="chat-input"
@@ -145,6 +151,7 @@ export function AgentChat({
           {sending ? <Loader size={16} className="spin" aria-hidden="true" /> : <SendHorizontal size={16} aria-hidden="true" />}
         </button>
       </div>
+      )}
     </div>
   );
 }

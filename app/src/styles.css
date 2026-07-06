@@ -1846,6 +1846,7 @@ dd {
 .node-card-icon.changes { color: #b07cff; }
 .node-card-icon.verify { color: var(--green); }
 .node-card-icon.repo { color: var(--soft); }
+.node-card-icon.tool { color: #5fb8d9; }
 
 .node-card-kind {
   color: var(--muted);

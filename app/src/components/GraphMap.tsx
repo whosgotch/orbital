@@ -31,6 +31,7 @@ import {
   Play,
   Plus,
   ShieldCheck,
+  Terminal,
   X,
 } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
@@ -141,13 +142,11 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
 
   const isValidConnection = useCallback((connection: Edge | Connection) => {
     const { source, target } = connection;
-    return Boolean(
-      source &&
-        target &&
-        source !== target &&
-        kindByNodeRef.current[source] === "task" &&
-        kindByNodeRef.current[target] === "task",
-    );
+    const chainable = (id: string | null | undefined) => {
+      const kind = id ? kindByNodeRef.current[id] : undefined;
+      return kind === "task" || kind === "tool";
+    };
+    return Boolean(source && target && source !== target && chainable(source) && chainable(target));
   }, []);
 
   const onConnect = useCallback(
@@ -358,6 +357,7 @@ const KIND_LABEL: Record<GraphNodeKind, string> = {
   changes: "Changes",
   verify: "Verify",
   campaign: "Campaign",
+  tool: "Tool",
 };
 
 function KindGlyph({ kind }: { kind: GraphNodeKind }) {
@@ -374,6 +374,8 @@ function KindGlyph({ kind }: { kind: GraphNodeKind }) {
       return <ShieldCheck size={14} aria-hidden="true" />;
     case "campaign":
       return <Boxes size={14} aria-hidden="true" />;
+    case "tool":
+      return <Terminal size={14} aria-hidden="true" />;
   }
 }
 
@@ -388,9 +390,9 @@ function OrbitalNode({ data, selected }: NodeProps) {
     return <DraftTaskNode node={node} selected={selected ?? false} />;
   }
 
-  // Only task cards accept hand-drawn connections: a task→task edge chains the
-  // downstream task to start when the upstream patch lands.
-  const connectable = node.kind === "task";
+  // Only task and tool cards accept hand-drawn connections: a chain edge
+  // starts the downstream step when the upstream lands.
+  const connectable = node.kind === "task" || node.kind === "tool";
 
   return (
     <div className={`node-card ${node.kind} ${node.status ?? ""} ${selected ? "selected" : ""} ${live ? "live" : ""}`}>
@@ -546,10 +548,11 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
     );
   }
 
-  if (node.kind === "verify") {
+  if (node.kind === "verify" || node.kind === "tool") {
     return (
       <div className="node-card-body">
         {meta?.command ? <code className="node-card-command">{meta.command}</code> : null}
+        {meta?.waitingFor ? <span className="node-tag wait">after: {meta.waitingFor}</span> : null}
         {meta?.verifyState === "passed" ? <span className="node-tag ok">passed</span> : null}
         {meta?.verifyState === "failed" ? <span className="node-tag bad">failed</span> : null}
       </div>
@@ -570,8 +573,8 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
   const act = node.actions;
 
   // Interactive controls carry `nodrag` so React Flow lets the click through
-  // instead of starting a card drag.
-  if (node.kind === "task" && meta?.launchable) {
+  // instead of starting a card drag. On a failed tool the button is a re-run.
+  if ((node.kind === "task" || node.kind === "tool") && meta?.launchable) {
     return (
       <div className="node-card-actions">
         <button
@@ -669,7 +672,7 @@ function LaneBands() {
         maxX = Math.max(maxX, node.position.x + width);
         maxY = Math.max(maxY, node.position.y + height);
         const data = node.data as OrbitalNodeData;
-        if (data.kind === "task" || data.kind === "campaign") label = data.label;
+        if (data.kind === "task" || data.kind === "tool" || data.kind === "campaign") label = data.label;
       });
       result.push({
         missionId,

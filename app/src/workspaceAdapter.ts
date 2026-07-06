@@ -95,13 +95,17 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
     title: mission.text,
     status: missionStatus(mission, patch?.status, verification),
     worker: topLevelRun?.worker_name ?? "unassigned",
-    command: verification?.command ?? commandFromEvents(state, mission.id) ?? defaultVerificationCommand(state, mission),
+    command:
+      mission.kind === "tool"
+        ? mission.tool_command ?? ""
+        : verification?.command ?? commandFromEvents(state, mission.id) ?? defaultVerificationCommand(state, mission),
     files: Array.from(new Set(events.map((event) => event.file_path).filter((path): path is string => Boolean(path)))),
     step: Math.max(events.length - 1, -1),
     patch_status: patchStatus(patch?.status),
     verified: verification?.status === "passed",
     map_position: ["north", "east", "south", "west", "center"][index % 5] as WorkspaceMission["map_position"],
     depends_on: mission.depends_on,
+    kind: mission.kind,
   };
 }
 
@@ -126,6 +130,21 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
     const hasPatch = Boolean(latestPatchForMission(state, mission.id));
     const hasVerify = Boolean(latestVerification(state, mission.id));
     const base = { mission_id: mission.id, repository_id: mission.repository_id };
+
+    // A tool step is one card: the command IS the whole pipeline, so no
+    // agent/changes/verify stages ever grow behind it.
+    if (mission.kind === "tool") {
+      return [
+        {
+          id: mission.id,
+          kind: "tool" as const,
+          label: compactLabel(mission.title),
+          detail: mission.command,
+          meta: { prompt: mission.title, command: mission.command },
+          ...base,
+        },
+      ];
+    }
 
     const nodes: WorkspaceGraphNode[] = [
       {
@@ -205,6 +224,12 @@ function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopSta
     upstreams.forEach((upstreamId) => {
       edges.push({ id: `then_${upstreamId}_${mission.id}`, from: upstreamId, to: mission.id, kind: "then" });
     });
+
+    // Tool missions render as a single card, so there are no pipeline stages
+    // to wire — even a patch-emitting tool has no changes node to point at.
+    if (mission.kind === "tool") {
+      return edges;
+    }
 
     const topLevelRun = state.agent_runs.filter((run) => run.mission_id === mission.id && !run.parent_run_id).at(-1);
     const childRuns = topLevelRun
@@ -287,7 +312,9 @@ function missionStatus(
   patchStatusValue: WorkerPatchStatus | undefined,
   verification: VerificationRun | undefined,
 ): MissionNodeStatus {
-  if (verification?.status === "passed") {
+  // A mission can be verified with no verification run: a tool step lands as
+  // verified when its command exits cleanly.
+  if (verification?.status === "passed" || mission.status === "verified") {
     return "verified";
   }
   if (verification?.status === "failed" || mission.status === "failed" || mission.status === "rejected") {
