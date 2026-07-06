@@ -8,8 +8,8 @@ use tauri::{Emitter, State};
 /// Tracks the OS process group id of every in-flight agent run, keyed by
 /// mission id, so a delete can shut the live agent down. Each run is spawned as
 /// its own process-group leader (see `run_worker_streaming`), so killing the
-/// group tears down the whole tree: `go run`, the binary it builds and execs,
-/// and any `claude`/`git` children that binary spawns.
+/// group tears down the whole tree: the worker binary and any `claude`/`git`
+/// children it spawns.
 #[derive(Default, Clone)]
 struct RunningRuns(Arc<Mutex<HashMap<String, u32>>>);
 
@@ -28,9 +28,47 @@ impl Drop for RunGuard {
     }
 }
 
+// Shared verbatim with the frontend's demoRepoPath and the npm fixture
+// scripts; change all three together.
 const DEMO_REPO_PATH: &str = "/private/tmp/orbital-demo-repo";
 const DEMO_VERIFICATION_COMMAND: &str = "node -e \"console.log('verified')\"";
-const GO_CACHE_PATH: &str = "/private/tmp/orbital-go-cache";
+
+/// Compiled worker binary, built once per app launch. Every command then execs
+/// the binary directly instead of paying `go run`'s compile-and-link check on
+/// each invocation — the difference between a snappy canvas and dead air.
+/// Failures are not cached, so a broken build is retried on the next call.
+static WORKER_BINARY: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+fn worker_binary() -> Result<PathBuf, String> {
+    let mut cached = WORKER_BINARY
+        .lock()
+        .map_err(|_| "worker binary lock poisoned".to_string())?;
+    if let Some(path) = cached.as_ref() {
+        return Ok(path.clone());
+    }
+
+    let bin = std::env::temp_dir().join(format!("orbital-worker{}", std::env::consts::EXE_SUFFIX));
+    let output = Command::new("go")
+        .args(["build", "-o"])
+        .arg(&bin)
+        .arg("./cmd/orbital")
+        .current_dir(worker_dir()?)
+        .env("GOCACHE", std::env::temp_dir().join("orbital-go-cache"))
+        .output()
+        .map_err(|error| format!("failed to build worker: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            format!("go build exited with status {}", output.status)
+        } else {
+            stderr
+        });
+    }
+
+    *cached = Some(bin.clone());
+    Ok(bin)
+}
 
 #[tauri::command]
 fn load_worker_state(repo_path: Option<String>) -> Result<String, String> {
@@ -240,19 +278,16 @@ fn run_worker_streaming(
     mission_id: &str,
     args: &[&str],
 ) -> Result<String, String> {
-    let mut command = Command::new("go");
+    let mut command = Command::new(worker_binary()?);
     command
-        .arg("run")
-        .arg("./cmd/orbital")
         .args(args)
         .current_dir(worker_dir()?)
-        .env("GOCACHE", GO_CACHE_PATH)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
     // Put the run in its own process group so a delete can kill the entire
-    // tree (`go run` execs a separate compiled binary that itself spawns
-    // `claude`/`git`) in one signal to the group.
+    // tree (the worker spawns `claude`/`git` children) in one signal to the
+    // group.
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -328,12 +363,9 @@ fn run_worker_status(repo_path: &str) -> Result<String, String> {
 }
 
 fn run_worker(args: &[&str]) -> Result<String, String> {
-    let output = Command::new("go")
-        .arg("run")
-        .arg("./cmd/orbital")
+    let output = Command::new(worker_binary()?)
         .args(args)
         .current_dir(worker_dir()?)
-        .env("GOCACHE", GO_CACHE_PATH)
         .output()
         .map_err(|error| format!("failed to run worker: {error}"))?;
 
