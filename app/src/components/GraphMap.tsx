@@ -118,7 +118,9 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   // with an existing one's stale coordinates.
   const manualPositionsRef = useRef<Record<string, NodePosition>>({});
   const actionsRef = useRef(actions);
-  actionsRef.current = actions;
+  useEffect(() => {
+    actionsRef.current = actions;
+  }, [actions]);
   // Stable action proxy so node data doesn't hold stale App closures — cards
   // always call through to the latest handlers.
   const stableActions = useMemo<NodeActions>(
@@ -138,7 +140,9 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   // Node kinds by id, for validating hand-drawn connections: only task→task
   // edges mean anything, so only those are allowed to form.
   const kindByNodeRef = useRef<Record<string, GraphNodeKind>>({});
-  kindByNodeRef.current = Object.fromEntries(nodes.map((node) => [node.id, node.kind]));
+  useEffect(() => {
+    kindByNodeRef.current = Object.fromEntries(nodes.map((node) => [node.id, node.kind]));
+  }, [nodes]);
 
   const isValidConnection = useCallback((connection: Edge | Connection) => {
     const { source, target } = connection;

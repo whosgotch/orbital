@@ -225,24 +225,32 @@ export function DiffView({ diff, emptyLabel, focusPath }: { diff: string; emptyL
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // A new change set starts fully expanded.
-  useEffect(() => {
+  // A new change set starts fully expanded. Render-phase reset (the React
+  // "adjust state on prop change" pattern) instead of an effect.
+  const [prevSignature, setPrevSignature] = useState(signature);
+  if (prevSignature !== signature) {
+    setPrevSignature(signature);
     setCollapsed({});
-  }, [signature]);
+  }
 
-  // Jump to a specific file when a file is picked in chat or on the canvas
-  // (match by path suffix, since event paths and diff paths can differ in
-  // their leading segments). Expand it if it was collapsed.
+  // The file picked in chat or on the canvas, matched by path suffix since
+  // event paths and diff paths can differ in their leading segments.
+  const focusFile = focusPath
+    ? files.find((f) => f.path === focusPath || f.path.endsWith(focusPath) || focusPath.endsWith(f.path))
+    : undefined;
+
+  // Expand the focused file during render so it is already open when the
+  // post-commit effect scrolls to it.
+  const [prevFocus, setPrevFocus] = useState(focusPath);
+  if (prevFocus !== focusPath) {
+    setPrevFocus(focusPath);
+    if (focusFile) setCollapsed((current) => ({ ...current, [focusFile.path]: false }));
+  }
+
   useEffect(() => {
-    if (!focusPath) return;
-    const file = files.find((f) => f.path === focusPath || f.path.endsWith(focusPath) || focusPath.endsWith(f.path));
-    if (!file) return;
-    setCollapsed((current) => ({ ...current, [file.path]: false }));
-    // Let the section expand before scrolling to it.
-    requestAnimationFrame(() => {
-      sectionRefs.current[file.path]?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }, [focusPath, signature]);
+    if (!focusFile) return;
+    sectionRefs.current[focusFile.path]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [focusFile]);
 
   if (files.length === 0) {
     return <div className="diff-empty">{emptyLabel}</div>;

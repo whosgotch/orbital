@@ -294,7 +294,10 @@ export function App() {
     () => buildAgentTranscript(missionLoopState, selectedMissionId, selectedAgentRunId),
     [missionLoopState, selectedMissionId, selectedAgentRunId],
   );
-  const selectedActivity = activityByMission[selectedMission?.id ?? ""] ?? [];
+  const selectedActivity = useMemo(
+    () => activityByMission[selectedMission?.id ?? ""] ?? [],
+    [activityByMission, selectedMission?.id],
+  );
   const agentStatus = useMemo(
     () => buildAgentStatus(missionLoopState, selectedMissionId, selectedPatchDiff, selectedActivity, selectedRuntime),
     [missionLoopState, selectedMissionId, selectedPatchDiff, selectedActivity, selectedRuntime],
@@ -304,11 +307,14 @@ export function App() {
   const selectedChatSending = chatSendingByMission[selectedMission?.id ?? ""] ?? false;
 
   // Close the inline prompt editor whenever the selected node changes, so an
-  // unsaved draft never leaks onto a different mission.
-  useEffect(() => {
+  // unsaved draft never leaks onto a different mission. Render-phase reset
+  // (the React "adjust state on prop change" pattern) instead of an effect.
+  const [editorMissionId, setEditorMissionId] = useState(selectedMissionId);
+  if (editorMissionId !== selectedMissionId) {
+    setEditorMissionId(selectedMissionId);
     setEditingPrompt(false);
     setTaskView("chat");
-  }, [selectedMissionId]);
+  }
 
   const visibleMissions = useMemo(
     () =>
@@ -1260,6 +1266,9 @@ export function App() {
     };
 
     void loadMissionLoop();
+    // Mount-only: loads the repo the session starts on; every later load is
+    // driven by user actions through applyRepoState.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
