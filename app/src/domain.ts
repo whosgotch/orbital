@@ -17,6 +17,8 @@ export type MissionStatus =
   | "verified"
   | "failed";
 
+export type MissionKind = "task" | "tool";
+
 export type Mission = {
   id: string;
   repository_id: string;
@@ -27,6 +29,10 @@ export type Mission = {
   parent_mission_id?: string;
   campaign_id?: string;
   depends_on?: string[];
+  // Absent kind reads as "task"; a tool mission runs tool_command instead of
+  // an AI agent and lands as verified/failed on the command's exit code.
+  kind?: MissionKind;
+  tool_command?: string;
 };
 
 export type AgentRunStatus = "queued" | "running" | "waiting_for_children" | "aggregating" | "completed" | "failed" | "cancelled";

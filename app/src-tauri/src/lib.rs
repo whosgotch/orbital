@@ -60,11 +60,16 @@ fn queue_mission(
     repo_path: String,
     mission_text: String,
     campaign_id: Option<String>,
+    tool_command: Option<String>,
 ) -> Result<String, String> {
-    match campaign_id.as_deref().map(str::trim).filter(|id| !id.is_empty()) {
-        Some(id) => run_worker(&["queue", repo_path.trim(), mission_text.trim(), "--campaign", id]),
-        None => run_worker(&["queue", repo_path.trim(), mission_text.trim()]),
+    let mut args = vec!["queue", repo_path.trim(), mission_text.trim()];
+    if let Some(id) = campaign_id.as_deref().map(str::trim).filter(|id| !id.is_empty()) {
+        args.extend(["--campaign", id]);
     }
+    if let Some(cmd) = tool_command.as_deref().map(str::trim).filter(|cmd| !cmd.is_empty()) {
+        args.extend(["--tool", cmd]);
+    }
+    run_worker(&args)
 }
 
 #[tauri::command]
