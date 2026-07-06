@@ -102,7 +102,9 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
       continue;
     }
     if (raw.startsWith("+++ ")) {
-      if (current) current.path = stripPrefix(raw.slice(4));
+      // A deleted file's new side is /dev/null; keep the real (old) path.
+      const path = stripPrefix(raw.slice(4));
+      if (current && path !== "/dev/null") current.path = path;
       continue;
     }
     if (current && raw.startsWith("new file")) {
