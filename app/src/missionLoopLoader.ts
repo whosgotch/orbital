@@ -4,147 +4,72 @@ import type { MissionLoopState, RepoCommit } from "./domain";
 const missionLoopFixturePath = "/workerMissionFixture.json";
 export const demoRepoPath = "/private/tmp/orbital-demo-repo";
 
-export async function loadMissionLoopState(repoPath = demoRepoPath): Promise<MissionLoopState> {
-  if (isTauriRuntime()) {
-    const state = await invoke<string>("load_worker_state", { repoPath });
-    return JSON.parse(state) as MissionLoopState;
-  }
-
-  return loadRuntimeFixture();
+export function isTauriRuntime() {
+  return "__TAURI_INTERNALS__" in window;
 }
 
-export async function openMissionLoopRepository(repoPath: string): Promise<MissionLoopState | undefined> {
+// Every worker command replies with the full mission-loop state as a JSON
+// string. In the browser (no Tauri) this returns undefined and the caller
+// keeps its local state instead.
+async function invokeState(command: string, args: Record<string, unknown>): Promise<MissionLoopState | undefined> {
   if (!isTauriRuntime()) {
     return undefined;
   }
 
-  const state = await invoke<string>("open_repository", { repoPath });
+  const state = await invoke<string>(command, args);
   return JSON.parse(state) as MissionLoopState;
+}
+
+export async function loadMissionLoopState(repoPath = demoRepoPath): Promise<MissionLoopState> {
+  return (await invokeState("load_worker_state", { repoPath })) ?? loadRuntimeFixture();
 }
 
 export async function refreshMissionLoopState(): Promise<MissionLoopState> {
-  if (isTauriRuntime()) {
-    const state = await invoke<string>("refresh_demo_worker_loop");
-    return JSON.parse(state) as MissionLoopState;
-  }
-
-  return loadRuntimeFixture();
+  return (await invokeState("refresh_demo_worker_loop", {})) ?? loadRuntimeFixture();
 }
 
-export async function queueMissionLoopState(
-  repoPath: string,
-  missionText: string,
-  campaignId?: string,
-  toolCommand?: string,
-): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
-
-  const state = await invoke<string>("queue_mission", { repoPath, missionText, campaignId, toolCommand });
-  return JSON.parse(state) as MissionLoopState;
+export function openMissionLoopRepository(repoPath: string) {
+  return invokeState("open_repository", { repoPath });
 }
 
-export async function updateMissionTextLoopState(
-  repoPath: string,
-  missionId: string,
-  text: string,
-): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
-
-  const state = await invoke<string>("update_mission_text", { repoPath, missionId, text });
-  return JSON.parse(state) as MissionLoopState;
+export function queueMissionLoopState(repoPath: string, missionText: string, campaignId?: string, toolCommand?: string) {
+  return invokeState("queue_mission", { repoPath, missionText, campaignId, toolCommand });
 }
 
-export async function startAgentRunMissionLoopState(
-  repoPath: string,
-  missionId: string,
-  workerName = "mock",
-  command = "",
-): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
-
-  const state = await invoke<string>("start_agent_run", { repoPath, missionId, workerName, command });
-  return JSON.parse(state) as MissionLoopState;
+export function updateMissionTextLoopState(repoPath: string, missionId: string, text: string) {
+  return invokeState("update_mission_text", { repoPath, missionId, text });
 }
 
-export async function sendAgentMessageLoopState(
-  repoPath: string,
-  missionId: string,
-  text: string,
-): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
-
-  const state = await invoke<string>("send_agent_message", { repoPath, missionId, text });
-  return JSON.parse(state) as MissionLoopState;
+export function startAgentRunMissionLoopState(repoPath: string, missionId: string, workerName = "mock", command = "") {
+  return invokeState("start_agent_run", { repoPath, missionId, workerName, command });
 }
 
-export async function deleteMissionLoopState(repoPath: string, missionId: string): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
-
-  const state = await invoke<string>("delete_mission", { repoPath, missionId });
-  return JSON.parse(state) as MissionLoopState;
+export function sendAgentMessageLoopState(repoPath: string, missionId: string, text: string) {
+  return invokeState("send_agent_message", { repoPath, missionId, text });
 }
 
-export async function linkMissionsLoopState(
-  repoPath: string,
-  fromMissionId: string,
-  toMissionId: string,
-): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
-
-  const state = await invoke<string>("link_missions", { repoPath, fromMissionId, toMissionId });
-  return JSON.parse(state) as MissionLoopState;
+export function deleteMissionLoopState(repoPath: string, missionId: string) {
+  return invokeState("delete_mission", { repoPath, missionId });
 }
 
-export async function unlinkMissionsLoopState(
-  repoPath: string,
-  fromMissionId: string,
-  toMissionId: string,
-): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
-
-  const state = await invoke<string>("unlink_missions", { repoPath, fromMissionId, toMissionId });
-  return JSON.parse(state) as MissionLoopState;
+export function linkMissionsLoopState(repoPath: string, fromMissionId: string, toMissionId: string) {
+  return invokeState("link_missions", { repoPath, fromMissionId, toMissionId });
 }
 
-export async function approvePatchMissionLoopState(repoPath: string, missionId: string): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
-
-  const state = await invoke<string>("approve_patch", { repoPath, missionId });
-  return JSON.parse(state) as MissionLoopState;
+export function unlinkMissionsLoopState(repoPath: string, fromMissionId: string, toMissionId: string) {
+  return invokeState("unlink_missions", { repoPath, fromMissionId, toMissionId });
 }
 
-export async function rejectPatchMissionLoopState(repoPath: string, missionId: string): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
-
-  const state = await invoke<string>("reject_patch", { repoPath, missionId });
-  return JSON.parse(state) as MissionLoopState;
+export function approvePatchMissionLoopState(repoPath: string, missionId: string) {
+  return invokeState("approve_patch", { repoPath, missionId });
 }
 
-export async function verifyMissionLoopState(repoPath: string, missionId: string, command: string): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
+export function rejectPatchMissionLoopState(repoPath: string, missionId: string) {
+  return invokeState("reject_patch", { repoPath, missionId });
+}
 
-  const state = await invoke<string>("verify_mission", { repoPath, missionId, command });
-  return JSON.parse(state) as MissionLoopState;
+export function verifyMissionLoopState(repoPath: string, missionId: string, command: string) {
+  return invokeState("verify_mission", { repoPath, missionId, command });
 }
 
 export async function loadRepoHistory(repoPath: string): Promise<RepoCommit[]> {
@@ -171,8 +96,4 @@ async function loadRuntimeFixture(): Promise<MissionLoopState> {
   }
 
   return (await response.json()) as MissionLoopState;
-}
-
-export function isTauriRuntime() {
-  return "__TAURI_INTERNALS__" in window;
 }
