@@ -124,6 +124,34 @@ func TestQueueMissionCreatesDraftMissionAndPrintsStateJSON(t *testing.T) {
 	}
 }
 
+func TestQueueToolMissionCreatesToolDraft(t *testing.T) {
+	repoDir := t.TempDir()
+
+	var output bytes.Buffer
+	err := run(context.Background(), []string{"orbital", "queue", repoDir, "run tests", "--tool", "go test ./..."}, &output)
+	if err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+
+	var state store.State
+	if err := json.Unmarshal(output.Bytes(), &state); err != nil {
+		t.Fatalf("Unmarshal(queue JSON) error = %v; output = %q", err, output.String())
+	}
+
+	if len(state.Missions) != 1 {
+		t.Fatalf("expected 1 mission, got %d", len(state.Missions))
+	}
+	if state.Missions[0].Kind != domain.MissionKindTool {
+		t.Fatalf("mission kind = %q, want %q", state.Missions[0].Kind, domain.MissionKindTool)
+	}
+	if state.Missions[0].ToolCommand != "go test ./..." {
+		t.Fatalf("tool command = %q, want %q", state.Missions[0].ToolCommand, "go test ./...")
+	}
+	if state.Missions[0].Status != domain.MissionStatusDraft {
+		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusDraft)
+	}
+}
+
 func TestStartRunCreatesWorkerRunAndPatch(t *testing.T) {
 	repoDir := t.TempDir()
 	if err := run(context.Background(), []string{"orbital", "demo-fixture", repoDir}, &bytes.Buffer{}); err != nil {

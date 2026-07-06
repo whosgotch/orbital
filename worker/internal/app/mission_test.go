@@ -57,6 +57,60 @@ func TestCreateMissionSavesMission(t *testing.T) {
 	}
 }
 
+func TestCreateToolMissionSavesKindAndCommand(t *testing.T) {
+	stateDir := t.TempDir()
+	jsonStore := store.NewJSONStore(stateDir)
+	svc := NewService(jsonStore)
+
+	state := &store.State{
+		Repositories: []domain.Repository{
+			{
+				ID:   "repo_1",
+				Path: "/tmp/demo",
+				Name: "demo",
+			},
+		},
+	}
+
+	if err := jsonStore.Save(state); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	mission, err := svc.CreateToolMission("repo_1", "run tests", " go test ./... ", "")
+	if err != nil {
+		t.Fatalf("CreateToolMission() error = %v", err)
+	}
+
+	if mission.Kind != domain.MissionKindTool {
+		t.Fatalf("mission kind = %q, want %q", mission.Kind, domain.MissionKindTool)
+	}
+
+	if mission.ToolCommand != "go test ./..." {
+		t.Fatalf("tool command = %q, want %q", mission.ToolCommand, "go test ./...")
+	}
+
+	if !mission.IsTool() {
+		t.Fatal("IsTool() = false, want true")
+	}
+
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if len(got.Missions) != 1 || got.Missions[0].ToolCommand != "go test ./..." {
+		t.Fatalf("persisted missions = %+v, want one tool mission", got.Missions)
+	}
+}
+
+func TestCreateToolMissionRejectsBlankCommand(t *testing.T) {
+	svc := NewService(store.NewJSONStore(t.TempDir()))
+
+	if _, err := svc.CreateToolMission("repo_1", "run tests", "   ", ""); err == nil {
+		t.Fatal("expected error for blank tool command, got nil")
+	}
+}
+
 func TestCreateMissionRejectsBlankText(t *testing.T) {
 	svc := NewService(store.NewJSONStore(t.TempDir()))
 

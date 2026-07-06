@@ -16,6 +16,7 @@ func linkTestService(t *testing.T) (*Service, *store.JSONStore) {
 			{ID: "mission_a", RepositoryID: "repo_1", Text: "extract the client", Status: domain.MissionStatusDraft},
 			{ID: "mission_b", RepositoryID: "repo_1", Text: "add retries on top", Status: domain.MissionStatusDraft},
 			{ID: "mission_c", RepositoryID: "repo_1", Text: "document the flow", Status: domain.MissionStatusDraft},
+			{ID: "mission_tool", RepositoryID: "repo_1", Text: "run tests", Status: domain.MissionStatusDraft, Kind: domain.MissionKindTool, ToolCommand: "true"},
 		},
 	}); err != nil {
 		t.Fatalf("Save() error = %v", err)
@@ -54,6 +55,14 @@ func TestLinkMissionsRecordsDependency(t *testing.T) {
 	}
 	if deps := dependsOf(t, jsonStore, "mission_b"); len(deps) != 1 {
 		t.Fatalf("depends_on after repeat = %v, want one entry", deps)
+	}
+
+	// Tool missions chain like any other mission.
+	if err := svc.LinkMissions("mission_a", "mission_tool"); err != nil {
+		t.Fatalf("LinkMissions(tool) error = %v", err)
+	}
+	if deps := dependsOf(t, jsonStore, "mission_tool"); len(deps) != 1 || deps[0] != "mission_a" {
+		t.Fatalf("tool depends_on = %v, want [mission_a]", deps)
 	}
 }
 

@@ -94,6 +94,86 @@ func TestStartAgentRunWithMockWorkerSavesRunEventsAndPatch(t *testing.T) {
 	}
 }
 
+func saveToolMissionState(t *testing.T, jsonStore *store.JSONStore, repoDir string, toolCommand string) {
+	t.Helper()
+
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{
+			{
+				ID:   "repo_1",
+				Path: repoDir,
+				Name: "demo",
+			},
+		},
+		Missions: []domain.Mission{
+			{
+				ID:           "mission_1",
+				RepositoryID: "repo_1",
+				Text:         "run the checks",
+				Status:       domain.MissionStatusDraft,
+				Kind:         domain.MissionKindTool,
+				ToolCommand:  toolCommand,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+}
+
+func TestStartAgentRunToolMissionRunsCommandAndLandsVerified(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+	saveToolMissionState(t, jsonStore, writeAgentRunRepo(t), "true")
+
+	// The requested worker must be ignored for tool missions: chains
+	// auto-dispatch with whatever worker the frontend defaults to.
+	run, err := svc.StartAgentRun(context.Background(), "mission_1", "mock")
+	if err != nil {
+		t.Fatalf("StartAgentRun() error = %v", err)
+	}
+
+	if run.WorkerName != "local-command" {
+		t.Fatalf("run worker name = %q, want %q", run.WorkerName, "local-command")
+	}
+
+	if run.Status != domain.AgentRunStatusCompleted {
+		t.Fatalf("run status = %q, want %q", run.Status, domain.AgentRunStatusCompleted)
+	}
+
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got.Missions[0].Status != domain.MissionStatusVerified {
+		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusVerified)
+	}
+}
+
+func TestStartAgentRunToolMissionFailureMarksMissionFailed(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+	saveToolMissionState(t, jsonStore, writeAgentRunRepo(t), "false")
+
+	run, err := svc.StartAgentRun(context.Background(), "mission_1", "mock")
+	if err != nil {
+		t.Fatalf("StartAgentRun() error = %v", err)
+	}
+
+	if run.Status != domain.AgentRunStatusFailed {
+		t.Fatalf("run status = %q, want %q", run.Status, domain.AgentRunStatusFailed)
+	}
+
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got.Missions[0].Status != domain.MissionStatusFailed {
+		t.Fatalf("mission status = %q, want %q", got.Missions[0].Status, domain.MissionStatusFailed)
+	}
+}
+
 func writeAgentRunRepo(t *testing.T) string {
 	t.Helper()
 

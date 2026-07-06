@@ -13,6 +13,21 @@ import (
 // it to a coordinated multi-repo change so the campaign can be reconstructed by
 // grouping missions that share the id across each repo's separate state.
 func (s *Service) CreateMission(repoID string, text string, campaignID string) (*domain.Mission, error) {
+	return s.createMission(repoID, text, campaignID, "", "")
+}
+
+// CreateToolMission records a draft tool step: a deterministic shell command
+// that runs when the mission dispatches and lands or fails on its exit code.
+func (s *Service) CreateToolMission(repoID string, text string, toolCommand string, campaignID string) (*domain.Mission, error) {
+	command := strings.TrimSpace(toolCommand)
+	if command == "" {
+		return nil, fmt.Errorf("tool command is required")
+	}
+
+	return s.createMission(repoID, text, campaignID, domain.MissionKindTool, command)
+}
+
+func (s *Service) createMission(repoID string, text string, campaignID string, kind domain.MissionKind, toolCommand string) (*domain.Mission, error) {
 	missionText := strings.TrimSpace(text)
 	if missionText == "" {
 		return nil, fmt.Errorf("mission text is required")
@@ -27,6 +42,8 @@ func (s *Service) CreateMission(repoID string, text string, campaignID string) (
 		CreatedAt:    now,
 		UpdatedAt:    now,
 		CampaignID:   strings.TrimSpace(campaignID),
+		Kind:         kind,
+		ToolCommand:  toolCommand,
 	}
 
 	_, err := s.store.Update(func(state *store.State) error {

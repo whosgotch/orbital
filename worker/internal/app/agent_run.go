@@ -12,7 +12,9 @@ import (
 )
 
 func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerName string) (*domain.AgentRun, error) {
-	worker, err := s.workerRegistry.Lookup(workerName)
+	// A tool mission always runs its own stored command; the caller's worker
+	// choice is irrelevant, so auto-dispatched chains never need to thread it.
+	worker, workerName, err := s.resolveWorker(missionID, workerName)
 	if err != nil {
 		return nil, err
 	}
@@ -28,6 +30,8 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 
 	// Record the run and mark the mission running. Capture the repo path and
 	// mission text so the rest of the run works without holding the lock.
+	// (resolveWorker's read and this write are separate transactions, but a
+	// mission's kind and tool command never change after creation.)
 	var repoPath, missionText string
 	if _, err := s.store.Update(func(state *store.State) error {
 		missionIndex := findMissionIndex(state.Missions, missionID)
@@ -124,6 +128,30 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 	return s.finishAgentRun(run.ID, missionID)
 }
 
+func (s *Service) resolveWorker(missionID string, workerName string) (agent.Worker, string, error) {
+	state, err := s.store.Load()
+	if err != nil {
+		return nil, "", err
+	}
+
+	missionIndex := findMissionIndex(state.Missions, missionID)
+	if missionIndex == -1 {
+		return nil, "", fmt.Errorf("mission not found: %s", missionID)
+	}
+
+	if mission := state.Missions[missionIndex]; mission.IsTool() {
+		toolWorker := agent.NewLocalCommandWorker(mission.ToolCommand)
+		return toolWorker, toolWorker.Name(), nil
+	}
+
+	worker, err := s.workerRegistry.Lookup(workerName)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return worker, workerName, nil
+}
+
 func (s *Service) finishAgentRun(runID string, missionID string) (*domain.AgentRun, error) {
 	var result domain.AgentRun
 	_, err := s.store.Update(func(state *store.State) error {
@@ -143,6 +171,16 @@ func (s *Service) finishAgentRun(runID string, missionID string) (*domain.AgentR
 		state.AgentRuns[runIndex].CompletedAt = &completedAt
 		if finalStatus == domain.AgentRunStatusFailed || finalStatus == domain.AgentRunStatusCancelled {
 			state.Missions[missionIndex].Status = domain.MissionStatusFailed
+			state.Missions[missionIndex].UpdatedAt = completedAt
+		}
+
+		// A tool step has no patch gate: its command finishing cleanly IS the
+		// outcome, so land the mission as verified to release chained tasks.
+		// A tool that did emit a patch artifact is in waiting_approval by now
+		// and keeps the normal approve gate.
+		mission := state.Missions[missionIndex]
+		if mission.IsTool() && finalStatus == domain.AgentRunStatusCompleted && mission.Status == domain.MissionStatusRunning {
+			state.Missions[missionIndex].Status = domain.MissionStatusVerified
 			state.Missions[missionIndex].UpdatedAt = completedAt
 		}
 
