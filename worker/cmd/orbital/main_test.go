@@ -239,6 +239,66 @@ func TestStartRunCanUseLocalCommandWorker(t *testing.T) {
 	}
 }
 
+func TestStartRunChainedToolMissionLandsVerified(t *testing.T) {
+	repoDir := t.TempDir()
+
+	// A task chained into a tool: queue both, link them, run the tool. The
+	// tool must run its stored command (no --worker/--command flags) and land
+	// as verified so the canvas releases anything chained behind it.
+	var queueOutput bytes.Buffer
+	if err := run(context.Background(), []string{"orbital", "queue", repoDir, "run the checks", "--tool", "printf ok > checks.txt"}, &queueOutput); err != nil {
+		t.Fatalf("queue --tool run() error = %v", err)
+	}
+
+	var queuedState store.State
+	if err := json.Unmarshal(queueOutput.Bytes(), &queuedState); err != nil {
+		t.Fatalf("Unmarshal(queue JSON) error = %v", err)
+	}
+	toolID := queuedState.Missions[0].ID
+
+	var startOutput bytes.Buffer
+	if err := run(context.Background(), []string{"orbital", "start-run", repoDir, toolID}, &startOutput); err != nil {
+		t.Fatalf("start-run run() error = %v", err)
+	}
+
+	state := unmarshalStreamedState(t, startOutput.String())
+
+	if state.AgentRuns[0].WorkerName != "local-command" {
+		t.Fatalf("worker name = %q, want %q", state.AgentRuns[0].WorkerName, "local-command")
+	}
+	if state.Missions[0].Status != domain.MissionStatusVerified {
+		t.Fatalf("tool mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusVerified)
+	}
+	if _, err := os.ReadFile(filepath.Join(repoDir, "checks.txt")); err != nil {
+		t.Fatalf("ReadFile(checks.txt) error = %v — tool command did not run", err)
+	}
+}
+
+func TestStartRunToolMissionFailureMarksMissionFailed(t *testing.T) {
+	repoDir := t.TempDir()
+
+	var queueOutput bytes.Buffer
+	if err := run(context.Background(), []string{"orbital", "queue", repoDir, "run the checks", "--tool", "exit 3"}, &queueOutput); err != nil {
+		t.Fatalf("queue --tool run() error = %v", err)
+	}
+
+	var queuedState store.State
+	if err := json.Unmarshal(queueOutput.Bytes(), &queuedState); err != nil {
+		t.Fatalf("Unmarshal(queue JSON) error = %v", err)
+	}
+
+	var startOutput bytes.Buffer
+	if err := run(context.Background(), []string{"orbital", "start-run", repoDir, queuedState.Missions[0].ID}, &startOutput); err != nil {
+		t.Fatalf("start-run run() error = %v", err)
+	}
+
+	state := unmarshalStreamedState(t, startOutput.String())
+
+	if state.Missions[0].Status != domain.MissionStatusFailed {
+		t.Fatalf("tool mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusFailed)
+	}
+}
+
 func TestStartRunCanUseLocalCommandWorkerPatchArtifact(t *testing.T) {
 	repoDir := t.TempDir()
 

@@ -1577,7 +1577,7 @@ export function App() {
             <div className="panel-head review-head">
               <div>
                 <div className="section-label">
-                  {selectedRepository?.name ?? "workspace"} · task
+                  {selectedRepository?.name ?? "workspace"} · {selectedMission.kind === "tool" ? "tool" : "task"}
                 </div>
                 <h2 className="work-order-title">{selectedMission.title}</h2>
               </div>
