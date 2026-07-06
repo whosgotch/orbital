@@ -20,12 +20,30 @@ import {
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import { DiffView } from "./components/DiffView";
-import { type TranscriptEntry } from "./components/AgentTranscript";
 import { AgentChat } from "./components/AgentChat";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
+import { buildAgentTranscript, groupChatByMission } from "./agentTranscript";
 import {
-  type MissionNodeStatus,
+  controlStateLabel,
+  defaultLocalCommand,
+  errorMessage,
+  isRunning,
+  missionStatusFor,
+  nearestMissionId,
+  queuedRuntime,
+  repoLabel,
+  repositoryFor,
+  statusFromRuntime,
+  verificationOutput,
+  verifyPillClass,
+  verifyPillLabel,
+  workerModeFromName,
+  workerModeLabel,
+  type WorkerMode,
+} from "./missionUi";
+import { combineRepoStates, emptyMissionLoopState, removeMissionFromState, splitByRepository } from "./repoStates";
+import {
   type WorkspaceGraphEdge,
   type WorkspaceGraphNode,
   type WorkspaceMission,
@@ -33,7 +51,6 @@ import {
 import type { ChatMessage, MissionLoopState, PatchProposal, RepoCommit, Repository, WorkflowEvent } from "./domain";
 import {
   compactLabel,
-  roleLabel,
   workspaceViewFromMissionLoop,
   type WorkspaceRuntime,
   type WorkspaceRuntimeMap,
@@ -58,96 +75,11 @@ import {
   verifyMissionLoopState,
 } from "./missionLoopLoader";
 
-const emptyMissionLoopState: MissionLoopState = {
-  repositories: [],
-  missions: [],
-  agent_runs: [],
-  workflow_events: [],
-  patch_proposals: [],
-  verification_runs: [],
-  chat_messages: [],
-};
-
 const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState);
-
-// The runtime a mission has before its first run touches it.
-const queuedRuntime: WorkspaceRuntime = { step: -1, patchStatus: "pending", verified: false, status: "queued" };
-type WorkerMode = "mock" | "local-command" | "claude-manager";
 
 // The single canvas draft-task card. It exists only in the rendered graph until
 // Queue/Run turns it into a real mission, so one well-known id is enough.
 const DRAFT_TASK_NODE_ID = "task_draft";
-
-// Map a mission's actual worker name to the selectable mode, so the per-mission
-// dropdown reflects whoever last ran it (any claude-* agent reads as Claude).
-function workerModeFromName(workerName: string | undefined): WorkerMode {
-  if (workerName === "local-command") return "local-command";
-  if (workerName?.startsWith("claude")) return "claude-manager";
-  return "mock";
-}
-
-function workerModeLabel(mode: WorkerMode): string {
-  if (mode === "local-command") return "Local cmd";
-  if (mode === "claude-manager") return "Claude AI";
-  return "Demo worker";
-}
-
-// Merge every open repository's state into one MissionLoopState. The adapter
-// already keys nodes by repository_id / mission_id, so the union renders each
-// repo as its own cluster on the shared canvas.
-function combineRepoStates(states: Record<string, MissionLoopState>): MissionLoopState {
-  const all = Object.values(states);
-  return {
-    repositories: all.flatMap((state) => state.repositories),
-    missions: all.flatMap((state) => state.missions),
-    agent_runs: all.flatMap((state) => state.agent_runs),
-    workflow_events: all.flatMap((state) => state.workflow_events),
-    patch_proposals: all.flatMap((state) => state.patch_proposals),
-    verification_runs: all.flatMap((state) => state.verification_runs),
-    chat_messages: all.flatMap((state) => state.chat_messages),
-  };
-}
-
-// Normalize a loaded state into one slice per repository, keyed by repo id. The
-// worker returns a single repo per call, but the browser fixture bundles
-// several — splitting lets each repo be added, updated, or closed on its own.
-function splitByRepository(state: MissionLoopState): Record<string, MissionLoopState> {
-  const out: Record<string, MissionLoopState> = {};
-  for (const repo of state.repositories) {
-    const missionIds = new Set(state.missions.filter((mission) => mission.repository_id === repo.id).map((mission) => mission.id));
-    const runIds = new Set(state.agent_runs.filter((run) => missionIds.has(run.mission_id)).map((run) => run.id));
-    out[repo.id] = {
-      repositories: [repo],
-      missions: state.missions.filter((mission) => mission.repository_id === repo.id),
-      agent_runs: state.agent_runs.filter((run) => missionIds.has(run.mission_id)),
-      workflow_events: state.workflow_events.filter(
-        (event) => (event.mission_id != null && missionIds.has(event.mission_id)) || (event.run_id != null && runIds.has(event.run_id)),
-      ),
-      patch_proposals: state.patch_proposals.filter((patch) => runIds.has(patch.run_id)),
-      verification_runs: state.verification_runs.filter((run) => run.repository_id === repo.id || missionIds.has(run.mission_id)),
-      chat_messages: state.chat_messages.filter((message) => missionIds.has(message.mission_id) || runIds.has(message.run_id)),
-    };
-  }
-  return out;
-}
-
-// Drop a mission and everything attached to it from a combined state. Mirrors
-// the worker's DeleteMission cascade for the browser/demo path that has no
-// backend to do it.
-function removeMissionFromState(state: MissionLoopState, missionId: string): MissionLoopState {
-  const runIds = new Set(state.agent_runs.filter((run) => run.mission_id === missionId).map((run) => run.id));
-  return {
-    repositories: state.repositories,
-    missions: state.missions.filter((mission) => mission.id !== missionId),
-    agent_runs: state.agent_runs.filter((run) => run.mission_id !== missionId),
-    workflow_events: state.workflow_events.filter(
-      (event) => event.mission_id !== missionId && !(event.run_id != null && runIds.has(event.run_id)),
-    ),
-    patch_proposals: state.patch_proposals.filter((patch) => !runIds.has(patch.run_id)),
-    verification_runs: state.verification_runs.filter((run) => run.mission_id !== missionId),
-    chat_messages: state.chat_messages.filter((message) => message.mission_id !== missionId && !runIds.has(message.run_id)),
-  };
-}
 
 export function App() {
   const [missionLoopState, setMissionLoopState] = useState(emptyMissionLoopState);
@@ -1835,185 +1767,3 @@ export function App() {
   );
 }
 
-function repoLabel(name: string | undefined, path: string) {
-  if (name) {
-    return name;
-  }
-  const trimmed = path.replace(/\/+$/, "");
-  const base = trimmed.split("/").filter(Boolean).at(-1);
-  return base || "Open repo";
-}
-
-
-function repositoryFor(mission: WorkspaceMission, repositories: Repository[]) {
-  return repositories.find((repository) => repository.id === mission.repository_id) ?? repositories[0];
-}
-
-function nearestMissionId(node: WorkspaceGraphNode | undefined, missions: WorkspaceMission[]) {
-  if (!node) return undefined;
-  if (node.repository_id) {
-    return missions.find((mission) => mission.repository_id === node.repository_id)?.id;
-  }
-
-  return undefined;
-}
-
-function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus {
-  if (runtime.status === "blocked") {
-    return "blocked";
-  }
-  if (runtime.status === "verified") {
-    return "verified";
-  }
-  if (runtime.verified) {
-    return "verified";
-  }
-  if (runtime.patchStatus === "approved") {
-    return "approved";
-  }
-  if (runtime.patchStatus === "rejected") {
-    return "blocked";
-  }
-  if (runtime.status === "review") {
-    return "review";
-  }
-  if (runtime.step >= 0) {
-    return "running";
-  }
-  if (runtime.status === "queued") {
-    return "queued";
-  }
-  return "draft";
-}
-
-function controlStateLabel(status: MissionNodeStatus | undefined): string {
-  switch (status) {
-    case "running":
-      return "Running";
-    case "review":
-      return "In review";
-    case "approved":
-      return "Approved";
-    case "verified":
-      return "Verified";
-    case "blocked":
-      return "Blocked";
-    default:
-      return "Idle";
-  }
-}
-
-function missionStatusFor(runtime: WorkspaceRuntime, patchReady: boolean) {
-  const status = statusFromRuntime(runtime);
-  if (status === "verified") {
-    return { label: "Verified", className: "done" };
-  }
-  if (status === "approved") {
-    return { label: "Approved", className: "active" };
-  }
-  if (status === "blocked") {
-    return { label: "Blocked", className: "rejected" };
-  }
-  if (status === "review") {
-    return { label: patchReady ? "Review" : "Running", className: "active" };
-  }
-  if (status === "running") {
-    return { label: "Running", className: "active" };
-  }
-  return { label: "Queued", className: "idle" };
-}
-
-function isRunning(runtime: WorkspaceRuntime) {
-  return statusFromRuntime(runtime) === "running";
-}
-
-function defaultLocalCommand() {
-  return `printf 'diff --git a/orbital-local-worker.txt b/orbital-local-worker.txt\nnew file mode 100644\n--- /dev/null\n+++ b/orbital-local-worker.txt\n@@ -0,0 +1 @@\n+local worker completed\n' > "$ORBITAL_PATCH_PATH"`;
-}
-
-// buildAgentTranscript turns persisted workflow events into the agent's
-// thoughts + actions stream, scoped to one run when a specific agent is
-// selected, otherwise the whole mission's agents in order.
-function buildAgentTranscript(state: MissionLoopState, missionId: string, runId: string | undefined): TranscriptEntry[] {
-  const runById = new Map(state.agent_runs.map((run) => [run.id, run]));
-  const labelForRun = (rid: string | undefined) => {
-    const run = rid ? runById.get(rid) : undefined;
-    return run ? roleLabel(run.worker_name) : "";
-  };
-  // Cluster each agent's events together by ordering on when its run started,
-  // then chronologically within the run — so the mission-wide view reads
-  // manager → engineer → reviewer rather than interleaving them.
-  const runStart = (rid: string | undefined) => (rid ? runById.get(rid)?.started_at ?? "" : "");
-
-  return state.workflow_events
-    .filter((event) => {
-      if (runId) return event.run_id === runId;
-      return event.mission_id === missionId;
-    })
-    .slice()
-    .sort((a, b) => runStart(a.run_id).localeCompare(runStart(b.run_id)) || a.created_at.localeCompare(b.created_at))
-    .map((event) => {
-      const kind =
-        event.type === "agent_thought"
-          ? "thought"
-          : event.type === "agent_action" || event.type === "command_executed" || event.type === "file_read"
-            ? "action"
-            : "status";
-      return { id: event.id, kind, text: event.message, agent: labelForRun(event.run_id) } as TranscriptEntry;
-    })
-    .filter((entry) => entry.text.trim() !== "");
-}
-
-// groupChatByMission buckets the flat chat log into per-mission conversations,
-// each ordered oldest-first so the thread reads top to bottom.
-function groupChatByMission(messages: ChatMessage[]): Record<string, ChatMessage[]> {
-  const byMission: Record<string, ChatMessage[]> = {};
-  for (const message of messages) {
-    (byMission[message.mission_id] ??= []).push(message);
-  }
-  for (const list of Object.values(byMission)) {
-    list.sort((a, b) => a.created_at.localeCompare(b.created_at));
-  }
-  return byMission;
-}
-
-function verifyPillLabel(runtime: WorkspaceRuntime) {
-  if (runtime.verified) return "Verification passed";
-  if (runtime.status === "blocked") return "Verification failed";
-  if (runtime.patchStatus === "approved") return "Not verified yet";
-  return "Awaiting verification";
-}
-
-function verifyPillClass(runtime: WorkspaceRuntime) {
-  if (runtime.verified) return "passed";
-  if (runtime.status === "blocked") return "failed";
-  if (runtime.patchStatus === "approved") return "ready";
-  return "pending";
-}
-
-function verificationOutput(runtime: WorkspaceRuntime, output: string) {
-  if (runtime.verified) {
-    return output || "Verification passed.";
-  }
-  if (runtime.status === "blocked") {
-    return output || "Mission blocked before verification completed.";
-  }
-  if (runtime.patchStatus === "approved") {
-    return "Patch approved. Verification command is armed.";
-  }
-  if (runtime.patchStatus === "rejected") {
-    return "Patch rejected. Mission stopped before file changes.";
-  }
-  return "Waiting for approved patch.";
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === "string" && error.trim()) {
-    return error;
-  }
-
-  return fallback;
-}
