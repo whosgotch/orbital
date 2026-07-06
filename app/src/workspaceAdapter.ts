@@ -421,7 +421,8 @@ function stationActivityFromEvents(events: WorkflowEvent[]) {
   });
 }
 
-function compactLabel(title: string) {
+// compactLabel shortens a mission's text to the few words its node card shows.
+export function compactLabel(title: string) {
   return title.split(/\s+/).filter(Boolean).slice(0, 3).join(" ");
 }
 

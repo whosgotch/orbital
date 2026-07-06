@@ -32,6 +32,7 @@ import {
 } from "./graph";
 import type { ChatMessage, MissionLoopState, PatchProposal, RepoCommit, Repository, WorkflowEvent } from "./domain";
 import {
+  compactLabel,
   roleLabel,
   workspaceViewFromMissionLoop,
   type WorkspaceRuntime,
@@ -68,6 +69,9 @@ const emptyMissionLoopState: MissionLoopState = {
 };
 
 const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState);
+
+// The runtime a mission has before its first run touches it.
+const queuedRuntime: WorkspaceRuntime = { step: -1, patchStatus: "pending", verified: false, status: "queued" };
 type WorkerMode = "mock" | "local-command" | "claude-manager";
 
 // The single canvas draft-task card. It exists only in the rendered graph until
@@ -158,8 +162,8 @@ export function App() {
   const [missionLoopError, setMissionLoopError] = useState("");
   const [repoPathDraft, setRepoPathDraft] = useState(demoRepoPath);
   const [activeRepoPath, setActiveRepoPath] = useState(demoRepoPath);
-  const [selectedNodeId, setSelectedNodeId] = useState("mission_version");
-  const [missionDraft, setMissionDraft] = useState("stabilize the release path");
+  const [selectedNodeId, setSelectedNodeId] = useState("");
+  const [missionDraft, setMissionDraft] = useState("");
   // Repos a queued intent fans out to. Picking >1 makes it a coordinated
   // campaign: the same intent is queued in each repo under a shared campaign id.
   const [campaignRepoIds, setCampaignRepoIds] = useState<string[]>([]);
@@ -176,7 +180,6 @@ export function App() {
   const [workerModeByMission, setWorkerModeByMission] = useState<Record<string, WorkerMode>>(
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, workerModeFromName(mission.worker)])),
   );
-  const [localCommandByMission, setLocalCommandByMission] = useState<Record<string, string>>({});
   // Which full-width view the task window shows, and whether the verification
   // detail (command + output) is expanded under the diff.
   const [taskView, setTaskView] = useState<"chat" | "changes">("chat");
@@ -270,7 +273,7 @@ export function App() {
   // title is only the short node label.
   const selectedMissionRecord = missionLoopState.missions.find((mission) => mission.id === selectedMission?.id);
   const selectedRepository = selectedMission ? repositoryFor(selectedMission, missionLoopState.repositories) : undefined;
-  const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? { step: -1, patchStatus: "pending" as const, verified: false, status: "queued" as const };
+  const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? queuedRuntime;
   const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationOutput = (selectedMission ? verificationOutputByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
@@ -349,7 +352,7 @@ export function App() {
                 ...node.meta,
                 worker: workerModeLabel(workerModeByMission[missionId] ?? workerModeFromName(mission?.worker)),
                 launchable,
-                waitingFor: firstUpstream ? missionLabel(firstUpstream.title) : undefined,
+                waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
               },
             };
           }
@@ -369,7 +372,7 @@ export function App() {
                 ...node.meta,
                 launchable,
                 live: runtime?.status === "running",
-                waitingFor: firstUpstream ? missionLabel(firstUpstream.title) : undefined,
+                waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
                 verifyState: status === "verified" ? ("passed" as const) : status === "blocked" ? ("failed" as const) : undefined,
               },
             };
@@ -599,17 +602,13 @@ export function App() {
     (patchDiffByMission[missionId] ?? "") !== "" && runtimeByMission[missionId]?.patchStatus === "pending";
   const missionIsLaunchable = (missionId: string) => {
     const status = runtimeByMission[missionId]?.status;
-    return status === undefined || status === "queued" || status === "draft";
+    if (status === undefined || status === "queued" || status === "draft") return true;
+    // A failed tool's Run is its re-run affordance (mirrors the canvas card).
+    const mission = workspaceMissions.find((item) => item.id === missionId);
+    return status === "blocked" && mission?.kind === "tool";
   };
   const pendingApprovalCount = workspaceMissions.filter((m) => missionAwaitsApproval(m.id)).length;
   const launchableCount = workspaceMissions.filter((m) => missionIsLaunchable(m.id)).length;
-
-  const updateSelectedRuntime = (next: (runtime: WorkspaceRuntime) => WorkspaceRuntime) => {
-    setRuntimeByMission((current) => ({
-      ...current,
-      [selectedMission.id]: next(current[selectedMission.id]),
-    }));
-  };
 
   const repoPathForMission = (missionId: string) => {
     const mission = workspaceMissions.find((item) => item.id === missionId);
@@ -617,14 +616,12 @@ export function App() {
     return repository?.path ?? activeRepoPath;
   };
 
-  // Launch every draft/queued mission at once. Each runs in its own worker
+  // Launch every launchable mission at once. Each runs in its own worker
   // process and git worktree, so the backlog burns down in parallel.
   const launchAllMissions = () => {
-    const pending = workspaceMissions.filter((mission) => {
-      const status = runtimeByMission[mission.id]?.status;
-      return status === undefined || status === "queued" || status === "draft";
-    });
-    pending.forEach((mission) => void dispatchMission(mission.id));
+    workspaceMissions
+      .filter((mission) => missionIsLaunchable(mission.id))
+      .forEach((mission) => void dispatchMission(mission.id));
   };
 
   // dispatchMission starts one mission by id, independent of the current
@@ -635,12 +632,12 @@ export function App() {
     const repoPath = overrides?.repoPath ?? repoPathForMission(missionId);
     const mission = workspaceMissions.find((item) => item.id === missionId);
     const workerMode = overrides?.workerMode ?? workerModeByMission[missionId] ?? workerModeFromName(mission?.worker);
-    const localCommand = localCommandByMission[missionId] ?? defaultLocalCommand();
+    const localCommand = defaultLocalCommand();
 
     // Optimistically mark it running so the canvas pulses immediately.
     setRuntimeByMission((current) => ({
       ...current,
-      [missionId]: { ...(current[missionId] ?? { step: -1, patchStatus: "pending", verified: false, status: "queued" }), status: "running", step: Math.max(current[missionId]?.step ?? -1, 0) },
+      [missionId]: { ...(current[missionId] ?? queuedRuntime), status: "running", step: Math.max(current[missionId]?.step ?? -1, 0) },
     }));
 
     let unlistenEvent: (() => void) | undefined;
@@ -739,7 +736,7 @@ export function App() {
     setChatSendingByMission((current) => ({ ...current, [missionId]: true }));
     setRuntimeByMission((current) => ({
       ...current,
-      [missionId]: { ...(current[missionId] ?? { step: -1, patchStatus: "pending", verified: false, status: "queued" }), status: "running", step: Math.max(current[missionId]?.step ?? -1, 0) },
+      [missionId]: { ...(current[missionId] ?? queuedRuntime), status: "running", step: Math.max(current[missionId]?.step ?? -1, 0) },
     }));
 
     let unlistenEvent: (() => void) | undefined;
@@ -897,7 +894,7 @@ export function App() {
       ? {
           id: missionId,
           kind: "tool",
-          label: missionLabel(title),
+          label: compactLabel(title),
           detail: toolCommand ?? "",
           meta: { prompt: title, command: toolCommand },
           mission_id: missionId,
@@ -906,7 +903,7 @@ export function App() {
       : {
           id: missionId,
           kind: "task",
-          label: missionLabel(title),
+          label: compactLabel(title),
           detail: "task",
           meta: { prompt: title },
           mission_id: missionId,
@@ -941,7 +938,7 @@ export function App() {
     const campaignNode: WorkspaceGraphNode = {
       id: campaignNodeId,
       kind: "campaign",
-      label: missionLabel(title),
+      label: compactLabel(title),
       detail: `${missionIds.length} repos · 0/${missionIds.length} landed`,
       mission_id: campaignNodeId,
     };
@@ -958,7 +955,7 @@ export function App() {
   const setMissionRuntime = (missionId: string, next: (runtime: WorkspaceRuntime) => WorkspaceRuntime) => {
     setRuntimeByMission((current) => ({
       ...current,
-      [missionId]: next(current[missionId] ?? { step: -1, patchStatus: "pending", verified: false, status: "queued" }),
+      [missionId]: next(current[missionId] ?? queuedRuntime),
     }));
   };
 
@@ -1136,14 +1133,6 @@ export function App() {
 
   const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState, preferredNodeId?: string) => {
     const nextWorkspaceView = workspaceViewFromMissionLoop(nextMissionLoopState);
-    console.log("[orbital] hydrate", {
-      preferredNodeId,
-      patchDiffByMission: Object.fromEntries(
-        Object.entries(nextWorkspaceView.patchDiffByMission).map(([k, v]) => [k, v ? `${v.length} chars` : "empty"]),
-      ),
-      runtimeByMission: nextWorkspaceView.runtimeByMission,
-    });
-
     setMissionLoopState(nextMissionLoopState);
     setWorkspaceMissions(nextWorkspaceView.missions);
     setWorkspaceGraphNodes(nextWorkspaceView.graphNodes);
@@ -1858,11 +1847,6 @@ function nearestMissionId(node: WorkspaceGraphNode | undefined, missions: Worksp
   }
 
   return undefined;
-}
-
-function missionLabel(title: string) {
-  const words = title.split(/\s+/).filter(Boolean);
-  return words.slice(0, 3).join(" ");
 }
 
 function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus {
