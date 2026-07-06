@@ -310,7 +310,7 @@ fn run_worker_streaming(
     if !status.success() {
         let err = stderr_output.trim().to_string();
         return Err(if err.is_empty() {
-            format!("worker exited with status {}", status)
+            format!("worker exited with status {status}")
         } else {
             err
         });

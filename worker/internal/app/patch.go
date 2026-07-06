@@ -13,6 +13,10 @@ import (
 )
 
 func (s *Service) MergePatches(runIDs []string) (*domain.PatchProposal, error) {
+	if len(runIDs) == 0 {
+		return nil, fmt.Errorf("no runs to merge patches from")
+	}
+
 	now := time.Now().UTC()
 	merged := domain.PatchProposal{
 		ID:        fmt.Sprintf("patch_%d", now.UnixNano()),
