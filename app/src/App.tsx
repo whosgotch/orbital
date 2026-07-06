@@ -48,7 +48,7 @@ import {
   type WorkspaceGraphNode,
   type WorkspaceMission,
 } from "./graph";
-import type { ChatMessage, MissionLoopState, PatchProposal, RepoCommit, Repository, WorkflowEvent } from "./domain";
+import type { ChatMessage, MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
 import {
   compactLabel,
   workspaceViewFromMissionLoop,
@@ -61,9 +61,7 @@ import {
   demoRepoPath,
   isTauriRuntime,
   linkMissionsLoopState,
-  loadCommitDiff,
   loadMissionLoopState,
-  loadRepoHistory,
   openMissionLoopRepository,
   queueMissionLoopState,
   rejectPatchMissionLoopState,
@@ -74,6 +72,7 @@ import {
   updateMissionTextLoopState,
   verifyMissionLoopState,
 } from "./missionLoopLoader";
+import { useRepoHistory } from "./useRepoHistory";
 
 const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState);
 
@@ -132,44 +131,16 @@ export function App() {
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
   const [openPanel, setOpenPanel] = useState<null | "repo" | "mission" | "control" | "history">(null);
-  // Git history of the active workspace: the commit list, and the commit whose
-  // diff is open in the wide viewer.
-  const [repoHistory, setRepoHistory] = useState<RepoCommit[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyCommit, setHistoryCommit] = useState<RepoCommit | null>(null);
-  const [historyDiff, setHistoryDiff] = useState("");
+  const repoHistory = useRepoHistory(activeRepoPath);
   const togglePanel = (panel: "repo" | "mission" | "control" | "history") =>
     setOpenPanel((current) => {
       const next = current === panel ? null : panel;
       // Opening intake starts from the current repo; campaign targets are opt-in.
       if (next === "mission") setCampaignRepoIds([]);
       // History reads git fresh on every open, so landed patches show up.
-      if (next === "history") void refreshRepoHistory();
+      if (next === "history") void repoHistory.refresh();
       return next;
     });
-
-  const refreshRepoHistory = async () => {
-    setHistoryLoading(true);
-    try {
-      setRepoHistory(await loadRepoHistory(activeRepoPath));
-    } catch (error) {
-      console.error("[orbital] history failed", error);
-      setRepoHistory([]);
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
-
-  const openHistoryCommit = async (commit: RepoCommit) => {
-    setHistoryCommit(commit);
-    setHistoryDiff("");
-    try {
-      setHistoryDiff(await loadCommitDiff(activeRepoPath, commit.hash));
-    } catch (error) {
-      console.error("[orbital] commit diff failed", error);
-      setHistoryDiff("");
-    }
-  };
 
   // Selecting a node opens the task window on that step's surface: task and
   // agent land in the chat, changes and verify land in the diff.
@@ -1495,7 +1466,7 @@ export function App() {
           <div className="section-label">
             {selectedRepository?.name ?? "workspace"} · history
           </div>
-          <HistoryPanel commits={repoHistory} loading={historyLoading} onSelect={(commit) => void openHistoryCommit(commit)} />
+          <HistoryPanel commits={repoHistory.commits} loading={repoHistory.loading} onSelect={(commit) => void repoHistory.open(commit)} />
         </section>
       ) : null}
 
@@ -1745,21 +1716,21 @@ export function App() {
         </div>
       ) : null}
 
-      {historyCommit ? (
-        <div className="diff-modal-backdrop" onClick={() => setHistoryCommit(null)}>
+      {repoHistory.openCommit ? (
+        <div className="diff-modal-backdrop" onClick={repoHistory.close}>
           <div className="diff-modal" role="dialog" aria-label="Commit" onClick={(event) => event.stopPropagation()}>
             <div className="diff-modal-head">
               <div>
                 <div className="section-label">
-                  {selectedRepository?.name ?? "workspace"} · commit <code>{historyCommit.short_hash}</code>
+                  {selectedRepository?.name ?? "workspace"} · commit <code>{repoHistory.openCommit.short_hash}</code>
                 </div>
-                <h2>{historyCommit.subject}</h2>
+                <h2>{repoHistory.openCommit.subject}</h2>
               </div>
-              <button className="secondary icon-button" type="button" onClick={() => setHistoryCommit(null)} aria-label="Close">
+              <button className="secondary icon-button" type="button" onClick={repoHistory.close} aria-label="Close">
                 <X size={16} aria-hidden="true" />
               </button>
             </div>
-            <DiffView diff={historyDiff} emptyLabel="Loading commit…" />
+            <DiffView diff={repoHistory.commitDiff} emptyLabel="Loading commit…" />
           </div>
         </div>
       ) : null}
