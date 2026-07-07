@@ -1,7 +1,7 @@
 // Pure mappers from mission runtime to the labels, pills and statuses the
 // panels render. No React, no state — App.tsx calls these from JSX.
 import type { Repository } from "./domain";
-import type { MissionNodeStatus, WorkspaceGraphNode, WorkspaceMission } from "./graph";
+import type { MissionNodeStatus, WorkspaceMission } from "./graph";
 import type { WorkspaceRuntime } from "./workspaceAdapter";
 
 // The runtime a mission has before its first run touches it.
@@ -34,15 +34,6 @@ export function repoLabel(name: string | undefined, path: string) {
 
 export function repositoryFor(mission: WorkspaceMission, repositories: Repository[]) {
   return repositories.find((repository) => repository.id === mission.repository_id) ?? repositories[0];
-}
-
-export function nearestMissionId(node: WorkspaceGraphNode | undefined, missions: WorkspaceMission[]) {
-  if (!node) return undefined;
-  if (node.repository_id) {
-    return missions.find((mission) => mission.repository_id === node.repository_id)?.id;
-  }
-
-  return undefined;
 }
 
 export function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus {

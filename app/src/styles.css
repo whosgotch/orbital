@@ -78,6 +78,8 @@ h3 {
 }
 
 .canvas-shell {
+  /* Width of the docked task panel; the topbar insets by it when it's open. */
+  --task-panel-width: min(440px, calc(100vw - 340px));
   position: relative;
   width: 100%;
   height: 100vh;
@@ -304,30 +306,35 @@ h3 {
   font-size: 11px;
 }
 
+/* The task panel docks to the right edge, closed until a node is selected.
+   Fixed chat-sized width; full diff review lives in the expand modal. */
 .inspector {
   position: absolute;
-  top: 78px;
-  right: 16px;
-  bottom: 16px;
+  top: 0;
+  right: 0;
+  bottom: 0;
   z-index: 4;
-  width: 404px;
+  width: var(--task-panel-width);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding-right: 2px;
-  overflow-y: auto;
-}
-
-.inspector .console-panel {
-  flex: 0 0 auto;
-}
-
-/* The task window opens wide so whichever view is showing — the conversation or
-   the full-width diff — is roomy and easy to read, capped so it never swallows
-   the whole canvas. */
-.inspector.task-window {
-  width: min(960px, calc(100vw - 240px));
   overflow: hidden;
+  animation: panel-in 160ms ease-out;
+}
+
+@keyframes panel-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* The topbar yields the panel's strip so the two never overlap. */
+.canvas-shell.panel-open .topbar {
+  right: calc(var(--task-panel-width) + 16px);
 }
 
 .task-panel {
@@ -336,10 +343,9 @@ h3 {
   display: flex;
   flex-direction: column;
   padding: 16px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
+  border: none;
+  border-left: 1px solid var(--line);
   background: var(--panel);
-  box-shadow: var(--shadow);
 }
 
 /* One view at a time: a segmented Chat / Changes switch flips the body below. */
@@ -2826,11 +2832,6 @@ button.node-action.danger:hover:not(:disabled) {
 
   .topbar-metrics {
     flex-wrap: wrap;
-  }
-
-  .inspector {
-    width: auto;
-    left: 16px;
   }
 
   .popover {

@@ -30,7 +30,6 @@ import {
   errorMessage,
   isRunning,
   missionStatusFor,
-  nearestMissionId,
   queuedRuntime,
   repoLabel,
   repositoryFor,
@@ -188,9 +187,11 @@ export function App() {
     }
   };
 
-  const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId) ?? workspaceGraphNodes[0];
-  const selectedMissionId = selectedGraphNode?.mission_id ?? nearestMissionId(selectedGraphNode, workspaceMissions) ?? workspaceMissions[0]?.id;
-  const selectedMission = workspaceMissions.find((mission) => mission.id === selectedMissionId) ?? workspaceMissions[0];
+  // Selection is explicit: no selected node means no task panel. The panel is
+  // mission-scoped, so repo and campaign nodes never open it.
+  const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId);
+  const selectedMissionId = selectedGraphNode?.mission_id;
+  const selectedMission = workspaceMissions.find((mission) => mission.id === selectedMissionId);
   // The raw mission record carries the full prompt text — the WorkspaceMission's
   // title is only the short node label.
   const selectedMissionRecord = missionLoopState.missions.find((mission) => mission.id === selectedMission?.id);
@@ -213,7 +214,7 @@ export function App() {
   }, [selectedGraphNode, missionLoopState.agent_runs, selectedMissionId]);
 
   const agentTranscript = useMemo(
-    () => buildAgentTranscript(missionLoopState, selectedMissionId, selectedAgentRunId),
+    () => buildAgentTranscript(missionLoopState, selectedMissionId ?? "", selectedAgentRunId),
     [missionLoopState, selectedMissionId, selectedAgentRunId],
   );
   const selectedActivityKey = selectedMission?.id ?? "";
@@ -222,7 +223,7 @@ export function App() {
     [activityByMission, selectedActivityKey],
   );
   const agentStatus = useMemo(
-    () => buildAgentStatus(missionLoopState, selectedMissionId, selectedPatchDiff, selectedActivity, selectedRuntime),
+    () => buildAgentStatus(missionLoopState, selectedMissionId ?? "", selectedPatchDiff, selectedActivity, selectedRuntime),
     [missionLoopState, selectedMissionId, selectedPatchDiff, selectedActivity, selectedRuntime],
   );
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
@@ -413,7 +414,7 @@ export function App() {
     try {
       const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, text, undefined, isTool ? text : undefined);
       const missionId = nextMissionLoopState.missions.at(-1)?.id;
-      applyRepoState(nextMissionLoopState, missionId);
+      applyRepoState(nextMissionLoopState);
       if (missionId) {
         if (!isTool) setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
         if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : intakeWorkerMode });
@@ -527,7 +528,7 @@ export function App() {
         workerMode === "local-command" ? localCommand : undefined,
         claudeModel,
       );
-      applyRepoState(nextMissionLoopState, missionId);
+      applyRepoState(nextMissionLoopState);
       // A tool mission lands the moment its command exits cleanly — there is
       // no approve gate to fire the chain from, so release downstream tasks
       // here. AI missions end a run in waiting_approval, making this a no-op;
@@ -603,7 +604,7 @@ export function App() {
     });
 
     try {
-      applyRepoState(await sendAgentMessageLoopState(repoPath, missionId, text, claudeModel), missionId);
+      applyRepoState(await sendAgentMessageLoopState(repoPath, missionId, text, claudeModel));
     } catch (error) {
       if (cancelledMissionsRef.current.has(missionId)) return;
       console.error("[orbital] chat failed", error);
@@ -639,7 +640,7 @@ export function App() {
         for (const repo of targetRepos) {
           const nextMissionLoopState = await queueMissionLoopState(repo.path, title, campaignId);
           const missionId = nextMissionLoopState.missions.at(-1)?.id;
-          applyRepoState(nextMissionLoopState, missionId);
+          applyRepoState(nextMissionLoopState);
           // Worker is chosen once at intake; stamp it so dispatch uses it.
           if (missionId) {
             setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
@@ -672,15 +673,12 @@ export function App() {
     });
   };
 
-  const approvePatch = () => approveMission(selectedMission.id);
-  const rejectPatch = () => rejectMission(selectedMission.id);
-
   const approveMission = async (missionId: string) => {
     setMissionLoopError("");
 
     try {
       const nextMissionLoopState = await approvePatchMissionLoopState(repoPathForMission(missionId), missionId);
-      applyRepoState(nextMissionLoopState, missionId);
+      applyRepoState(nextMissionLoopState);
       autoDispatchChained(missionId, nextMissionLoopState);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to approve patch."));
@@ -714,7 +712,7 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      applyRepoState(await rejectPatchMissionLoopState(repoPathForMission(missionId), missionId), missionId);
+      applyRepoState(await rejectPatchMissionLoopState(repoPathForMission(missionId), missionId));
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to reject patch."));
     }
@@ -754,7 +752,7 @@ export function App() {
     }
     setMissionLoopError("");
     try {
-      applyRepoState(await updateMissionTextLoopState(repoPathForMission(missionId), missionId, trimmed), missionId);
+      applyRepoState(await updateMissionTextLoopState(repoPathForMission(missionId), missionId, trimmed));
       setEditingPrompt(false);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to save prompt."));
@@ -777,15 +775,13 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      applyRepoState(await verifyMissionLoopState(repoPathForMission(missionId), missionId, command), missionId);
+      applyRepoState(await verifyMissionLoopState(repoPathForMission(missionId), missionId, command));
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to run verification."));
     }
   };
 
-  const runVerification = () => runVerificationFor(selectedMission.id);
-
-  const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState, preferredNodeId?: string) => {
+  const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState) => {
     // Every state change records which repos are open, so the next session
     // starts from the same workspace.
     persistOpenRepos(nextMissionLoopState.repositories.map((repo) => repo.path));
@@ -807,24 +803,18 @@ export function App() {
         nextWorkspaceView.missions.map((mission) => [mission.id, current[mission.id] ?? workerModeFromName(mission.worker)]),
       ),
     }));
-    setSelectedNodeId((current) => {
-      if (preferredNodeId && nextWorkspaceView.graphNodes.some((node) => node.id === preferredNodeId)) {
-        return preferredNodeId;
-      }
-
-      return nextWorkspaceView.graphNodes.some((node) => node.id === current)
-        ? current
-        : nextWorkspaceView.graphNodes[0]?.id ?? current;
-    });
+    // Selection never auto-opens the panel: it survives a reload only while
+    // its node still exists.
+    setSelectedNodeId((current) => (nextWorkspaceView.graphNodes.some((node) => node.id === current) ? current : ""));
   };
 
   // applyRepoState folds a loaded state into the open set keyed by repo id,
   // then re-hydrates the canvas from the union — so adding or updating a repo
   // keeps the others.
-  const applyRepoState = (state: MissionLoopState, preferredNodeId?: string) => {
+  const applyRepoState = (state: MissionLoopState) => {
     const next = { ...repoStatesRef.current, ...splitByRepository(state) };
     repoStatesRef.current = next;
-    hydrateMissionLoop(combineRepoStates(next), preferredNodeId);
+    hydrateMissionLoop(combineRepoStates(next));
   };
 
   // Merge one live-streamed record (run/event/patch/chat) into the workspace
@@ -852,7 +842,7 @@ export function App() {
       const nextMissionLoopState = await openMissionLoopRepository(repoPath);
       setActiveRepoPath(repoPath);
       rememberRecentRepo(repoPath);
-      applyRepoState(nextMissionLoopState, nextMissionLoopState.repositories[0]?.id);
+      applyRepoState(nextMissionLoopState);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to open repository."));
     } finally {
@@ -945,8 +935,34 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Esc dismisses the topmost surface: modal → popover → draft card → panel.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (diffModalOpen) {
+        setDiffModalOpen(false);
+        return;
+      }
+      if (repoHistory.openCommit) {
+        repoHistory.close();
+        return;
+      }
+      if (openPanel) {
+        setOpenPanel(null);
+        return;
+      }
+      if (draftingTask) {
+        setDraftingTask(false);
+        return;
+      }
+      setSelectedNodeId("");
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [diffModalOpen, openPanel, draftingTask, repoHistory]);
+
   return (
-    <main className="canvas-shell">
+    <main className={`canvas-shell${selectedMission ? " panel-open" : ""}`}>
       <GraphMap
         nodes={canvasNodes}
         edges={canvasEdges}
@@ -1310,6 +1326,15 @@ export function App() {
                   <Trash2 size={14} aria-hidden="true" />
                   <span>Remove</span>
                 </button>
+                <button
+                  className="node-action secondary icon-button"
+                  type="button"
+                  onClick={() => setSelectedNodeId("")}
+                  title="Close panel (Esc)"
+                  aria-label="Close panel"
+                >
+                  <X size={14} aria-hidden="true" />
+                </button>
               </div>
             </div>
 
@@ -1419,7 +1444,7 @@ export function App() {
                       className="secondary mini"
                       type="button"
                       disabled={selectedRuntime.patchStatus !== "approved" || selectedRuntime.verified || !selectedVerificationCommand.trim()}
-                      onClick={runVerification}
+                      onClick={() => void runVerificationFor(selectedMission.id)}
                       title="Run verification"
                     >
                       <Terminal size={14} aria-hidden="true" />
@@ -1448,7 +1473,7 @@ export function App() {
                       className="secondary"
                       type="button"
                       disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
-                      onClick={rejectPatch}
+                      onClick={() => void rejectMission(selectedMission.id)}
                     >
                       <X size={16} aria-hidden="true" />
                       <span>Reject</span>
@@ -1457,7 +1482,7 @@ export function App() {
                       className="primary"
                       type="button"
                       disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
-                      onClick={approvePatch}
+                      onClick={() => void approveMission(selectedMission.id)}
                     >
                       <Check size={16} aria-hidden="true" />
                       <span>Approve + apply</span>
@@ -1499,7 +1524,7 @@ export function App() {
                 type="button"
                 disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
                 onClick={() => {
-                  void rejectPatch();
+                  void rejectMission(selectedMission.id);
                   setDiffModalOpen(false);
                 }}
               >
@@ -1511,7 +1536,7 @@ export function App() {
                 type="button"
                 disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
                 onClick={() => {
-                  void approvePatch();
+                  void approveMission(selectedMission.id);
                   setDiffModalOpen(false);
                 }}
               >

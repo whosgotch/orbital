@@ -264,6 +264,9 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     [onSelectNode],
   );
 
+  // Clicking empty canvas clears the selection, which closes the task panel.
+  const onPaneClick = useCallback(() => onSelectNode(""), [onSelectNode]);
+
   return (
     <div className="graph-canvas">
       <ReactFlow
@@ -275,6 +278,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         onNodeDragStop={onNodeDragStop}
         onSelectionDragStop={onSelectionDragStop}
         onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         isValidConnection={isValidConnection}
