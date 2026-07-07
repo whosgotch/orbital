@@ -137,6 +137,11 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     [],
   );
 
+  // Settle-in: each node eases into place once, when it first appears — a batch
+  // (opening a repo) settles staggered, a single node spawned mid-run settles
+  // immediately. Delays are pinned per id so re-layouts never replay the motion.
+  const settleDelaysRef = useRef<Record<string, number>>({});
+
   // Node kinds by id, for validating hand-drawn connections: only task→task
   // edges mean anything, so only those are allowed to form.
   const kindByNodeRef = useRef<Record<string, GraphNodeKind>>({});
@@ -202,6 +207,13 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
 
   useEffect(() => {
     const laidOut = layoutGraph(nodes, edges);
+    let appearIndex = 0;
+    nodes.forEach((node) => {
+      if (!(node.id in settleDelaysRef.current)) {
+        settleDelaysRef.current[node.id] = Math.min(appearIndex * 45, 315);
+        appearIndex += 1;
+      }
+    });
     setRfNodes(
       nodes.map((node) => ({
         id: node.id,
@@ -209,6 +221,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         position: manualPositionsRef.current[node.id] ?? laidOut[node.id],
         data: toData(node),
         selected: node.id === selectedNodeId,
+        style: { "--settle-delay": `${settleDelaysRef.current[node.id]}ms` } as React.CSSProperties,
       })) as Node<OrbitalNodeData>[],
     );
     setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));

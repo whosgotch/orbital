@@ -1818,6 +1818,20 @@ dd {
 /* Pipeline node cards: each canvas node is an operable step — the header
    names the function, the body shows its live state, the footer carries the
    action that step affords (Run / Approve / Reject / Verify). */
+/* Settle-in: a card eases into place once, when it first appears. The only
+   motion on the canvas after that is state (glyph/color) flips and the live
+   monospace now-line — never looping animation. */
+@keyframes node-settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .node-card {
   display: flex;
   flex-direction: column;
@@ -1830,6 +1844,14 @@ dd {
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
+  animation: node-settle 150ms ease-out both;
+  animation-delay: var(--settle-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-card {
+    animation: none;
+  }
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease;
