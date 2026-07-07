@@ -93,10 +93,10 @@ const EDGE_COLOR: Record<string, string> = {
   verifies: "#5b8bff",
   spawns: "#5b8bff",
   coordinates: "#b07cff",
-  blocks: "#e2615f",
-  then: "#4fbf7b",
+  blocks: "#e5615c",
+  then: "#3fb96f",
 };
-const NEUTRAL_EDGE = "rgba(139, 147, 161, 0.42)";
+const NEUTRAL_EDGE = "rgba(152, 152, 159, 0.42)";
 
 function edgeColor(kind: string) {
   return EDGE_COLOR[kind] ?? NEUTRAL_EDGE;
@@ -285,7 +285,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         // Forgiving connecting: releasing anywhere near a task card's handle
         // snaps the chain edge onto it.
         connectionRadius={48}
-        connectionLineStyle={{ stroke: "#4fbf7b", strokeWidth: 2 }}
+        connectionLineStyle={{ stroke: "#3fb96f", strokeWidth: 2 }}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.3}
@@ -317,14 +317,14 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
             Task
           </button>
         </Panel>
-        <Background variant={BackgroundVariant.Dots} gap={26} size={1} color="rgba(139, 147, 161, 0.16)" />
+        <Background variant={BackgroundVariant.Dots} gap={26} size={1} color="rgba(255, 255, 255, 0.06)" />
         <MiniMap
           position="bottom-left"
           pannable
           zoomable
           style={{ width: 168, height: 110 }}
           nodeColor={miniMapColor}
-          maskColor="rgba(8, 10, 13, 0.7)"
+          maskColor="rgba(0, 0, 0, 0.7)"
         />
         <Controls position="bottom-left" showInteractive={false} />
       </ReactFlow>
@@ -366,9 +366,9 @@ function toRfEdge(
 function miniMapColor(node: Node) {
   const status = (node.data as OrbitalNodeData)?.status;
   if (status === "running") return "#d9a441";
-  if (status === "verified") return "#4fbf7b";
-  if (status === "blocked") return "#e2615f";
-  return "#39414f";
+  if (status === "verified") return "#3fb96f";
+  if (status === "blocked") return "#e5615c";
+  return "rgba(255, 255, 255, 0.16)";
 }
 
 const KIND_LABEL: Record<GraphNodeKind, string> = {

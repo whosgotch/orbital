@@ -1,23 +1,23 @@
+/* Flat, neutral, native: one hairline, one radius, one accent spent sparingly.
+   Shadows exist only on true overlays (popovers, modals). */
 :root {
   color-scheme: dark;
-  --bg: #0d0f12;
-  --rail: #101317;
-  --panel: #16191e;
-  --panel-2: #1b1f25;
-  --line: #262b33;
-  --line-strong: #39414f;
-  --text: #f2f5f8;
-  --muted: #8b93a1;
-  --soft: #c4ccd6;
+  --bg: #0f0f11;
+  --rail: #131316;
+  --panel: #17171a;
+  --panel-2: #1d1d21;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --text: #ececee;
+  --muted: #98989f;
+  --soft: #c6c6cc;
   --accent: #5b8bff;
   --accent-soft: rgba(91, 139, 255, 0.14);
-  --green: #4fbf7b;
+  --green: #3fb96f;
   --amber: #d9a441;
-  --red: #e2615f;
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  --red: #e5615c;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
 }
 
 * {
@@ -60,20 +60,23 @@ p {
 }
 
 h1 {
-  font-size: 25px;
+  font-size: 20px;
+  font-weight: 650;
   line-height: 1.1;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
 }
 
 h2 {
-  font-size: 18px;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.2;
   letter-spacing: 0;
 }
 
 h3 {
-  font-size: 21px;
-  line-height: 1.1;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
   letter-spacing: 0;
 }
 
@@ -86,29 +89,28 @@ h3 {
   overflow: hidden;
 }
 
+/* Slim flush bar: one hairline below, nothing floats. */
 .topbar {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  right: 16px;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 5;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 10px 14px;
-  background: rgba(16, 19, 23, 0.88);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
+  gap: 12px;
+  height: 44px;
+  padding: 0 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
 }
 
 .topbar-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 15px;
-  font-weight: 800;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -137,14 +139,14 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 34px;
+  min-height: 28px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
@@ -166,7 +168,7 @@ h3 {
   border-radius: 999px;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
@@ -176,14 +178,14 @@ h3 {
 }
 
 .chip {
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 8px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
   background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--text);
-  font-weight: 700;
-  font-size: 13px;
+  font-weight: 600;
+  font-size: 12px;
   max-width: 240px;
 }
 
@@ -194,7 +196,7 @@ h3 {
 }
 
 .chip.icon {
-  width: 34px;
+  width: 28px;
   padding: 0;
 }
 
@@ -210,14 +212,14 @@ h3 {
 
 .popover {
   position: absolute;
-  top: 72px;
-  left: 16px;
+  top: 56px;
+  left: 12px;
   z-index: 6;
   width: 340px;
   padding: 16px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 6px;
   box-shadow: var(--shadow);
 }
 
@@ -261,7 +263,7 @@ h3 {
   gap: 8px;
   padding: 7px 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--soft);
   font-family: inherit;
@@ -300,8 +302,8 @@ h3 {
 
 .history-hash {
   padding: 1px 5px;
-  border-radius: 5px;
-  background: rgba(139, 147, 161, 0.14);
+  border-radius: 6px;
+  background: rgba(152, 152, 159, 0.14);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 11px;
 }
@@ -334,7 +336,7 @@ h3 {
 
 /* The topbar yields the panel's strip so the two never overlap. */
 .canvas-shell.panel-open .topbar {
-  right: calc(var(--task-panel-width) + 16px);
+  right: var(--task-panel-width);
 }
 
 .task-panel {
@@ -365,12 +367,12 @@ h3 {
   gap: 6px;
   padding: 7px 14px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--muted);
   font-family: inherit;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -465,11 +467,11 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9px;
-  background: rgba(139, 147, 161, 0.16);
+  border-radius: 6px;
+  background: rgba(152, 152, 159, 0.16);
   color: var(--muted);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .review-changes,
@@ -510,7 +512,7 @@ h3 {
 .chat-bubble {
   max-width: 88%;
   padding: 9px 12px;
-  border-radius: 12px;
+  border-radius: 6px;
   font-size: 13px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -555,7 +557,7 @@ h3 {
 }
 
 .md-heading {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -564,8 +566,8 @@ h3 {
 
 .md-code {
   padding: 1px 5px;
-  border-radius: 5px;
-  background: rgba(139, 147, 161, 0.14);
+  border-radius: 6px;
+  background: rgba(152, 152, 159, 0.14);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
 }
@@ -574,9 +576,9 @@ h3 {
   margin: 0;
   padding: 10px 12px;
   overflow-x: auto;
-  background: #0a0d11;
+  background: #0b0b0d;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.55;
@@ -586,7 +588,7 @@ h3 {
 .chat-changes {
   align-self: stretch;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 6px;
   background: var(--panel-2);
   overflow: hidden;
 }
@@ -600,7 +602,7 @@ h3 {
   border-bottom: 1px solid var(--line);
   color: var(--soft);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .chat-changes-stat,
@@ -608,11 +610,11 @@ h3 {
   display: inline-flex;
   gap: 6px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
-.chat-changes .add { color: #4fbf7b; }
-.chat-changes .del { color: #e2615f; }
+.chat-changes .add { color: var(--green); }
+.chat-changes .del { color: var(--red); }
 
 .chat-changes-list {
   margin: 0;
@@ -629,7 +631,7 @@ h3 {
   gap: 8px;
   padding: 5px 8px;
   border: none;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   color: var(--soft);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -639,7 +641,7 @@ h3 {
 }
 
 .chat-changes-file:hover {
-  background: rgba(139, 147, 161, 0.1);
+  background: rgba(152, 152, 159, 0.1);
   color: var(--text);
 }
 
@@ -649,8 +651,8 @@ h3 {
   color: var(--muted);
 }
 
-.chat-changes-file.added .chat-changes-glyph { color: #4fbf7b; }
-.chat-changes-file.deleted .chat-changes-glyph { color: #e2615f; }
+.chat-changes-file.added .chat-changes-glyph { color: var(--green); }
+.chat-changes-file.deleted .chat-changes-glyph { color: var(--red); }
 
 .chat-changes-path {
   flex: 1 1 auto;
@@ -690,7 +692,7 @@ h3 {
   flex: 1 1 auto;
   resize: none;
   padding: 9px 11px;
-  border-radius: 10px;
+  border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
@@ -713,7 +715,7 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 /* Glanceable agent status: phase spine + files touched + live "now" line. */
@@ -735,7 +737,7 @@ h3 {
 
 .agent-status-name {
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 650;
   color: var(--text);
 }
 
@@ -744,7 +746,7 @@ h3 {
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
@@ -782,7 +784,7 @@ h3 {
   border: 1px solid var(--line);
   background: var(--panel-2);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--muted);
 }
 
@@ -804,18 +806,18 @@ h3 {
 }
 
 .phase.done {
-  color: #4fbf7b;
+  color: var(--green);
   border-color: rgba(79, 191, 123, 0.35);
 }
 
 .phase.failed {
-  color: #e2615f;
+  color: var(--red);
   border-color: rgba(226, 97, 95, 0.4);
 }
 
 .touched-head {
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -850,11 +852,11 @@ h3 {
 }
 
 .touched-file.added .touched-glyph {
-  color: #4fbf7b;
+  color: var(--green);
 }
 
 .touched-file.deleted .touched-glyph {
-  color: #e2615f;
+  color: var(--red);
 }
 
 .touched-path {
@@ -871,21 +873,21 @@ h3 {
   display: inline-flex;
   gap: 6px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .touched-counts .add {
-  color: #4fbf7b;
+  color: var(--green);
 }
 
 .touched-counts .del {
-  color: #e2615f;
+  color: var(--red);
 }
 
 .agent-now {
   padding: 9px 11px;
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--panel-2);
   border: 1px solid var(--line);
   font-size: 13px;
@@ -911,7 +913,7 @@ button.mini-text {
   align-items: center;
   gap: 3px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 4px 6px;
   border-radius: 6px;
 }
@@ -945,7 +947,7 @@ button.mini-text {
 .transcript-agent {
   margin: 10px 0 4px;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent);
@@ -955,7 +957,7 @@ button.mini-text {
   display: flex;
   gap: 9px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -1016,8 +1018,8 @@ button.mini-text {
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 7px;
-  background: #0a0d11;
+  border-radius: 6px;
+  background: #0b0b0d;
   color: var(--soft);
   font-family: inherit;
   cursor: pointer;
@@ -1028,7 +1030,7 @@ button.mini-text {
   align-items: center;
   gap: 7px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .verify-pill::before {
@@ -1039,10 +1041,10 @@ button.mini-text {
   background: var(--muted);
 }
 
-.verify-pill.passed { color: #4fbf7b; }
-.verify-pill.passed::before { background: #4fbf7b; }
-.verify-pill.failed { color: #e2615f; }
-.verify-pill.failed::before { background: #e2615f; }
+.verify-pill.passed { color: var(--green); }
+.verify-pill.passed::before { background: var(--green); }
+.verify-pill.failed { color: var(--red); }
+.verify-pill.failed::before { background: var(--red); }
 .verify-pill.ready { color: #d9a441; }
 .verify-pill.ready::before { background: #d9a441; }
 .verify-pill.pending { color: var(--muted); }
@@ -1114,7 +1116,7 @@ button.mini-text {
 
 .floating-error {
   position: absolute;
-  top: 72px;
+  top: 56px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 7;
@@ -1123,9 +1125,9 @@ button.mini-text {
   color: var(--red);
   background: rgba(226, 97, 95, 0.12);
   border: 1px solid rgba(226, 97, 95, 0.32);
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .canvas-hint {
@@ -1167,7 +1169,7 @@ small,
   height: 46px;
   color: var(--accent);
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--panel-2);
 }
 
@@ -1181,7 +1183,7 @@ small,
 .brand-mark::before {
   inset: 8px;
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .brand-mark::after {
@@ -1194,7 +1196,7 @@ small,
 
 .section-label {
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -1204,9 +1206,8 @@ small,
   overflow: hidden;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 16px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
 }
 
 .panel-head {
@@ -1223,7 +1224,7 @@ select {
   width: 100%;
   padding: 12px;
   color: var(--text);
-  background: #0a0d11;
+  background: #0b0b0d;
   border: 1px solid var(--line);
   border-radius: 6px;
   outline: 0;
@@ -1247,11 +1248,12 @@ select:focus {
 
 .primary,
 .secondary {
-  min-height: 38px;
-  padding: 0 14px;
+  min-height: 30px;
+  padding: 0 12px;
   border-radius: 6px;
   color: var(--text);
-  font-weight: 800;
+  font-weight: 600;
+  font-size: 12px;
 }
 
 .primary {
@@ -1260,7 +1262,7 @@ select:focus {
 }
 
 .secondary {
-  background: var(--panel-2);
+  background: transparent;
   border: 1px solid var(--line);
 }
 
@@ -1279,9 +1281,9 @@ select:focus {
 
 .graph-lane {
   box-sizing: border-box;
-  border: 1px solid rgba(139, 147, 161, 0.16);
-  border-radius: 14px;
-  background: rgba(139, 147, 161, 0.045);
+  border: 1px solid rgba(152, 152, 159, 0.16);
+  border-radius: 6px;
+  background: rgba(152, 152, 159, 0.045);
   pointer-events: none;
 }
 
@@ -1290,7 +1292,7 @@ select:focus {
   top: 7px;
   left: 14px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1343,11 +1345,11 @@ select:focus {
   height: 17px;
   padding: 0 5px;
   margin-left: 2px;
-  border-radius: 9px;
+  border-radius: 6px;
   background: var(--accent);
   color: #0b1020;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .control-popover {
@@ -1388,7 +1390,7 @@ select:focus {
   padding: 6px 8px 6px 6px;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 6px;
 }
 
 .control-list li.selected {
@@ -1433,7 +1435,7 @@ button.mini {
   min-height: 28px;
   width: 30px;
   padding: 0;
-  border-radius: 5px;
+  border-radius: 6px;
 }
 
 button.ghost {
@@ -1448,13 +1450,13 @@ button.ghost:hover {
 }
 
 button.ghost.danger:hover {
-  border-color: #e2615f;
-  color: #e2615f;
+  border-color: var(--red);
+  color: var(--red);
 }
 
 .control-state {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--muted);
   padding: 0 6px;
 }
@@ -1464,11 +1466,11 @@ button.ghost.danger:hover {
 }
 
 .control-state.verified {
-  color: #4fbf7b;
+  color: var(--green);
 }
 
 .control-state.blocked {
-  color: #e2615f;
+  color: var(--red);
 }
 
 .status-dot {
@@ -1490,11 +1492,11 @@ button.ghost.danger:hover {
 }
 
 .status-dot.verified {
-  background: #4fbf7b;
+  background: var(--green);
 }
 
 .status-dot.blocked {
-  background: #e2615f;
+  background: var(--red);
 }
 
 .workspace-repos {
@@ -1565,7 +1567,7 @@ button.ghost.danger:hover {
   width: 22px;
   height: 22px;
   flex: 0 0 22px;
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--muted);
   background: transparent;
 }
@@ -1666,7 +1668,7 @@ dd {
 .scan-line span {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1777,7 +1779,7 @@ dd {
   height: 11px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: #10141a;
+  background: var(--panel);
   border: 2px solid rgba(79, 191, 123, 0.55);
   transition:
     border-color 120ms ease,
@@ -1787,7 +1789,7 @@ dd {
 
 .node-card:hover .react-flow__handle.connectionindicator::after,
 .react-flow__handle.connectionindicator:hover::after {
-  border-color: #4fbf7b;
+  border-color: var(--green);
   background: rgba(79, 191, 123, 0.3);
   box-shadow: 0 0 0 3px rgba(79, 191, 123, 0.18);
 }
@@ -1810,15 +1812,14 @@ dd {
 .react-flow__nodesselection-rect:focus-visible {
   background: transparent;
   border: 1px dashed rgba(91, 139, 255, 0.45);
-  border-radius: 10px;
+  border-radius: 6px;
   outline: none;
 }
 
 .react-flow__controls {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
-  box-shadow: var(--shadow);
 }
 
 .react-flow__controls-button {
@@ -1847,7 +1848,7 @@ dd {
   bottom: 104px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 /* Pipeline node cards: each canvas node is an operable step — the header
@@ -1875,10 +1876,9 @@ dd {
   min-height: 96px;
   padding: 10px 12px 11px;
   color: var(--text);
-  background: #14181e;
+  background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
+  border-radius: 6px;
   animation: node-settle 150ms ease-out both;
   animation-delay: var(--settle-delay, 0ms);
 }
@@ -1887,9 +1887,7 @@ dd {
   .node-card {
     animation: none;
   }
-  transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease;
+  transition: border-color 180ms ease;
 }
 
 .node-card.repo,
@@ -1898,19 +1896,17 @@ dd {
   min-height: 72px;
 }
 
-.node-card:hover,
+/* State reads as border + dot, never glow. */
+.node-card:hover {
+  border-color: var(--line-strong);
+}
+
 .node-card.selected {
   border-color: var(--accent);
-  box-shadow:
-    0 0 0 1px var(--accent),
-    0 16px 36px rgba(0, 0, 0, 0.3);
 }
 
 .node-card.live {
-  border-color: var(--amber);
-  box-shadow:
-    0 0 0 1px rgba(217, 164, 65, 0.4),
-    0 16px 36px rgba(0, 0, 0, 0.3);
+  border-color: rgba(217, 164, 65, 0.55);
 }
 
 .node-card.blocked {
@@ -1946,7 +1942,7 @@ dd {
 .node-card-kind {
   color: var(--muted);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1961,7 +1957,7 @@ dd {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: rgba(139, 147, 161, 0.5);
+  background: rgba(152, 152, 159, 0.5);
 }
 
 .node-status-dot.running { background: var(--amber); }
@@ -1972,7 +1968,7 @@ dd {
 
 .node-card-title {
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2019,12 +2015,12 @@ dd {
   align-items: center;
   gap: 8px;
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--soft);
 }
 
-.node-card-stats .add { color: #4fbf7b; }
-.node-card-stats .del { color: #e2615f; }
+.node-card-stats .add { color: var(--green); }
+.node-card-stats .del { color: var(--red); }
 
 .node-card-command {
   max-width: 100%;
@@ -2039,20 +2035,20 @@ dd {
 .node-tag {
   padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(139, 147, 161, 0.14);
+  background: rgba(152, 152, 159, 0.14);
   color: var(--muted);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .node-tag.ok {
   background: rgba(79, 191, 123, 0.16);
-  color: #4fbf7b;
+  color: var(--green);
 }
 
 .node-tag.bad {
   background: rgba(226, 97, 95, 0.16);
-  color: #e2615f;
+  color: var(--red);
 }
 
 /* A chained task waiting for its upstream patch to land. */
@@ -2073,12 +2069,12 @@ dd {
   gap: 5px;
   padding: 5px 10px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--panel-2);
   color: var(--soft);
   font-family: inherit;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -2124,7 +2120,7 @@ dd {
   resize: none;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--text);
   font-family: inherit;
   font-size: 11.5px;
@@ -2159,7 +2155,7 @@ dd {
   padding: 1px 8px;
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--muted);
   font-size: 10.5px;
   font-weight: 600;
@@ -2181,7 +2177,7 @@ dd {
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--muted);
   cursor: pointer;
 }
@@ -2193,8 +2189,8 @@ dd {
 
 /* Canvas overlay actions. Pushed below the floating topbar. */
 .canvas-actions {
-  margin-top: 76px;
-  margin-left: 16px;
+  margin-top: 56px;
+  margin-left: 12px;
 }
 
 .canvas-add-task {
@@ -2208,10 +2204,9 @@ dd {
   color: #0b1220;
   font-family: inherit;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.02em;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
 .canvas-add-task:hover {
@@ -2222,7 +2217,6 @@ dd {
   background: var(--panel-2);
   color: var(--muted);
   cursor: not-allowed;
-  box-shadow: none;
 }
 
 .mission-glyph {
@@ -2234,7 +2228,7 @@ dd {
   color: var(--muted);
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 6px;
 }
 
 .mission-glyph.running {
@@ -2324,8 +2318,8 @@ button.node-action.active {
 }
 
 button.node-action.danger:hover:not(:disabled) {
-  border-color: #e2615f;
-  color: #e2615f;
+  border-color: var(--red);
+  color: var(--red);
 }
 
 .node-prompt-editor {
@@ -2339,7 +2333,7 @@ button.node-action.danger:hover:not(:disabled) {
   width: 100%;
   resize: vertical;
   padding: 9px 11px;
-  border-radius: 7px;
+  border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--panel-2, rgba(255, 255, 255, 0.03));
   color: var(--text);
@@ -2391,7 +2385,7 @@ button.node-action.danger:hover:not(:disabled) {
 .worker-controls label > span {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2515,9 +2509,9 @@ button.node-action.danger:hover:not(:disabled) {
   margin: 0;
   overflow: auto;
   color: var(--soft);
-  background: #0a0d11;
+  background: #0b0b0d;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.5;
@@ -2529,9 +2523,9 @@ button.node-action.danger:hover:not(:disabled) {
   flex: 1 1 auto;
   min-height: 160px;
   overflow: auto;
-  background: #0a0d11;
+  background: #0b0b0d;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.6;
@@ -2546,9 +2540,9 @@ button.node-action.danger:hover:not(:disabled) {
   text-align: center;
   padding: 14px;
   color: var(--muted);
-  background: #0a0d11;
+  background: #0b0b0d;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 12px;
 }
 
@@ -2600,16 +2594,16 @@ button.node-action.danger:hover:not(:disabled) {
   display: inline-flex;
   gap: 8px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   flex-shrink: 0;
 }
 
 .diff-add-count {
-  color: #4fbf7b;
+  color: var(--green);
 }
 
 .diff-del-count {
-  color: #e2615f;
+  color: var(--red);
 }
 
 .diff-body {
@@ -2646,7 +2640,7 @@ button.node-action.danger:hover:not(:disabled) {
   width: 38px;
   padding: 0 8px;
   text-align: right;
-  color: rgba(139, 147, 161, 0.5);
+  color: rgba(152, 152, 159, 0.5);
   user-select: none;
 }
 
@@ -2658,11 +2652,11 @@ button.node-action.danger:hover:not(:disabled) {
 }
 
 .diff-line.add .diff-sign {
-  color: #4fbf7b;
+  color: var(--green);
 }
 
 .diff-line.del .diff-sign {
-  color: #e2615f;
+  color: var(--red);
 }
 
 .diff-code {
@@ -2685,7 +2679,7 @@ button.node-action.danger:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   padding: 32px;
-  background: rgba(6, 8, 11, 0.72);
+  background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(2px);
 }
 
@@ -2697,8 +2691,8 @@ button.node-action.danger:hover:not(:disabled) {
   padding: 18px;
   background: var(--panel);
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 
 .diff-modal-head {
@@ -2733,7 +2727,7 @@ button.node-action.danger:hover:not(:disabled) {
   justify-content: space-between;
   gap: 10px;
   padding: 7px 12px;
-  background: #0a0d11;
+  background: #0b0b0d;
   border-bottom: 1px solid var(--line);
   color: var(--soft);
   font-size: 12px;
@@ -2750,20 +2744,20 @@ button.node-action.danger:hover:not(:disabled) {
 /* Word-level change marks inside add/del lines. */
 .diff-mark.add {
   background: rgba(79, 191, 123, 0.32);
-  border-radius: 2px;
+  border-radius: 6px;
 }
 
 .diff-mark.del {
   background: rgba(226, 97, 95, 0.34);
-  border-radius: 2px;
+  border-radius: 6px;
 }
 
 .diff-change {
   flex-shrink: 0;
 }
 
-.diff-change.added { color: #4fbf7b; }
-.diff-change.deleted { color: #e2615f; }
+.diff-change.added { color: var(--green); }
+.diff-change.deleted { color: var(--red); }
 .diff-change.modified { color: var(--muted); }
 
 /* Compact dark syntax theme for highlight.js tokens (diff lines + chat code). */
@@ -2801,7 +2795,7 @@ button.node-action.danger:hover:not(:disabled) {
   padding: 10px 12px;
   margin-bottom: 12px;
   color: var(--soft);
-  background: #0a0d11;
+  background: #0b0b0d;
   border: 1px solid var(--line);
   border-radius: 6px;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
