@@ -106,6 +106,7 @@ func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text s
 		RepoPath:        workdir,
 		MissionText:     text,
 		ResumeSessionID: run.SessionID,
+		Model:           s.runModel,
 	}
 
 	events, err := worker.StartRun(ctx, runRequest)

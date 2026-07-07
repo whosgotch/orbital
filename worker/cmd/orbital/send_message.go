@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -24,9 +25,18 @@ func sendAgentMessage(ctx context.Context, args []string, stdout io.Writer) erro
 	missionID := args[3]
 	text := args[4]
 
+	model := ""
+	flags := flag.NewFlagSet("send-message", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&model, "model", "", "claude model alias or id (empty = CLI default)")
+	if err := flags.Parse(args[5:]); err != nil || flags.NArg() != 0 {
+		return usageError()
+	}
+
 	jsonStore := store.NewJSONStore(filepath.Join(repoPath, ".orbital"))
 	service := app.NewService(jsonStore)
 	service.SetEventOut(stdout)
+	service.SetRunModel(model)
 
 	service.RegisterWorker(agent.NewClaudeEngineerWorker())
 

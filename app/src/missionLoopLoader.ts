@@ -40,12 +40,12 @@ export function updateMissionTextLoopState(repoPath: string, missionId: string, 
   return invokeState("update_mission_text", { repoPath, missionId, text });
 }
 
-export function startAgentRunMissionLoopState(repoPath: string, missionId: string, workerName = "mock", command = "") {
-  return invokeState("start_agent_run", { repoPath, missionId, workerName, command });
+export function startAgentRunMissionLoopState(repoPath: string, missionId: string, workerName = "mock", command = "", model = "") {
+  return invokeState("start_agent_run", { repoPath, missionId, workerName, command, model });
 }
 
-export function sendAgentMessageLoopState(repoPath: string, missionId: string, text: string) {
-  return invokeState("send_agent_message", { repoPath, missionId, text });
+export function sendAgentMessageLoopState(repoPath: string, missionId: string, text: string, model = "") {
+  return invokeState("send_agent_message", { repoPath, missionId, text, model });
 }
 
 export function deleteMissionLoopState(repoPath: string, missionId: string) {

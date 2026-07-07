@@ -78,6 +78,7 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		MissionID:   missionID,
 		RepoPath:    workdir,
 		MissionText: missionText,
+		Model:       s.runModel,
 	}
 
 	if support := worker.Supports(ctx, runRequest); !support.Supported {
@@ -324,6 +325,7 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 		MissionID:   missionID,
 		RepoPath:    workdir,
 		MissionText: missionText,
+		Model:       s.runModel,
 	}
 
 	events, err := worker.StartRun(ctx, runRequest)

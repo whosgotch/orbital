@@ -134,6 +134,13 @@ export function App() {
   const [focusedDiffFile, setFocusedDiffFile] = useState<string | undefined>(undefined);
   // Worker chosen at launch time (intake), applied to every mission queued.
   const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-manager");
+  // Claude model for every AI run and chat turn, persisted across sessions.
+  // Empty string means the claude CLI's own default.
+  const [claudeModel, setClaudeModel] = useState(() => localStorage.getItem("orbital:model") ?? "");
+  const pickClaudeModel = (model: string) => {
+    setClaudeModel(model);
+    localStorage.setItem("orbital:model", model);
+  };
   // Whether a draft task card is open on the canvas ("+ Task" was clicked).
   const [draftingTask, setDraftingTask] = useState(false);
   // Inline prompt editor for refining a mission's instruction before launch.
@@ -589,6 +596,7 @@ export function App() {
         missionId,
         workerMode,
         workerMode === "local-command" ? localCommand : undefined,
+        claudeModel,
       );
       if (nextMissionLoopState) {
         applyRepoState(nextMissionLoopState, missionId);
@@ -676,7 +684,7 @@ export function App() {
     }
 
     try {
-      const next = await sendAgentMessageLoopState(repoPath, missionId, text);
+      const next = await sendAgentMessageLoopState(repoPath, missionId, text, claudeModel);
       if (next) {
         applyRepoState(next, missionId);
       }
@@ -1248,6 +1256,15 @@ export function App() {
           </button>
         </div>
         <div className="topbar-spacer" />
+        <label className="model-select" title="Model used by every AI run and chat turn">
+          <span>Model</span>
+          <select aria-label="Claude model" value={claudeModel} onChange={(event) => pickClaudeModel(event.target.value)}>
+            <option value="">default</option>
+            <option value="opus">opus — deep</option>
+            <option value="sonnet">sonnet — balanced</option>
+            <option value="haiku">haiku — fast</option>
+          </select>
+        </label>
         <div className="topbar-metrics">
           <span><strong>{missionLoopState.repositories.length}</strong> repos</span>
           <span><strong>{workspaceMissions.length}</strong> missions</span>

@@ -28,6 +28,7 @@ func startAgentRun(ctx context.Context, args []string, stdout io.Writer) error {
 	jsonStore := store.NewJSONStore(filepath.Join(repoPath, ".orbital"))
 	service := serviceForStartRun(jsonStore, options)
 	service.SetEventOut(stdout)
+	service.SetRunModel(options.model)
 
 	service.RegisterWorker(agent.NewClaudeEngineerWorker())
 	service.RegisterWorker(agent.NewClaudeReviewerWorker())
@@ -52,6 +53,7 @@ func startAgentRun(ctx context.Context, args []string, stdout io.Writer) error {
 type startRunOptions struct {
 	workerName string
 	command    string
+	model      string
 }
 
 func parseStartRunOptions(args []string) (startRunOptions, error) {
@@ -60,6 +62,7 @@ func parseStartRunOptions(args []string) (startRunOptions, error) {
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&options.workerName, "worker", options.workerName, "worker name")
 	flags.StringVar(&options.command, "command", "", "local command worker command")
+	flags.StringVar(&options.model, "model", "", "claude model alias or id (empty = CLI default)")
 
 	if err := flags.Parse(args); err != nil {
 		return options, usageError()

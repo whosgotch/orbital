@@ -30,6 +30,9 @@ type RunRequest struct {
 	// of starting a fresh one — so MissionText is treated as the next message in an
 	// ongoing conversation rather than a standalone task.
 	ResumeSessionID string `json:"resume_session_id,omitempty"`
+	// Model, when set, is passed to the claude CLI as --model (an alias like
+	// "opus"/"sonnet"/"haiku" or a full model id). Empty means the CLI default.
+	Model string `json:"model,omitempty"`
 }
 
 type SupportResult struct {

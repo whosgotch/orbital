@@ -40,12 +40,15 @@ type streamJSONLine struct {
 // into a live, multi-turn chat. onStep receives each streamed step as
 // ("thought", reasoning text) for Claude's own narration or ("action", tool
 // description) for an edit/command it runs.
-func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, prompt string, onStep func(kind, msg string)) (string, string, error) {
+func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, prompt string, onStep func(kind, msg string)) (string, string, error) {
 	args := []string{"--print",
 		"--permission-mode", "acceptEdits",
 		"--output-format", "stream-json", "--verbose"}
 	if resumeSessionID != "" {
 		args = append(args, "--resume", resumeSessionID)
+	}
+	if model != "" {
+		args = append(args, "--model", model)
 	}
 	args = append(args, prompt)
 
@@ -117,7 +120,7 @@ type subTask struct {
 // genuinely independent parts are broken out. It never produces a testing,
 // verification, or review task — that is the mission's own lifecycle, not work an
 // agent invents. Callers fall back to a single task if the CLI or parse fails.
-func callClaudeDecompose(ctx context.Context, repoPath, mission string) ([]subTask, error) {
+func callClaudeDecompose(ctx context.Context, repoPath, mission, model string) ([]subTask, error) {
 	prompt := fmt.Sprintf(`You are an engineering manager deciding how to tackle a mission in this repository.
 
 Mission: %s
@@ -127,7 +130,11 @@ If the mission is a single, focused change, return ONE task containing the whole
 Respond with ONLY a JSON array and nothing else:
 [{"title": "<short imperative label, max 6 words>", "prompt": "<the full instruction the engineer should carry out>"}]`, mission)
 
-	cmd := exec.CommandContext(ctx, "claude", "--print", "--output-format", "json", prompt)
+	args := []string{"--print", "--output-format", "json"}
+	if model != "" {
+		args = append(args, "--model", model)
+	}
+	cmd := exec.CommandContext(ctx, "claude", append(args, prompt)...)
 	cmd.Dir = repoPath
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

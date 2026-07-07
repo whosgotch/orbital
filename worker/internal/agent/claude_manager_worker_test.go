@@ -42,7 +42,7 @@ func runManager(t *testing.T, tasks []subTask, fail map[string]bool) (*fakeSpawn
 	t.Helper()
 	spawner := &fakeSpawner{failTasks: fail}
 	w := NewClaudeManagerWorker(spawner)
-	w.decompose = func(ctx context.Context, repoPath, mission string) ([]subTask, error) {
+	w.decompose = func(ctx context.Context, repoPath, mission, model string) ([]subTask, error) {
 		return tasks, nil
 	}
 

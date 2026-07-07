@@ -118,9 +118,10 @@ async fn start_agent_run(
     mission_id: String,
     worker_name: Option<String>,
     command: Option<String>,
+    model: Option<String>,
 ) -> Result<String, String> {
     let worker_name = worker_name.unwrap_or_else(|| "mock".to_string());
-    let args: Vec<String> = if worker_name.trim() == "local-command" {
+    let mut args: Vec<String> = if worker_name.trim() == "local-command" {
         let cmd = command.unwrap_or_default();
         vec![
             "start-run".into(),
@@ -140,6 +141,9 @@ async fn start_agent_run(
             worker_name.trim().to_string(),
         ]
     };
+    if let Some(model) = model.as_deref().map(str::trim).filter(|m| !m.is_empty()) {
+        args.extend(["--model".into(), model.to_string()]);
+    }
 
     let runs = runs.inner().clone();
     let mission_id = mission_id.trim().to_string();
@@ -161,13 +165,17 @@ async fn send_agent_message(
     repo_path: String,
     mission_id: String,
     text: String,
+    model: Option<String>,
 ) -> Result<String, String> {
-    let args: Vec<String> = vec![
+    let mut args: Vec<String> = vec![
         "send-message".into(),
         repo_path.trim().to_string(),
         mission_id.trim().to_string(),
         text.to_string(),
     ];
+    if let Some(model) = model.as_deref().map(str::trim).filter(|m| !m.is_empty()) {
+        args.extend(["--model".into(), model.to_string()]);
+    }
 
     let runs = runs.inner().clone();
     let mission_id = mission_id.trim().to_string();

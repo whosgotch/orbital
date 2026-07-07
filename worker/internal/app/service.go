@@ -12,6 +12,10 @@ type Service struct {
 	store          *store.JSONStore
 	workerRegistry *agent.WorkerRegistry
 	eventOut       io.Writer
+	// runModel is the claude model every run this process starts should use
+	// (one CLI invocation = one run), stamped onto each RunRequest — including
+	// the child runs an AI manager spawns. Empty means the CLI default.
+	runModel string
 	// streamMu serializes writes to eventOut, and worktreeMu serializes git
 	// worktree creation, so the parallel child agents an AI manager spawns don't
 	// corrupt the NDJSON event stream or race `git worktree add`.
@@ -35,6 +39,10 @@ func NewServiceWithWorkerRegistry(store *store.JSONStore, workerRegistry *agent.
 
 func (s *Service) SetEventOut(w io.Writer) {
 	s.eventOut = w
+}
+
+func (s *Service) SetRunModel(model string) {
+	s.runModel = model
 }
 
 func (s *Service) RegisterWorker(w agent.Worker) {
