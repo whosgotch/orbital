@@ -20,7 +20,14 @@ function ChangeGlyph({ change }: { change: FileChange }) {
 }
 
 export function AgentStatus({ model, transcript }: { model: AgentStatusModel; transcript: TranscriptEntry[] }) {
-  const [showReasoning, setShowReasoning] = useState(false);
+  // Reasoning opens itself while the agent is live — a long run should be
+  // followable without hunting for a disclosure — and stays togglable by hand.
+  const [showReasoning, setShowReasoning] = useState(model.isLive);
+  const [prevLive, setPrevLive] = useState(model.isLive);
+  if (prevLive !== model.isLive) {
+    setPrevLive(model.isLive);
+    if (model.isLive) setShowReasoning(true);
+  }
 
   if (!model.hasActivity) {
     return (

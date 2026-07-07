@@ -82,10 +82,15 @@ export function AgentChat({
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
 
-  // Keep the newest turn in view as the conversation and the agent's work grow.
+  // Follow the newest turn as the conversation and the agent's work grow —
+  // but only when already reading the tail, so scrolling up to study earlier
+  // work isn't yanked back down by every streamed entry.
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [messages.length, sending, statusModel.now, files.length]);
+    const log = logRef.current;
+    if (!log) return;
+    const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 160;
+    if (nearBottom) log.scrollTo({ top: log.scrollHeight });
+  }, [messages.length, sending, statusModel.now, files.length, transcript.length]);
 
   const submit = () => {
     const text = draft.trim();
