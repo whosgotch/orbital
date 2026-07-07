@@ -42,13 +42,22 @@ import {
   workerModeLabel,
   type WorkerMode,
 } from "./missionUi";
-import { combineRepoStates, emptyMissionLoopState, removeMissionFromState, splitByRepository } from "./repoStates";
+import {
+  combineRepoStates,
+  emptyMissionLoopState,
+  mergeChatMessage,
+  mergeWorkflowEvent,
+  removeMissionFromState,
+  splitByRepository,
+  upsertAgentRun,
+  upsertPatchProposal,
+} from "./repoStates";
 import {
   type WorkspaceGraphEdge,
   type WorkspaceGraphNode,
   type WorkspaceMission,
 } from "./graph";
-import type { ChatMessage, MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
+import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
 import {
   compactLabel,
   workspaceViewFromMissionLoop,
@@ -549,41 +558,28 @@ export function App() {
       [missionId]: { ...(current[missionId] ?? queuedRuntime), status: "running", step: Math.max(current[missionId]?.step ?? -1, 0) },
     }));
 
+    // Merge each streamed record straight into the workspace state, so agents
+    // appear on the canvas as the manager spawns them, the transcript fills
+    // while the agent thinks, and the changes gate opens the moment the patch
+    // lands — not after the whole run finishes.
+    let unlistenRun: (() => void) | undefined;
     let unlistenEvent: (() => void) | undefined;
     let unlistenPatch: (() => void) | undefined;
 
     if (isTauriRuntime()) {
+      unlistenRun = await listen<AgentRun>("agent_run", (e) => {
+        if (e.payload.mission_id !== missionId) return;
+        mergeLiveRecord((state) => upsertAgentRun(state, e.payload));
+      });
+
       unlistenEvent = await listen<WorkflowEvent>("workflow_event", (e) => {
-        const event = e.payload;
         // Parallel runs share one event channel; keep each mission's stream its own.
-        if (event.mission_id && event.mission_id !== missionId) return;
-        if (!event.message) return;
-        setActivityByMission((current) => ({
-          ...current,
-          [missionId]: [...(current[missionId] ?? []), event.message],
-        }));
-        setRuntimeByMission((current) => ({
-          ...current,
-          [missionId]: {
-            ...current[missionId],
-            status: "running",
-            step: (current[missionId]?.step ?? -1) + 1,
-          },
-        }));
+        if (e.payload.mission_id && e.payload.mission_id !== missionId) return;
+        mergeLiveRecord((state) => mergeWorkflowEvent(state, e.payload));
       });
 
       unlistenPatch = await listen<PatchProposal>("patch_proposal", (e) => {
-        const patch = e.payload;
-        setPatchDiffByMission((current) => ({ ...current, [missionId]: patch.diff }));
-        setRuntimeByMission((current) => ({
-          ...current,
-          [missionId]: {
-            ...current[missionId],
-            status: "review",
-            patchStatus: "pending",
-            step: (current[missionId]?.step ?? 0) + 1,
-          },
-        }));
+        mergeLiveRecord((state) => upsertPatchProposal(state, e.payload));
       });
     }
 
@@ -616,6 +612,7 @@ export function App() {
       setMissionLoopError(errorMessage(error, "Failed to dispatch mission."));
       return;
     } finally {
+      unlistenRun?.();
       unlistenEvent?.();
       unlistenPatch?.();
     }
@@ -648,43 +645,33 @@ export function App() {
       [missionId]: { ...(current[missionId] ?? queuedRuntime), status: "running", step: Math.max(current[missionId]?.step ?? -1, 0) },
     }));
 
+    // Same live merging as dispatchMission: every streamed record lands in the
+    // workspace state as it happens. The worker persists and streams the user's
+    // turn first, so the optimistic bubble is replaced by the real record almost
+    // immediately.
+    let unlistenRun: (() => void) | undefined;
     let unlistenEvent: (() => void) | undefined;
     let unlistenPatch: (() => void) | undefined;
     let unlistenChat: (() => void) | undefined;
 
     if (isTauriRuntime()) {
       unlistenChat = await listen<ChatMessage>("chat_message", (e) => {
-        const message = e.payload;
-        // The user turn is already shown optimistically; only stream the reply.
-        if (message.mission_id !== missionId || message.role !== "assistant") return;
-        setChatByMission((current) => {
-          const existing = current[missionId] ?? [];
-          if (existing.some((item) => item.id === message.id)) return current;
-          return { ...current, [missionId]: [...existing, message] };
-        });
+        if (e.payload.mission_id !== missionId) return;
+        mergeLiveRecord((state) => mergeChatMessage(state, e.payload));
+      });
+
+      unlistenRun = await listen<AgentRun>("agent_run", (e) => {
+        if (e.payload.mission_id !== missionId) return;
+        mergeLiveRecord((state) => upsertAgentRun(state, e.payload));
       });
 
       unlistenEvent = await listen<WorkflowEvent>("workflow_event", (e) => {
-        const event = e.payload;
-        if (event.mission_id && event.mission_id !== missionId) return;
-        if (!event.message) return;
-        setActivityByMission((current) => ({
-          ...current,
-          [missionId]: [...(current[missionId] ?? []), event.message],
-        }));
-        setRuntimeByMission((current) => ({
-          ...current,
-          [missionId]: { ...current[missionId], status: "running", step: (current[missionId]?.step ?? -1) + 1 },
-        }));
+        if (e.payload.mission_id && e.payload.mission_id !== missionId) return;
+        mergeLiveRecord((state) => mergeWorkflowEvent(state, e.payload));
       });
 
       unlistenPatch = await listen<PatchProposal>("patch_proposal", (e) => {
-        const patch = e.payload;
-        setPatchDiffByMission((current) => ({ ...current, [missionId]: patch.diff }));
-        setRuntimeByMission((current) => ({
-          ...current,
-          [missionId]: { ...current[missionId], status: "review", patchStatus: "pending", step: (current[missionId]?.step ?? 0) + 1 },
-        }));
+        mergeLiveRecord((state) => upsertPatchProposal(state, e.payload));
       });
     }
 
@@ -698,6 +685,7 @@ export function App() {
       console.error("[orbital] chat failed", error);
       setMissionLoopError(errorMessage(error, "Failed to send message."));
     } finally {
+      unlistenRun?.();
       unlistenEvent?.();
       unlistenPatch?.();
       unlistenChat?.();
@@ -1077,6 +1065,15 @@ export function App() {
     const next = { ...repoStatesRef.current, ...splitByRepository(state) };
     repoStatesRef.current = next;
     hydrateMissionLoop(combineRepoStates(next), preferredNodeId);
+  };
+
+  // Merge one live-streamed record (run/event/patch/chat) into the workspace
+  // and re-hydrate, so the canvas and transcript grow while the run is still
+  // working instead of waiting for its final state snapshot.
+  const mergeLiveRecord = (merge: (state: MissionLoopState) => MissionLoopState) => {
+    const combined = combineRepoStates(repoStatesRef.current);
+    const next = merge(combined);
+    if (next !== combined) applyRepoState(next);
   };
 
   const closeRepo = (repositoryId: string) => {

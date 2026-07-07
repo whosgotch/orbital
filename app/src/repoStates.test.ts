@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { MissionLoopState } from "./domain";
-import { combineRepoStates, emptyMissionLoopState, removeMissionFromState, splitByRepository } from "./repoStates";
+import {
+  combineRepoStates,
+  emptyMissionLoopState,
+  mergeChatMessage,
+  mergeWorkflowEvent,
+  removeMissionFromState,
+  splitByRepository,
+  upsertAgentRun,
+  upsertPatchProposal,
+} from "./repoStates";
 
 // Two repos, one mission each; m1 carries a run with a patch, an event and chat.
 const combined: MissionLoopState = {
@@ -50,6 +59,60 @@ describe("splitByRepository / combineRepoStates", () => {
 
   it("combines an empty set into the empty state", () => {
     expect(combineRepoStates({})).toEqual(emptyMissionLoopState);
+  });
+});
+
+describe("live-stream merges", () => {
+  it("appends a new workflow event and ignores a replay of the same id", () => {
+    const event = { id: "e9", run_id: "run1", mission_id: "m1", type: "agent_thought", message: "thinking", created_at: "t2" } as const;
+    const once = mergeWorkflowEvent(combined, event);
+    expect(once.workflow_events.map((e) => e.id)).toContain("e9");
+    expect(mergeWorkflowEvent(once, event)).toBe(once);
+  });
+
+  it("inserts a streamed run and marks its mission running", () => {
+    const next = upsertAgentRun(combined, {
+      id: "run2",
+      mission_id: "m2",
+      worker_name: "claude-engineer",
+      status: "running",
+      started_at: "t2",
+    });
+    expect(next.agent_runs.map((r) => r.id)).toEqual(["run1", "run2"]);
+    expect(next.missions.find((m) => m.id === "m2")?.status).toBe("running");
+  });
+
+  it("updates an existing run in place when its status changes", () => {
+    const next = upsertAgentRun(combined, {
+      id: "run1",
+      mission_id: "m1",
+      worker_name: "mock",
+      status: "completed",
+      started_at: "t",
+      completed_at: "t3",
+    });
+    expect(next.agent_runs).toHaveLength(1);
+    expect(next.agent_runs[0].status).toBe("completed");
+  });
+
+  it("replaces a superseded pending patch and parks the mission at the gate", () => {
+    const next = upsertPatchProposal(combined, {
+      id: "p2",
+      run_id: "run1",
+      status: "pending",
+      diff: "new diff",
+      created_at: "t2",
+      updated_at: "t2",
+    });
+    expect(next.patch_proposals.map((p) => p.id)).toEqual(["p2"]);
+    expect(next.missions.find((m) => m.id === "m1")?.status).toBe("waiting_approval");
+  });
+
+  it("dedupes chat messages by id", () => {
+    const message = { id: "c2", mission_id: "m1", run_id: "run1", role: "assistant", text: "done", created_at: "t2" } as const;
+    const once = mergeChatMessage(combined, message);
+    expect(once.chat_messages.map((m) => m.id)).toEqual(["c1", "c2"]);
+    expect(mergeChatMessage(once, message)).toBe(once);
   });
 });
 

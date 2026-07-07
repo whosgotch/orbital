@@ -334,6 +334,10 @@ fn run_worker_streaming(
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
                 let _ = app.emit("chat_message", val);
             }
+        } else if let Some(json_str) = line.strip_prefix("RUN:") {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
+                let _ = app.emit("agent_run", val);
+            }
         } else if let Some(json_str) = line.strip_prefix("STATE:") {
             final_state = json_str.to_string();
         }

@@ -1,6 +1,6 @@
 // Pure combinators over MissionLoopState for the multi-repo canvas: the app
 // keeps one state slice per open repository and renders the union.
-import type { MissionLoopState } from "./domain";
+import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, WorkflowEvent } from "./domain";
 
 export const emptyMissionLoopState: MissionLoopState = {
   repositories: [],
@@ -49,6 +49,60 @@ export function splitByRepository(state: MissionLoopState): Record<string, Missi
     };
   }
   return out;
+}
+
+// Live-stream merges: while a run works, the worker streams each record the
+// moment it persists it (RUN:/EVENT:/PATCH:/CHAT: lines). Merging them into the
+// combined state keeps the canvas growing in real time; each helper mirrors the
+// worker's own persistence rule so the live state converges on the final STATE
+// snapshot. All are id-idempotent — replayed records leave the state unchanged.
+
+export function mergeWorkflowEvent(state: MissionLoopState, event: WorkflowEvent): MissionLoopState {
+  if (state.workflow_events.some((existing) => existing.id === event.id)) return state;
+  return { ...state, workflow_events: [...state.workflow_events, event] };
+}
+
+export function mergeChatMessage(state: MissionLoopState, message: ChatMessage): MissionLoopState {
+  if (state.chat_messages.some((existing) => existing.id === message.id)) return state;
+  return { ...state, chat_messages: [...state.chat_messages, message] };
+}
+
+// Upsert a streamed run record. A running run also marks its mission running
+// (mirrors StartAgentRun), so the task card pulses from the store's truth.
+export function upsertAgentRun(state: MissionLoopState, run: AgentRun): MissionLoopState {
+  const exists = state.agent_runs.some((existing) => existing.id === run.id);
+  const agent_runs = exists
+    ? state.agent_runs.map((existing) => (existing.id === run.id ? run : existing))
+    : [...state.agent_runs, run];
+  const missions =
+    run.status === "running"
+      ? state.missions.map((mission) =>
+          mission.id === run.mission_id && mission.status !== "running" ? { ...mission, status: "running" as const } : mission,
+        )
+      : state.missions;
+  return { ...state, agent_runs, missions };
+}
+
+// Upsert a streamed patch. Mirrors the worker's saveRunEvent: the latest pending
+// patch per run replaces a superseded one, and a fresh pending patch parks the
+// mission at the approval gate.
+export function upsertPatchProposal(state: MissionLoopState, patch: PatchProposal): MissionLoopState {
+  const pruned = state.patch_proposals.filter(
+    (existing) => existing.id === patch.id || existing.run_id !== patch.run_id || existing.status !== "pending",
+  );
+  const exists = pruned.some((existing) => existing.id === patch.id);
+  const patch_proposals = exists
+    ? pruned.map((existing) => (existing.id === patch.id ? patch : existing))
+    : [...pruned, patch];
+
+  const missionId = state.agent_runs.find((run) => run.id === patch.run_id)?.mission_id;
+  const missions =
+    patch.status === "pending" && missionId
+      ? state.missions.map((mission) =>
+          mission.id === missionId ? { ...mission, status: "waiting_approval" as const, updated_at: patch.updated_at } : mission,
+        )
+      : state.missions;
+  return { ...state, patch_proposals, missions };
 }
 
 // Drop a mission and everything attached to it from a combined state. Mirrors

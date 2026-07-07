@@ -62,6 +62,8 @@ func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text s
 		return nil, err
 	}
 
+	s.streamAgentRun(run)
+
 	// Record and stream the user's turn before the agent starts working.
 	userMessage := domain.ChatMessage{
 		ID:        fmt.Sprintf("msg_%d", now.UnixNano()),

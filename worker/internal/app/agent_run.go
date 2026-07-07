@@ -54,6 +54,8 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		return nil, err
 	}
 
+	s.streamAgentRun(run)
+
 	// Give this mission its own git worktree so it can run alongside others
 	// without sharing a working tree. Fall back to the repo root if the repo
 	// can't host a worktree.
@@ -116,6 +118,7 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		}
 
 		removeRunWorktree(repoPath, run)
+		s.streamAgentRun(run)
 		return &run, err
 	}
 
@@ -191,6 +194,7 @@ func (s *Service) finishAgentRun(runID string, missionID string) (*domain.AgentR
 		return nil, err
 	}
 
+	s.streamAgentRun(result)
 	return &result, nil
 }
 
@@ -254,6 +258,7 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 	// AI manager spawns for independent parts can run in parallel without sharing
 	// a working tree.
 	var missionID, workdir, missionText, repoPath string
+	var spawnEvent domain.WorkflowEvent
 	if _, err := s.store.Update(func(state *store.State) error {
 		parentIndex := findRunIndex(state.AgentRuns, parentRunID)
 		if parentIndex == -1 {
@@ -283,14 +288,18 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 		state.AgentRuns[parentIndex].ChildRunIDs = append(state.AgentRuns[parentIndex].ChildRunIDs, childRun.ID)
 		state.AgentRuns[parentIndex].Status = domain.AgentRunStatusWaitingForChildren
 		state.AgentRuns = append(state.AgentRuns, childRun)
-		state.WorkflowEvents = append(state.WorkflowEvents, newWorkflowEvent(
+		spawnEvent = newWorkflowEvent(
 			missionID, parentRunID, domain.WorkflowEventChildRunSpawned,
 			fmt.Sprintf("Manager spawned %s agent.", workerName), "", now,
-		))
+		)
+		state.WorkflowEvents = append(state.WorkflowEvents, spawnEvent)
 		return nil
 	}); err != nil {
 		return nil, err
 	}
+
+	s.streamAgentRun(childRun)
+	s.streamRunEvent(agent.RunEvent{WorkflowEvent: &spawnEvent})
 
 	// `git worktree add` isn't safe to race, so serialize creation; the agents
 	// then run in parallel in their separate trees. Fall back to the repo root.
@@ -377,6 +386,22 @@ func (s *Service) streamRunEvent(event agent.RunEvent) {
 	s.streamMu.Lock()
 	defer s.streamMu.Unlock()
 	fmt.Fprintf(s.eventOut, "%s%s\n", prefix, data)
+}
+
+// streamAgentRun emits the run record itself (created, spawned as a child,
+// finished) so the UI can grow the canvas while the run is still working
+// instead of waiting for the final STATE snapshot.
+func (s *Service) streamAgentRun(run domain.AgentRun) {
+	if s.eventOut == nil {
+		return
+	}
+	data, err := json.Marshal(run)
+	if err != nil {
+		return
+	}
+	s.streamMu.Lock()
+	defer s.streamMu.Unlock()
+	fmt.Fprintf(s.eventOut, "RUN:%s\n", data)
 }
 
 func finalRunStatus(events []domain.WorkflowEvent, runID string) domain.AgentRunStatus {

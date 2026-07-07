@@ -407,6 +407,11 @@ function stationActivityFromEvents(events: WorkflowEvent[]) {
         return "AI manager marked the run failed.";
       case "run_cancelled":
         return "AI manager cancelled the run.";
+      case "agent_thought":
+      case "agent_action":
+        // The agent's own narration and tool calls — the live "now" line on the
+        // canvas shows the latest of these verbatim.
+        return event.message || "Agent working.";
       case "child_run_spawned":
         return event.message || "Manager dispatched a child agent.";
       case "child_run_completed":
