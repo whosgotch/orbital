@@ -82,6 +82,14 @@ import {
   verifyMissionLoopState,
 } from "./missionLoopLoader";
 import { useRepoHistory } from "./useRepoHistory";
+import {
+  forgetRecentRepo,
+  lastOpenRepoPaths,
+  persistOpenRepos,
+  recentRepoPaths,
+  rememberRecentRepo,
+  repoNameFromPath,
+} from "./recentRepos";
 
 const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState);
 
@@ -1037,6 +1045,9 @@ export function App() {
   const runVerification = () => runVerificationFor(selectedMission.id);
 
   const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState, preferredNodeId?: string) => {
+    // Every state change records which repos are open, so the next session
+    // starts from the same workspace.
+    persistOpenRepos(nextMissionLoopState.repositories.map((repo) => repo.path));
     const nextWorkspaceView = workspaceViewFromMissionLoop(nextMissionLoopState);
     setMissionLoopState(nextMissionLoopState);
     setWorkspaceMissions(nextWorkspaceView.missions);
@@ -1090,12 +1101,9 @@ export function App() {
     hydrateMissionLoop(combineRepoStates(next));
   };
 
-  const openWorkspace = async () => {
-    const repoPath = repoPathDraft.trim();
-    if (!repoPath) {
-      return;
-    }
-
+  // Open one repository into the workspace and remember it for the Recent
+  // list. Shared by the path input, the folder browser, and the Recent picker.
+  const openRepoAtPath = async (repoPath: string) => {
     setRefreshingMissionLoop(true);
     setMissionLoopError("");
 
@@ -1103,6 +1111,7 @@ export function App() {
       const nextMissionLoopState = await openMissionLoopRepository(repoPath);
       if (nextMissionLoopState) {
         setActiveRepoPath(repoPath);
+        rememberRecentRepo(repoPath);
         applyRepoState(nextMissionLoopState, nextMissionLoopState.repositories[0]?.id);
       }
     } catch (error) {
@@ -1110,6 +1119,11 @@ export function App() {
     } finally {
       setRefreshingMissionLoop(false);
     }
+  };
+
+  const openWorkspace = async () => {
+    const repoPath = repoPathDraft.trim();
+    if (repoPath) await openRepoAtPath(repoPath);
   };
 
   const chooseWorkspaceFolder = async () => {
@@ -1127,16 +1141,9 @@ export function App() {
       }
 
       setRepoPathDraft(repoPath);
-      setRefreshingMissionLoop(true);
-      const nextMissionLoopState = await openMissionLoopRepository(repoPath);
-      if (nextMissionLoopState) {
-        setActiveRepoPath(repoPath);
-        applyRepoState(nextMissionLoopState, nextMissionLoopState.repositories[0]?.id);
-      }
+      await openRepoAtPath(repoPath);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to choose repository folder."));
-    } finally {
-      setRefreshingMissionLoop(false);
     }
   };
 
@@ -1165,6 +1172,28 @@ export function App() {
       setMissionLoopError("");
 
       try {
+        // Reopen the workspace the last session had open. A path that no
+        // longer opens (moved/deleted repo) is dropped, not surfaced as an
+        // error. Falls back to the demo load when nothing was open.
+        const lastOpen = isTauriRuntime() ? lastOpenRepoPaths() : [];
+        let reopened = false;
+        for (const repoPath of lastOpen) {
+          try {
+            const state = await openMissionLoopRepository(repoPath);
+            if (!state) continue;
+            applyRepoState(state);
+            if (!reopened) {
+              setActiveRepoPath(repoPath);
+              setRepoPathDraft(repoPath);
+            }
+            reopened = true;
+          } catch (error) {
+            console.error("[orbital] reopen failed", repoPath, error);
+            forgetRecentRepo(repoPath);
+          }
+        }
+        if (reopened) return;
+
         applyRepoState(await loadMissionLoopState(activeRepoPath));
       } catch (error) {
         setMissionLoopError(errorMessage(error, "Failed to load mission loop state."));
@@ -1331,6 +1360,33 @@ export function App() {
               ))}
             </ul>
           ) : null}
+          {(() => {
+            // Recently opened repos that aren't on the canvas — one click reopens.
+            const openPaths = new Set(missionLoopState.repositories.map((repo) => repo.path));
+            const recent = recentRepoPaths().filter((path) => !openPaths.has(path));
+            if (recent.length === 0) return null;
+            return (
+              <>
+                <div className="section-label recent-label">Recent</div>
+                <ul className="workspace-repos">
+                  {recent.map((path) => (
+                    <li key={path}>
+                      <button
+                        className="recent-repo"
+                        type="button"
+                        onClick={() => void openRepoAtPath(path)}
+                        disabled={refreshingMissionLoop}
+                        title={path}
+                      >
+                        <FolderOpen size={14} aria-hidden="true" />
+                        <span className="workspace-repo-name">{repoNameFromPath(path)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            );
+          })()}
         </section>
       ) : null}
 

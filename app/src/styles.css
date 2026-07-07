@@ -1515,6 +1515,35 @@ button.ghost.danger:hover {
   flex: 0 0 auto;
 }
 
+.recent-label {
+  margin-top: 12px;
+}
+
+/* A recent repo row is one whole click target that reopens the repo. */
+.recent-repo {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--soft);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.recent-repo:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.recent-repo svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
 .workspace-repo-name {
   flex: 1;
   min-width: 0;
