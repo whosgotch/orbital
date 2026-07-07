@@ -13,8 +13,7 @@ import (
 
 // claudeAgentWorker is a Claude-backed agent that edits the repository working
 // tree directly and captures its changes as a patch proposal. The role and
-// prompt distinguish the specialized agents (Engineer, Reviewer) that the
-// manager runs in sequence against the same tree.
+// prompt distinguish the specialized agents the manager spawns.
 type claudeAgentWorker struct {
 	name        string
 	role        string
@@ -33,21 +32,6 @@ func NewClaudeEngineerWorker() *claudeAgentWorker {
 Task: %s
 
 Make the necessary code changes directly by editing files. Keep the change focused and minimal. Do not commit. When done, briefly summarize what you changed.`, task)
-		},
-	}
-}
-
-func NewClaudeReviewerWorker() *claudeAgentWorker {
-	return &claudeAgentWorker{
-		name:       "claude-reviewer",
-		role:       "Reviewer",
-		startLabel: "Claude Reviewer started.",
-		buildPrompt: func(task string) string {
-			return fmt.Sprintf(`You are a senior code reviewer working in this repository. An engineer has just made uncommitted changes to address a mission. Inspect the current changes with the git diff and the surrounding code.
-
-Review focus: %s
-
-Improve correctness, handle edge cases, and tighten naming and style by editing files directly. Build on the engineer's work — do not revert it or start over. Keep refinements minimal and focused. Do not commit. When done, briefly summarize what you refined.`, task)
 		},
 	}
 }

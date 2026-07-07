@@ -435,8 +435,6 @@ export function roleLabel(workerName: string) {
   switch (workerName) {
     case "claude-engineer":
       return "Engineer";
-    case "claude-reviewer":
-      return "Reviewer";
     case "claude-manager":
       return "AI manager";
     case "mock":

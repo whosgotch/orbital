@@ -23,7 +23,7 @@ export type AgentStatusModel = {
   hasActivity: boolean;
 };
 
-// Phases name the act (Plan/Review), not the actor (AI manager/Reviewer), so the
+// Phases name the act (Plan/Engineer), not the actor (AI manager), so the
 // spine reads as a workflow.
 function phaseLabel(workerName: string): string {
   switch (workerName) {
@@ -31,8 +31,6 @@ function phaseLabel(workerName: string): string {
       return "Plan";
     case "claude-engineer":
       return "Engineer";
-    case "claude-reviewer":
-      return "Review";
     case "mock":
       return "Demo";
     case "local-command":
@@ -48,8 +46,6 @@ function agentLabelFor(workerName: string): string {
       return "Claude · Manager";
     case "claude-engineer":
       return "Claude · Engineer";
-    case "claude-reviewer":
-      return "Claude · Reviewer";
     case "mock":
       return "Demo agent";
     case "local-command":

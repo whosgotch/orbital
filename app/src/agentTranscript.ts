@@ -13,7 +13,7 @@ export function buildAgentTranscript(state: MissionLoopState, missionId: string,
   };
   // Cluster each agent's events together by ordering on when its run started,
   // then chronologically within the run — so the mission-wide view reads
-  // manager → engineer → reviewer rather than interleaving them.
+  // manager → engineer rather than interleaving them.
   const runStart = (rid: string | undefined) => (rid ? runById.get(rid)?.started_at ?? "" : "");
 
   return state.workflow_events
