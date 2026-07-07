@@ -1647,6 +1647,9 @@ dd {
 .graph-canvas {
   position: absolute;
   inset: 0;
+  /* Own stacking context: React Flow gives nodes large z-indexes (selected
+     cards get 1000+), which would otherwise paint over the inspector (z 4). */
+  z-index: 1;
   background: #0c0f13;
 }
 
