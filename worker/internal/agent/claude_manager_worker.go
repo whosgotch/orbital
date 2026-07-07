@@ -86,7 +86,7 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 			titles[index] = task.Title
 		}
 		if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted,
-			fmt.Sprintf("🧭 Split into %d parts, running in parallel: %s", len(tasks), strings.Join(titles, " · ")), "", "claude") {
+			fmt.Sprintf("Split into %d parts, running in parallel: %s", len(tasks), strings.Join(titles, " · ")), "", "claude") {
 			return
 		}
 

@@ -2,14 +2,15 @@
 // touched (with sizes — so scope is obvious at a glance), and a live "now" line.
 // The raw reasoning transcript stays one click away behind "show reasoning".
 import { useState } from "react";
-import { Check, CircleDot, Loader, X, FilePlus, FileMinus, FilePen, ChevronRight, ChevronDown } from "lucide-react";
+import { Loader, FilePlus, FileMinus, FilePen, ChevronRight, ChevronDown } from "lucide-react";
 import { AgentTranscript, type TranscriptEntry } from "./AgentTranscript";
 import type { AgentPhaseStatus, AgentStatusModel, FileChange } from "../agentStatus";
 
+// Claude Code's state glyphs: ✓ done, ✗ failed, ⏺ active, · not reached.
 function PhaseGlyph({ status }: { status: AgentPhaseStatus }) {
-  if (status === "done") return <Check size={12} aria-hidden="true" />;
-  if (status === "failed") return <X size={12} aria-hidden="true" />;
-  if (status === "active") return <CircleDot size={12} aria-hidden="true" />;
+  if (status === "done") return <span className="glyph-char" aria-hidden="true">✓</span>;
+  if (status === "failed") return <span className="glyph-char" aria-hidden="true">✗</span>;
+  if (status === "active") return <span className="glyph-char" aria-hidden="true">⏺</span>;
   return <span className="phase-dot" aria-hidden="true" />;
 }
 

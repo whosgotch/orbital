@@ -208,20 +208,24 @@ func describeToolUse(name string, input json.RawMessage) string {
 		target = fields.Path
 	}
 
+	// Claude Code's own call notation — Tool(target) — so the transcript reads
+	// like the terminal, not like chat.
 	switch name {
 	case "Read":
-		return "📖 Reading " + base(target)
-	case "Edit", "MultiEdit", "Write":
-		return "✏️ Editing " + base(target)
+		return "Read(" + base(target) + ")"
+	case "Edit", "MultiEdit":
+		return "Update(" + base(target) + ")"
+	case "Write":
+		return "Write(" + base(target) + ")"
 	case "Bash":
-		return "⚡ Running: " + truncate(fields.Command, 120)
+		return "Bash(" + truncate(fields.Command, 120) + ")"
 	case "Glob", "Grep":
-		return "🔍 Searching " + fields.Pattern
+		return "Search(" + fields.Pattern + ")"
 	case "WebFetch", "WebSearch":
-		return "🌐 " + name + " " + truncate(fields.URL+fields.Pattern, 80)
+		return name + "(" + truncate(fields.URL+fields.Pattern, 80) + ")"
 	default:
 		if target != "" {
-			return name + " " + base(target)
+			return name + "(" + base(target) + ")"
 		}
 		return name
 	}

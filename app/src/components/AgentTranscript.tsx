@@ -1,7 +1,6 @@
 // Renders an agent's stream of consciousness: its reasoning (thoughts) and the
 // edits/commands it ran (actions), grouped under the agent that produced them.
 // This is the read-only foundation for a future two-way chat with the agent.
-import { Brain, Wrench, CircleDot } from "lucide-react";
 
 export type TranscriptKind = "thought" | "action" | "status";
 
@@ -12,10 +11,15 @@ export type TranscriptEntry = {
   agent: string;
 };
 
+// Claude Code's terminal glyphs: ✻ reasoning, ⏺ a tool call, ⎿ a lifecycle line.
+const GLYPH: Record<TranscriptKind, string> = {
+  thought: "✻",
+  action: "⏺",
+  status: "⎿",
+};
+
 function Glyph({ kind }: { kind: TranscriptKind }) {
-  if (kind === "thought") return <Brain size={14} aria-hidden="true" />;
-  if (kind === "action") return <Wrench size={13} aria-hidden="true" />;
-  return <CircleDot size={12} aria-hidden="true" />;
+  return <span className="glyph-char" aria-hidden="true">{GLYPH[kind]}</span>;
 }
 
 export function AgentTranscript({ entries, emptyLabel }: { entries: TranscriptEntry[]; emptyLabel: string }) {

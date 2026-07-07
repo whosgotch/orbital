@@ -960,6 +960,14 @@ button.mini-text {
   color: var(--muted);
 }
 
+/* Text glyphs (⏺ ✻ ⎿) render monospace so entries line up like a terminal. */
+.glyph-char {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
 .transcript-entry.thought {
   background: rgba(91, 139, 255, 0.08);
   border: 1px solid rgba(91, 139, 255, 0.16);

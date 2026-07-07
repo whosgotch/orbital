@@ -132,7 +132,7 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 		}
 
 		if strings.TrimSpace(summary) != "" {
-			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "✅ "+truncate(summary, 200), "", "claude") {
+			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "⏺ "+truncate(summary, 200), "", "claude") {
 				return
 			}
 			// Record the summary as the agent's chat reply for this turn.
