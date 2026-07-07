@@ -5,7 +5,6 @@ import {
   emptyMissionLoopState,
   mergeChatMessage,
   mergeWorkflowEvent,
-  removeMissionFromState,
   splitByRepository,
   upsertAgentRun,
   upsertPatchProposal,
@@ -113,19 +112,5 @@ describe("live-stream merges", () => {
     const once = mergeChatMessage(combined, message);
     expect(once.chat_messages.map((m) => m.id)).toEqual(["c1", "c2"]);
     expect(mergeChatMessage(once, message)).toBe(once);
-  });
-});
-
-describe("removeMissionFromState", () => {
-  it("cascades the delete through runs, events, patches, verifications and chat", () => {
-    const next = removeMissionFromState(combined, "m1");
-    expect(next.missions.map((m) => m.id)).toEqual(["m2"]);
-    expect(next.agent_runs).toEqual([]);
-    expect(next.workflow_events.map((e) => e.id)).toEqual(["e2"]);
-    expect(next.patch_proposals).toEqual([]);
-    expect(next.verification_runs).toEqual([]);
-    expect(next.chat_messages).toEqual([]);
-    // Repositories stay: closing a mission never closes its repo.
-    expect(next.repositories).toHaveLength(2);
   });
 });

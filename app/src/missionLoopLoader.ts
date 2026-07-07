@@ -1,31 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { MissionLoopState, RepoCommit } from "./domain";
 
-const missionLoopFixturePath = "/workerMissionFixture.json";
 export const demoRepoPath = "/private/tmp/orbital-demo-repo";
 
-export function isTauriRuntime() {
-  return "__TAURI_INTERNALS__" in window;
-}
-
 // Every worker command replies with the full mission-loop state as a JSON
-// string. In the browser (no Tauri) this returns undefined and the caller
-// keeps its local state instead.
-async function invokeState(command: string, args: Record<string, unknown>): Promise<MissionLoopState | undefined> {
-  if (!isTauriRuntime()) {
-    return undefined;
-  }
-
+// string.
+async function invokeState(command: string, args: Record<string, unknown>): Promise<MissionLoopState> {
   const state = await invoke<string>(command, args);
   return JSON.parse(state) as MissionLoopState;
 }
 
-export async function loadMissionLoopState(repoPath = demoRepoPath): Promise<MissionLoopState> {
-  return (await invokeState("load_worker_state", { repoPath })) ?? loadRuntimeFixture();
+export function loadMissionLoopState(repoPath = demoRepoPath): Promise<MissionLoopState> {
+  return invokeState("load_worker_state", { repoPath });
 }
 
-export async function refreshMissionLoopState(): Promise<MissionLoopState> {
-  return (await invokeState("refresh_demo_worker_loop", {})) ?? loadRuntimeFixture();
+export function refreshMissionLoopState(): Promise<MissionLoopState> {
+  return invokeState("refresh_demo_worker_loop", {});
 }
 
 export function openMissionLoopRepository(repoPath: string) {
@@ -73,27 +63,10 @@ export function verifyMissionLoopState(repoPath: string, missionId: string, comm
 }
 
 export async function loadRepoHistory(repoPath: string): Promise<RepoCommit[]> {
-  if (!isTauriRuntime()) {
-    return [];
-  }
-
   const history = await invoke<string>("load_repo_history", { repoPath });
   return JSON.parse(history) as RepoCommit[];
 }
 
-export async function loadCommitDiff(repoPath: string, hash: string): Promise<string> {
-  if (!isTauriRuntime()) {
-    return "";
-  }
-
+export function loadCommitDiff(repoPath: string, hash: string): Promise<string> {
   return invoke<string>("load_commit_diff", { repoPath, hash });
-}
-
-async function loadRuntimeFixture(): Promise<MissionLoopState> {
-  const response = await fetch(missionLoopFixturePath);
-  if (!response.ok) {
-    throw new Error(`Failed to load mission loop state: ${response.status}`);
-  }
-
-  return (await response.json()) as MissionLoopState;
 }

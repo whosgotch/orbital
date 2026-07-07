@@ -28,9 +28,8 @@ export function combineRepoStates(states: Record<string, MissionLoopState>): Mis
   };
 }
 
-// Normalize a loaded state into one slice per repository, keyed by repo id. The
-// worker returns a single repo per call, but the browser fixture bundles
-// several — splitting lets each repo be added, updated, or closed on its own.
+// Normalize a loaded state into one slice per repository, keyed by repo id.
+// Splitting lets each repo be added, updated, or closed on its own.
 export function splitByRepository(state: MissionLoopState): Record<string, MissionLoopState> {
   const out: Record<string, MissionLoopState> = {};
   for (const repo of state.repositories) {
@@ -103,22 +102,4 @@ export function upsertPatchProposal(state: MissionLoopState, patch: PatchProposa
         )
       : state.missions;
   return { ...state, patch_proposals, missions };
-}
-
-// Drop a mission and everything attached to it from a combined state. Mirrors
-// the worker's DeleteMission cascade for the browser/demo path that has no
-// backend to do it.
-export function removeMissionFromState(state: MissionLoopState, missionId: string): MissionLoopState {
-  const runIds = new Set(state.agent_runs.filter((run) => run.mission_id === missionId).map((run) => run.id));
-  return {
-    repositories: state.repositories,
-    missions: state.missions.filter((mission) => mission.id !== missionId),
-    agent_runs: state.agent_runs.filter((run) => run.mission_id !== missionId),
-    workflow_events: state.workflow_events.filter(
-      (event) => event.mission_id !== missionId && !(event.run_id != null && runIds.has(event.run_id)),
-    ),
-    patch_proposals: state.patch_proposals.filter((patch) => !runIds.has(patch.run_id)),
-    verification_runs: state.verification_runs.filter((run) => run.mission_id !== missionId),
-    chat_messages: state.chat_messages.filter((message) => message.mission_id !== missionId && !runIds.has(message.run_id)),
-  };
 }

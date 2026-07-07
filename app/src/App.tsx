@@ -47,28 +47,20 @@ import {
   emptyMissionLoopState,
   mergeChatMessage,
   mergeWorkflowEvent,
-  removeMissionFromState,
   splitByRepository,
   upsertAgentRun,
   upsertPatchProposal,
 } from "./repoStates";
-import {
-  type WorkspaceGraphEdge,
-  type WorkspaceGraphNode,
-  type WorkspaceMission,
-} from "./graph";
 import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
 import {
   compactLabel,
   workspaceViewFromMissionLoop,
-  type WorkspaceRuntime,
   type WorkspaceRuntimeMap,
 } from "./workspaceAdapter";
 import {
   approvePatchMissionLoopState,
   deleteMissionLoopState,
   demoRepoPath,
-  isTauriRuntime,
   linkMissionsLoopState,
   loadMissionLoopState,
   openMissionLoopRepository,
@@ -96,6 +88,9 @@ const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState)
 // The single canvas draft-task card. It exists only in the rendered graph until
 // Queue/Run turns it into a real mission, so one well-known id is enough.
 const DRAFT_TASK_NODE_ID = "task_draft";
+
+// Unique-enough id for optimistic records and campaign grouping.
+const freshId = (prefix: string) => `${prefix}_${Date.now()}`;
 
 export function App() {
   const [missionLoopState, setMissionLoopState] = useState(emptyMissionLoopState);
@@ -221,9 +216,10 @@ export function App() {
     () => buildAgentTranscript(missionLoopState, selectedMissionId, selectedAgentRunId),
     [missionLoopState, selectedMissionId, selectedAgentRunId],
   );
+  const selectedActivityKey = selectedMission?.id ?? "";
   const selectedActivity = useMemo(
-    () => activityByMission[selectedMission?.id ?? ""] ?? [],
-    [activityByMission, selectedMission?.id],
+    () => activityByMission[selectedActivityKey] ?? [],
+    [activityByMission, selectedActivityKey],
   );
   const agentStatus = useMemo(
     () => buildAgentStatus(missionLoopState, selectedMissionId, selectedPatchDiff, selectedActivity, selectedRuntime),
@@ -414,16 +410,10 @@ export function App() {
     setMissionLoopError("");
     const isTool = kind === "tool";
 
-    if (!isTauriRuntime()) {
-      const missionId = addLocalMission(text, 0, draftRepository.id, isTool ? text : undefined);
-      if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : intakeWorkerMode });
-      return;
-    }
-
     try {
       const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, text, undefined, isTool ? text : undefined);
-      const missionId = nextMissionLoopState?.missions.at(-1)?.id;
-      if (nextMissionLoopState) applyRepoState(nextMissionLoopState, missionId);
+      const missionId = nextMissionLoopState.missions.at(-1)?.id;
+      applyRepoState(nextMissionLoopState, missionId);
       if (missionId) {
         if (!isTool) setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
         if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : intakeWorkerMode });
@@ -435,7 +425,7 @@ export function App() {
 
   // linkTasks records a drawn task→task chain: the downstream task will start
   // automatically once the upstream patch lands. Links live in the worker's
-  // state; the browser demo keeps them locally so the chain still executes.
+  // state.
   const linkTasks = async (fromMissionId: string, toMissionId: string) => {
     setMissionLoopError("");
     const from = workspaceMissions.find((m) => m.id === fromMissionId);
@@ -446,84 +436,21 @@ export function App() {
       return;
     }
 
-    if (isTauriRuntime()) {
-      try {
-        const next = await linkMissionsLoopState(repoPathForMission(toMissionId), fromMissionId, toMissionId);
-        if (next) applyRepoState(next);
-      } catch (error) {
-        setMissionLoopError(errorMessage(error, "Failed to link tasks."));
-      }
-      return;
+    try {
+      applyRepoState(await linkMissionsLoopState(repoPathForMission(toMissionId), fromMissionId, toMissionId));
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to link tasks."));
     }
-
-    if (locallyDependsOn(fromMissionId, toMissionId)) {
-      setMissionLoopError("That link would create a cycle.");
-      return;
-    }
-    setWorkspaceMissions((current) =>
-      current.map((mission) =>
-        mission.id === toMissionId && !(mission.depends_on ?? []).includes(fromMissionId)
-          ? { ...mission, depends_on: [...(mission.depends_on ?? []), fromMissionId] }
-          : mission,
-      ),
-    );
-    setWorkspaceGraphEdges((current) => {
-      // A chained task hangs off its upstream, not the repo (mirrors the
-      // adapter's rule for worker-derived graphs).
-      const withoutOwns = current.filter((edge) => !(edge.kind === "owns" && edge.to === toMissionId));
-      return withoutOwns.some((edge) => edge.id === `then_${fromMissionId}_${toMissionId}`)
-        ? withoutOwns
-        : [...withoutOwns, { id: `then_${fromMissionId}_${toMissionId}`, from: fromMissionId, to: toMissionId, kind: "then" }];
-    });
   };
 
   const unlinkTasks = async (fromMissionId: string, toMissionId: string) => {
     setMissionLoopError("");
 
-    if (isTauriRuntime()) {
-      try {
-        const next = await unlinkMissionsLoopState(repoPathForMission(toMissionId), fromMissionId, toMissionId);
-        if (next) applyRepoState(next);
-      } catch (error) {
-        setMissionLoopError(errorMessage(error, "Failed to unlink tasks."));
-      }
-      return;
+    try {
+      applyRepoState(await unlinkMissionsLoopState(repoPathForMission(toMissionId), fromMissionId, toMissionId));
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to unlink tasks."));
     }
-
-    setWorkspaceMissions((current) =>
-      current.map((mission) =>
-        mission.id === toMissionId
-          ? { ...mission, depends_on: (mission.depends_on ?? []).filter((id) => id !== fromMissionId) }
-          : mission,
-      ),
-    );
-    setWorkspaceGraphEdges((current) => {
-      const next = current.filter((edge) => edge.id !== `then_${fromMissionId}_${toMissionId}`);
-      // Unlinking the last upstream turns the task back into a chain head, so
-      // it reattaches to its repo.
-      const to = workspaceMissions.find((mission) => mission.id === toMissionId);
-      const remaining = (to?.depends_on ?? []).filter((id) => id !== fromMissionId);
-      if (to && remaining.length === 0 && !next.some((edge) => edge.kind === "owns" && edge.to === toMissionId)) {
-        next.push({ id: `edge_${to.repository_id}_${toMissionId}`, from: to.repository_id, to: toMissionId, kind: "owns" });
-      }
-      return next;
-    });
-  };
-
-  // Does `missionId` already depend on `targetId`, directly or through a chain?
-  // Mirrors the worker's cycle guard for the browser demo.
-  const locallyDependsOn = (missionId: string, targetId: string): boolean => {
-    const depsById = new Map(workspaceMissions.map((mission) => [mission.id, mission.depends_on ?? []]));
-    const seen = new Set<string>();
-    const stack = [missionId];
-    while (stack.length > 0) {
-      const current = stack.pop()!;
-      if (current === targetId) return true;
-      if (seen.has(current)) continue;
-      seen.add(current);
-      stack.push(...(depsById.get(current) ?? []));
-    }
-    return false;
   };
 
   const runningMissionIds = useMemo(
@@ -577,26 +504,20 @@ export function App() {
     // appear on the canvas as the manager spawns them, the transcript fills
     // while the agent thinks, and the changes gate opens the moment the patch
     // lands — not after the whole run finishes.
-    let unlistenRun: (() => void) | undefined;
-    let unlistenEvent: (() => void) | undefined;
-    let unlistenPatch: (() => void) | undefined;
+    const unlistenRun = await listen<AgentRun>("agent_run", (e) => {
+      if (e.payload.mission_id !== missionId) return;
+      mergeLiveRecord((state) => upsertAgentRun(state, e.payload));
+    });
 
-    if (isTauriRuntime()) {
-      unlistenRun = await listen<AgentRun>("agent_run", (e) => {
-        if (e.payload.mission_id !== missionId) return;
-        mergeLiveRecord((state) => upsertAgentRun(state, e.payload));
-      });
+    const unlistenEvent = await listen<WorkflowEvent>("workflow_event", (e) => {
+      // Parallel runs share one event channel; keep each mission's stream its own.
+      if (e.payload.mission_id && e.payload.mission_id !== missionId) return;
+      mergeLiveRecord((state) => mergeWorkflowEvent(state, e.payload));
+    });
 
-      unlistenEvent = await listen<WorkflowEvent>("workflow_event", (e) => {
-        // Parallel runs share one event channel; keep each mission's stream its own.
-        if (e.payload.mission_id && e.payload.mission_id !== missionId) return;
-        mergeLiveRecord((state) => mergeWorkflowEvent(state, e.payload));
-      });
-
-      unlistenPatch = await listen<PatchProposal>("patch_proposal", (e) => {
-        mergeLiveRecord((state) => upsertPatchProposal(state, e.payload));
-      });
-    }
+    const unlistenPatch = await listen<PatchProposal>("patch_proposal", (e) => {
+      mergeLiveRecord((state) => upsertPatchProposal(state, e.payload));
+    });
 
     try {
       const nextMissionLoopState = await startAgentRunMissionLoopState(
@@ -606,17 +527,14 @@ export function App() {
         workerMode === "local-command" ? localCommand : undefined,
         claudeModel,
       );
-      if (nextMissionLoopState) {
-        applyRepoState(nextMissionLoopState, missionId);
-        // A tool mission lands the moment its command exits cleanly — there is
-        // no approve gate to fire the chain from, so release downstream tasks
-        // here. AI missions end a run in waiting_approval, making this a no-op;
-        // their cascade stays with approveMission.
-        const finished = nextMissionLoopState.missions.find((mission) => mission.id === missionId);
-        if (finished && ["approved", "applied", "verified"].includes(finished.status)) {
-          autoDispatchChained(missionId, nextMissionLoopState);
-        }
-        return;
+      applyRepoState(nextMissionLoopState, missionId);
+      // A tool mission lands the moment its command exits cleanly — there is
+      // no approve gate to fire the chain from, so release downstream tasks
+      // here. AI missions end a run in waiting_approval, making this a no-op;
+      // their cascade stays with approveMission.
+      const finished = nextMissionLoopState.missions.find((mission) => mission.id === missionId);
+      if (finished && ["approved", "applied", "verified"].includes(finished.status)) {
+        autoDispatchChained(missionId, nextMissionLoopState);
       }
     } catch (error) {
       // A delete kills the run mid-flight, which rejects here — that's expected,
@@ -644,7 +562,7 @@ export function App() {
     // Show the user's turn immediately; the agent's reply and the authoritative
     // history land as the turn streams and completes.
     const optimistic: ChatMessage = {
-      id: `local_${Date.now()}`,
+      id: freshId("local"),
       mission_id: missionId,
       run_id: "",
       role: "user",
@@ -665,37 +583,27 @@ export function App() {
     // workspace state as it happens. The worker persists and streams the user's
     // turn first, so the optimistic bubble is replaced by the real record almost
     // immediately.
-    let unlistenRun: (() => void) | undefined;
-    let unlistenEvent: (() => void) | undefined;
-    let unlistenPatch: (() => void) | undefined;
-    let unlistenChat: (() => void) | undefined;
+    const unlistenChat = await listen<ChatMessage>("chat_message", (e) => {
+      if (e.payload.mission_id !== missionId) return;
+      mergeLiveRecord((state) => mergeChatMessage(state, e.payload));
+    });
 
-    if (isTauriRuntime()) {
-      unlistenChat = await listen<ChatMessage>("chat_message", (e) => {
-        if (e.payload.mission_id !== missionId) return;
-        mergeLiveRecord((state) => mergeChatMessage(state, e.payload));
-      });
+    const unlistenRun = await listen<AgentRun>("agent_run", (e) => {
+      if (e.payload.mission_id !== missionId) return;
+      mergeLiveRecord((state) => upsertAgentRun(state, e.payload));
+    });
 
-      unlistenRun = await listen<AgentRun>("agent_run", (e) => {
-        if (e.payload.mission_id !== missionId) return;
-        mergeLiveRecord((state) => upsertAgentRun(state, e.payload));
-      });
+    const unlistenEvent = await listen<WorkflowEvent>("workflow_event", (e) => {
+      if (e.payload.mission_id && e.payload.mission_id !== missionId) return;
+      mergeLiveRecord((state) => mergeWorkflowEvent(state, e.payload));
+    });
 
-      unlistenEvent = await listen<WorkflowEvent>("workflow_event", (e) => {
-        if (e.payload.mission_id && e.payload.mission_id !== missionId) return;
-        mergeLiveRecord((state) => mergeWorkflowEvent(state, e.payload));
-      });
-
-      unlistenPatch = await listen<PatchProposal>("patch_proposal", (e) => {
-        mergeLiveRecord((state) => upsertPatchProposal(state, e.payload));
-      });
-    }
+    const unlistenPatch = await listen<PatchProposal>("patch_proposal", (e) => {
+      mergeLiveRecord((state) => upsertPatchProposal(state, e.payload));
+    });
 
     try {
-      const next = await sendAgentMessageLoopState(repoPath, missionId, text, claudeModel);
-      if (next) {
-        applyRepoState(next, missionId);
-      }
+      applyRepoState(await sendAgentMessageLoopState(repoPath, missionId, text, claudeModel), missionId);
     } catch (error) {
       if (cancelledMissionsRef.current.has(missionId)) return;
       console.error("[orbital] chat failed", error);
@@ -724,42 +632,23 @@ export function App() {
     const targetRepos = campaignTargetRepos();
     const isCampaign = targetRepos.length > 1;
 
-    if (isTauriRuntime()) {
-      try {
-        let lastMissionId: string | undefined;
-        for (let titleIndex = 0; titleIndex < titles.length; titleIndex++) {
-          const title = titles[titleIndex];
-          const campaignId = isCampaign ? `camp_${Date.now()}_${titleIndex}` : undefined;
-          for (const repo of targetRepos) {
-            const nextMissionLoopState = await queueMissionLoopState(repo.path, title, campaignId);
-            if (nextMissionLoopState) {
-              lastMissionId = nextMissionLoopState.missions.at(-1)?.id;
-              applyRepoState(nextMissionLoopState, lastMissionId);
-              // Worker is chosen once at intake; stamp it so dispatch uses it.
-              if (lastMissionId) {
-                const newId = lastMissionId;
-                setWorkerModeByMission((current) => ({ ...current, [newId]: intakeWorkerMode }));
-              }
-            }
+    try {
+      for (let titleIndex = 0; titleIndex < titles.length; titleIndex++) {
+        const title = titles[titleIndex];
+        const campaignId = isCampaign ? `${freshId("camp")}_${titleIndex}` : undefined;
+        for (const repo of targetRepos) {
+          const nextMissionLoopState = await queueMissionLoopState(repo.path, title, campaignId);
+          const missionId = nextMissionLoopState.missions.at(-1)?.id;
+          applyRepoState(nextMissionLoopState, missionId);
+          // Worker is chosen once at intake; stamp it so dispatch uses it.
+          if (missionId) {
+            setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
           }
         }
-      } catch (error) {
-        setMissionLoopError(errorMessage(error, "Failed to queue mission."));
       }
-      return;
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to queue mission."));
     }
-
-    // Browser demo: optimistic local missions, with an explicit campaign node
-    // when the intent fans out across more than one repo.
-    titles.forEach((title, titleIndex) => {
-      const campaignId = isCampaign ? `camp_${Date.now()}_${titleIndex}` : undefined;
-      const missionIds = targetRepos.map((repo, repoIndex) =>
-        addLocalMission(title, titleIndex * targetRepos.length + repoIndex, repo.id),
-      );
-      if (campaignId && missionIds.length > 1) {
-        addLocalCampaign(campaignId, title, missionIds);
-      }
-    });
   };
 
   // Repos a queued intent fans out to: the explicit campaign selection if any,
@@ -783,95 +672,6 @@ export function App() {
     });
   };
 
-  // Optimistic, non-Tauri-only mission so the browser demo can line up a backlog.
-  // Returns the new mission id so a campaign fan-out can tie the lanes together.
-  const addLocalMission = (title: string, offset: number, repositoryId: string, toolCommand?: string): string => {
-    const missionId = `mission_${Date.now()}_${offset}`;
-    const targetRepositoryId = repositoryId;
-    const isTool = Boolean(toolCommand);
-    const mission: WorkspaceMission = {
-      id: missionId,
-      repository_id: targetRepositoryId,
-      title,
-      status: "queued",
-      worker: intakeWorkerMode,
-      command: toolCommand ?? "npm run build",
-      files: [],
-      step: -1,
-      patch_status: "pending",
-      verified: false,
-      map_position: "center",
-      kind: isTool ? "tool" : undefined,
-    };
-    const missionNode: WorkspaceGraphNode = isTool
-      ? {
-          id: missionId,
-          kind: "tool",
-          label: compactLabel(title),
-          detail: toolCommand ?? "",
-          meta: { prompt: title, command: toolCommand },
-          mission_id: missionId,
-          repository_id: targetRepositoryId,
-        }
-      : {
-          id: missionId,
-          kind: "task",
-          label: compactLabel(title),
-          detail: "task",
-          meta: { prompt: title },
-          mission_id: missionId,
-          repository_id: targetRepositoryId,
-        };
-    const edge: WorkspaceGraphEdge = {
-      id: `edge_${targetRepositoryId}_${missionId}`,
-      from: targetRepositoryId,
-      to: missionId,
-      kind: "owns",
-    };
-
-    setWorkspaceMissions((current) => [...current, mission]);
-    setWorkspaceGraphNodes((current) => [...current, missionNode]);
-    setWorkspaceGraphEdges((current) => [...current, edge]);
-    setRuntimeByMission((current) => ({
-      ...current,
-      [missionId]: { step: mission.step, patchStatus: mission.patch_status, verified: mission.verified, status: mission.status },
-    }));
-    setPatchDiffByMission((current) => ({ ...current, [missionId]: "" }));
-    setVerificationOutputByMission((current) => ({ ...current, [missionId]: "" }));
-    setActivityByMission((current) => ({ ...current, [missionId]: [] }));
-    setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
-    setSelectedNodeId(missionId);
-    return missionId;
-  };
-
-  // Optimistic campaign node + fan-out edges for the browser demo, so a
-  // coordinated multi-repo launch reads as one campaign without a worker round-trip.
-  const addLocalCampaign = (campaignId: string, title: string, missionIds: string[]) => {
-    const campaignNodeId = `campaign:${campaignId}`;
-    const campaignNode: WorkspaceGraphNode = {
-      id: campaignNodeId,
-      kind: "campaign",
-      label: compactLabel(title),
-      detail: `${missionIds.length} repos · 0/${missionIds.length} landed`,
-      mission_id: campaignNodeId,
-    };
-    const edges: WorkspaceGraphEdge[] = missionIds.map((missionId) => ({
-      id: `campaign_${campaignId}_${missionId}`,
-      from: campaignNodeId,
-      to: missionId,
-      kind: "coordinates",
-    }));
-    setWorkspaceGraphNodes((current) => [...current, campaignNode]);
-    setWorkspaceGraphEdges((current) => [...current, ...edges]);
-  };
-
-  const setMissionRuntime = (missionId: string, next: (runtime: WorkspaceRuntime) => WorkspaceRuntime) => {
-    setRuntimeByMission((current) => ({
-      ...current,
-      [missionId]: next(current[missionId] ?? queuedRuntime),
-    }));
-  };
-
   const approvePatch = () => approveMission(selectedMission.id);
   const rejectPatch = () => rejectMission(selectedMission.id);
 
@@ -880,29 +680,11 @@ export function App() {
 
     try {
       const nextMissionLoopState = await approvePatchMissionLoopState(repoPathForMission(missionId), missionId);
-      if (nextMissionLoopState) {
-        applyRepoState(nextMissionLoopState, missionId);
-        autoDispatchChained(missionId, nextMissionLoopState);
-        return;
-      }
+      applyRepoState(nextMissionLoopState, missionId);
+      autoDispatchChained(missionId, nextMissionLoopState);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to approve patch."));
-      return;
     }
-
-    setMissionRuntime(missionId, (current) => ({ ...current, patchStatus: "approved", status: "approved" }));
-
-    // Browser demo: release chained tasks using the local runtime, treating the
-    // mission just approved as landed (its state update is still in flight).
-    const landedLocally = (id: string) => id === missionId || runtimeByMission[id]?.patchStatus === "approved";
-    workspaceMissions.forEach((mission) => {
-      const deps = mission.depends_on ?? [];
-      if (!deps.includes(missionId)) return;
-      const status = runtimeByMission[mission.id]?.status ?? "queued";
-      if (status !== "queued" && status !== "draft") return;
-      if (!deps.every(landedLocally)) return;
-      void dispatchMission(mission.id);
-    });
   };
 
   // A landed patch releases the tasks chained behind it: every mission that
@@ -932,17 +714,10 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      const nextMissionLoopState = await rejectPatchMissionLoopState(repoPathForMission(missionId), missionId);
-      if (nextMissionLoopState) {
-        applyRepoState(nextMissionLoopState, missionId);
-        return;
-      }
+      applyRepoState(await rejectPatchMissionLoopState(repoPathForMission(missionId), missionId), missionId);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to reject patch."));
-      return;
     }
-
-    setMissionRuntime(missionId, (current) => ({ ...current, patchStatus: "rejected", status: "blocked" }));
   };
 
   // Delete a mission entirely — including a running one, in which case the
@@ -963,16 +738,7 @@ export function App() {
     cancelledMissionsRef.current.add(missionId);
 
     try {
-      const nextMissionLoopState = await deleteMissionLoopState(repoPathForMission(missionId), missionId);
-      if (nextMissionLoopState) {
-        applyRepoState(nextMissionLoopState);
-        return;
-      }
-
-      // Browser/demo mode: no backend, so drop the mission from local state.
-      const pruned = removeMissionFromState(combineRepoStates(repoStatesRef.current), missionId);
-      repoStatesRef.current = splitByRepository(pruned);
-      hydrateMissionLoop(combineRepoStates(repoStatesRef.current));
+      applyRepoState(await deleteMissionLoopState(repoPathForMission(missionId), missionId));
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to delete mission."));
     } finally {
@@ -980,9 +746,7 @@ export function App() {
     }
   };
 
-  // Save an edited node prompt — the instruction its agent will run. Backed by
-  // the worker in the desktop build, with a local fallback so the demo still
-  // reflects the edit.
+  // Save an edited node prompt — the instruction its agent will run.
   const saveMissionPrompt = async (missionId: string, text: string) => {
     const trimmed = text.trim();
     if (!trimmed) {
@@ -990,23 +754,7 @@ export function App() {
     }
     setMissionLoopError("");
     try {
-      const nextMissionLoopState = await updateMissionTextLoopState(repoPathForMission(missionId), missionId, trimmed);
-      if (nextMissionLoopState) {
-        applyRepoState(nextMissionLoopState, missionId);
-        setEditingPrompt(false);
-        return;
-      }
-
-      // Browser/demo mode: no backend, so update the mission text locally.
-      const combined = combineRepoStates(repoStatesRef.current);
-      const updated = {
-        ...combined,
-        missions: combined.missions.map((mission) =>
-          mission.id === missionId ? { ...mission, text: trimmed } : mission,
-        ),
-      };
-      repoStatesRef.current = splitByRepository(updated);
-      hydrateMissionLoop(updated, selectedNodeId);
+      applyRepoState(await updateMissionTextLoopState(repoPathForMission(missionId), missionId, trimmed), missionId);
       setEditingPrompt(false);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to save prompt."));
@@ -1029,17 +777,10 @@ export function App() {
     setMissionLoopError("");
 
     try {
-      const nextMissionLoopState = await verifyMissionLoopState(repoPathForMission(missionId), missionId, command);
-      if (nextMissionLoopState) {
-        applyRepoState(nextMissionLoopState, missionId);
-        return;
-      }
+      applyRepoState(await verifyMissionLoopState(repoPathForMission(missionId), missionId, command), missionId);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to run verification."));
-      return;
     }
-
-    setMissionRuntime(missionId, (current) => ({ ...current, verified: true, status: "verified" }));
   };
 
   const runVerification = () => runVerificationFor(selectedMission.id);
@@ -1077,9 +818,9 @@ export function App() {
     });
   };
 
-  // applyRepoState folds a loaded state (one repo from the worker, or several
-  // from the fixture) into the open set keyed by repo id, then re-hydrates the
-  // canvas from the union — so adding or updating a repo keeps the others.
+  // applyRepoState folds a loaded state into the open set keyed by repo id,
+  // then re-hydrates the canvas from the union — so adding or updating a repo
+  // keeps the others.
   const applyRepoState = (state: MissionLoopState, preferredNodeId?: string) => {
     const next = { ...repoStatesRef.current, ...splitByRepository(state) };
     repoStatesRef.current = next;
@@ -1109,11 +850,9 @@ export function App() {
 
     try {
       const nextMissionLoopState = await openMissionLoopRepository(repoPath);
-      if (nextMissionLoopState) {
-        setActiveRepoPath(repoPath);
-        rememberRecentRepo(repoPath);
-        applyRepoState(nextMissionLoopState, nextMissionLoopState.repositories[0]?.id);
-      }
+      setActiveRepoPath(repoPath);
+      rememberRecentRepo(repoPath);
+      applyRepoState(nextMissionLoopState, nextMissionLoopState.repositories[0]?.id);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to open repository."));
     } finally {
@@ -1175,13 +914,11 @@ export function App() {
         // Reopen the workspace the last session had open. A path that no
         // longer opens (moved/deleted repo) is dropped, not surfaced as an
         // error. Falls back to the demo load when nothing was open.
-        const lastOpen = isTauriRuntime() ? lastOpenRepoPaths() : [];
+        const lastOpen = lastOpenRepoPaths();
         let reopened = false;
         for (const repoPath of lastOpen) {
           try {
-            const state = await openMissionLoopRepository(repoPath);
-            if (!state) continue;
-            applyRepoState(state);
+            applyRepoState(await openMissionLoopRepository(repoPath));
             if (!reopened) {
               setActiveRepoPath(repoPath);
               setRepoPathDraft(repoPath);
