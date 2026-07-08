@@ -1815,16 +1815,32 @@ dd {
   pointer-events: none;
 }
 
+/* Edges anchor at the handle CENTER — pin that center exactly on the card
+   border (whatever the handle hit-zone size), so arrows touch the cards
+   instead of stopping a handle-radius short of them. */
+.react-flow__handle.react-flow__handle-left {
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.react-flow__handle.react-flow__handle-right {
+  right: 0;
+  left: auto;
+  top: 50%;
+  transform: translate(50%, -50%);
+}
+
 /* Connectable handles (task cards) are real grab points for drawing a chain
    edge, so unlike the decorative ones they must be visible and grabbable.
    React Flow marks them with .connectionindicator. The element itself is a
    large transparent hit zone — at canvas zoom a dot-sized target is nearly
    impossible to grab by hand — with the visible dot drawn inside it. */
 .react-flow__handle.connectionindicator {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
   border-radius: 50%;
   background: transparent;
   border: 0;
@@ -1832,6 +1848,23 @@ dd {
   pointer-events: all;
   cursor: crosshair;
 }
+
+/* React Flow anchors edges at the handle box OUTER edge, so the hit zone must
+   sit fully inside the card for arrows to touch the border. The visible dot is
+   drawn at that outer edge, riding exactly on the card border. */
+.react-flow__handle.connectionindicator.react-flow__handle-left {
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.react-flow__handle.connectionindicator.react-flow__handle-right {
+  left: auto;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 
 .react-flow__handle.connectionindicator::after {
   content: "";
@@ -1848,6 +1881,15 @@ dd {
     border-color 120ms ease,
     background 120ms ease,
     box-shadow 120ms ease;
+}
+
+/* The visible dot rides the box edge that touches the card border. */
+.react-flow__handle-left.connectionindicator::after {
+  left: 0;
+}
+
+.react-flow__handle-right.connectionindicator::after {
+  left: 100%;
 }
 
 .node-card:hover .react-flow__handle.connectionindicator::after,
