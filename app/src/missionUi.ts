@@ -23,14 +23,6 @@ export function workerModeLabel(mode: WorkerMode): string {
   return "Demo worker";
 }
 
-export function repoLabel(name: string | undefined, path: string) {
-  if (name) {
-    return name;
-  }
-  const trimmed = path.replace(/\/+$/, "");
-  const base = trimmed.split("/").filter(Boolean).at(-1);
-  return base || "Open repo";
-}
 
 export function repositoryFor(mission: WorkspaceMission, repositories: Repository[]) {
   return repositories.find((repository) => repository.id === mission.repository_id) ?? repositories[0];
@@ -64,22 +56,6 @@ export function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus 
   return "draft";
 }
 
-export function controlStateLabel(status: MissionNodeStatus | undefined): string {
-  switch (status) {
-    case "running":
-      return "Running";
-    case "review":
-      return "In review";
-    case "approved":
-      return "Approved";
-    case "verified":
-      return "Verified";
-    case "blocked":
-      return "Blocked";
-    default:
-      return "Idle";
-  }
-}
 
 export function missionStatusFor(runtime: WorkspaceRuntime, patchReady: boolean) {
   const status = statusFromRuntime(runtime);
@@ -101,9 +77,6 @@ export function missionStatusFor(runtime: WorkspaceRuntime, patchReady: boolean)
   return { label: "Queued", className: "idle" };
 }
 
-export function isRunning(runtime: WorkspaceRuntime) {
-  return statusFromRuntime(runtime) === "running";
-}
 
 export function defaultLocalCommand() {
   return `printf 'diff --git a/orbital-local-worker.txt b/orbital-local-worker.txt\nnew file mode 100644\n--- /dev/null\n+++ b/orbital-local-worker.txt\n@@ -0,0 +1 @@\n+local worker completed\n' > "$ORBITAL_PATCH_PATH"`;

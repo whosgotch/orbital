@@ -6,7 +6,6 @@ import {
   Handle,
   MarkerType,
   MiniMap,
-  Panel,
   Position,
   ReactFlow,
   SelectionMode,
@@ -20,7 +19,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, Loader, Play, Plus, ShieldCheck, X } from "lucide-react";
+import { Check, Loader, Play, ShieldCheck, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
 
@@ -68,10 +67,6 @@ type GraphMapProps = {
   runningMissionIds: Set<string>;
   onSelectNode: (nodeId: string) => void;
   actions: NodeActions;
-  // "+ Task" affordance: opens a draft task card on the canvas. Disabled until
-  // a repository is connected to own the new task.
-  onAddTask: () => void;
-  canAddTask: boolean;
 };
 
 // Edges stay neutral unless they carry meaning: a chain (then) and a block are
@@ -94,7 +89,7 @@ function edgeDash(kind: string) {
 
 const nodeTypes = { orbital: OrbitalNode };
 
-export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions, onAddTask, canAddTask }: GraphMapProps) {
+export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // Only nodes the user explicitly dragged are pinned here. Everything else is
@@ -287,20 +282,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         selectNodesOnDrag
       >
         <LaneBands />
-        {/* Top-left: the right side of the window belongs to the task inspector,
-            which would cover (and swallow clicks meant for) anything placed there. */}
-        <Panel position="top-left" className="canvas-actions">
-          <button
-            type="button"
-            className="canvas-add-task"
-            onClick={onAddTask}
-            disabled={!canAddTask}
-            title={canAddTask ? "Add a task node" : "Connect a repository first"}
-          >
-            <Plus size={14} aria-hidden="true" />
-            Task
-          </button>
-        </Panel>
         <Background variant={BackgroundVariant.Dots} gap={26} size={1} color="rgba(255, 255, 255, 0.06)" />
         <MiniMap
           position="bottom-left"
@@ -670,13 +651,12 @@ function LaneBands() {
       groups.get(missionId)!.push(node);
     });
 
-    const result: { missionId: string; label: string; x: number; y: number; width: number; height: number }[] = [];
+    const result: { missionId: string; x: number; y: number; width: number; height: number }[] = [];
     groups.forEach((group, missionId) => {
       let minX = Infinity;
       let minY = Infinity;
       let maxX = -Infinity;
       let maxY = -Infinity;
-      let label = "";
       group.forEach((node) => {
         const width = node.measured?.width ?? NODE_WIDTH;
         const height = node.measured?.height ?? NODE_HEIGHT;
@@ -684,12 +664,9 @@ function LaneBands() {
         minY = Math.min(minY, node.position.y);
         maxX = Math.max(maxX, node.position.x + width);
         maxY = Math.max(maxY, node.position.y + height);
-        const data = node.data as OrbitalNodeData;
-        if (data.kind === "task" || data.kind === "tool" || data.kind === "campaign") label = data.label;
       });
       result.push({
         missionId,
-        label,
         x: minX - LANE_PAD_X,
         y: minY - LANE_PAD_Y,
         width: maxX - minX + LANE_PAD_X * 2,
@@ -711,9 +688,7 @@ function LaneBands() {
             width: lane.width,
             height: lane.height,
           }}
-        >
-          <span className="graph-lane-label">{lane.label}</span>
-        </div>
+        />
       ))}
     </ViewportPortal>
   );

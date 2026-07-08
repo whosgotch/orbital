@@ -81,57 +81,141 @@ h3 {
 }
 
 .canvas-shell {
-  /* Width of the docked task panel; the topbar insets by it when it's open. */
-  --task-panel-width: min(440px, calc(100vw - 340px));
+  /* Width of the docked task panel on the right edge. */
+  --task-panel-width: min(440px, calc(100vw - 560px));
   position: relative;
+  display: flex;
   width: 100%;
   height: 100vh;
   overflow: hidden;
 }
 
-/* Slim flush bar: one hairline below, nothing floats. */
-.topbar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 5;
+/* Left sidebar: the operating chrome — repos, tasks, history, model. The
+   canvas and the task panel are the only other surfaces. */
+.sidebar {
+  flex: 0 0 236px;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 44px;
-  padding: 0 12px;
+  flex-direction: column;
   background: var(--panel);
-  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
 }
 
-.topbar-brand {
+.sidebar-brand {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
+  height: 44px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
 }
 
-.topbar-brand svg {
-  color: var(--accent);
+.sidebar-refresh {
+  margin-left: auto;
 }
 
-.topbar-group {
+.sidebar-section {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sidebar-section > .section-label {
+  display: block;
+}
+
+/* The task list owns the leftover vertical space and scrolls internally. */
+.sidebar-tasks {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-bottom: none;
+}
+
+.sidebar-tasks .control-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.sidebar-tasks-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
 }
 
-.topbar-spacer {
+.sidebar-new-task-row {
+  display: flex;
+  gap: 6px;
+}
+
+.sidebar-new-task {
+  flex: 1 1 auto;
+}
+
+.sidebar-repo-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar-repo-actions .secondary {
+  flex: 1 1 auto;
+}
+
+.workspace-repo {
   flex: 1;
-}
-
-.topbar-metrics {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--soft);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.workspace-repos li.active {
+  border-color: var(--line-strong);
+}
+
+.workspace-repos li.active .workspace-repo {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.sidebar-footer {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.sidebar-history {
+  justify-content: flex-start;
+}
+
+.sidebar-footer .model-select {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.canvas-area {
+  flex: 1 1 auto;
+  position: relative;
+  min-width: 0;
 }
 
 /* Model picker: which claude model every AI run and chat turn uses. */
@@ -159,22 +243,6 @@ h3 {
   font-size: 12px;
   outline: none;
   cursor: pointer;
-}
-
-.topbar-metrics span {
-  padding: 5px 10px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.topbar-metrics strong {
-  color: var(--soft);
 }
 
 .chip {
@@ -212,7 +280,7 @@ h3 {
 
 .popover {
   position: absolute;
-  top: 56px;
+  top: 12px;
   left: 12px;
   z-index: 6;
   width: 340px;
@@ -334,10 +402,6 @@ h3 {
   }
 }
 
-/* The topbar yields the panel's strip so the two never overlap. */
-.canvas-shell.panel-open .topbar {
-  right: var(--task-panel-width);
-}
 
 .task-panel {
   flex: 1 1 auto;
@@ -1117,7 +1181,7 @@ button.mini-text {
 
 .floating-error {
   position: absolute;
-  top: 56px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 7;
@@ -1286,18 +1350,6 @@ select:focus {
   border-radius: 6px;
   background: rgba(152, 152, 159, 0.045);
   pointer-events: none;
-}
-
-.graph-lane-label {
-  position: absolute;
-  top: 7px;
-  left: 14px;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  opacity: 0.75;
 }
 
 /* Campaign target picker in the mission intake popover. */
@@ -1719,7 +1771,12 @@ dd {
   /* Own stacking context: React Flow gives nodes large z-indexes (selected
      cards get 1000+), which would otherwise paint over the inspector (z 4). */
   z-index: 1;
-  background: var(--bg);
+  /* A quiet top-of-frame glow keeps the canvas from reading as flat black;
+     the dot grid renders above it. */
+  background:
+    radial-gradient(1200px 640px at 30% -12%, rgba(255, 255, 255, 0.045), transparent 62%),
+    radial-gradient(1000px 700px at 88% 108%, rgba(255, 255, 255, 0.028), transparent 60%),
+    var(--bg);
 }
 
 /* Marquee-dragging across the canvas must not trigger the browser's native
@@ -2169,7 +2226,6 @@ dd {
   color: var(--text);
 }
 
-/* Canvas overlay actions. Pushed below the floating topbar. */
 .canvas-actions {
   margin-top: 56px;
   margin-left: 12px;
@@ -2804,14 +2860,6 @@ button.node-action.danger:hover:not(:disabled) {
 }
 
 @media (max-width: 880px) {
-  .topbar {
-    flex-wrap: wrap;
-  }
-
-  .topbar-metrics {
-    flex-wrap: wrap;
-  }
-
   .popover {
     width: auto;
     right: 16px;
