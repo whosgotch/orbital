@@ -428,7 +428,26 @@ fn worker_dir() -> Result<PathBuf, String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Apps launched from Finder inherit launchd's minimal PATH, not the user's
+/// shell PATH — so the worker's children (`claude`, `node`, ...) installed in
+/// ~/.local/bin, Homebrew, or nvm are not found. Adopt the login shell's PATH
+/// so every spawned worker sees the same commands a terminal would.
+#[cfg(target_os = "macos")]
+fn adopt_login_shell_path() {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    let Ok(output) = Command::new(shell).args(["-lc", "echo $PATH"]).output() else {
+        return;
+    };
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if output.status.success() && !path.is_empty() {
+        std::env::set_var("PATH", path);
+    }
+}
+
 pub fn run() {
+    #[cfg(target_os = "macos")]
+    adopt_login_shell_path();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(RunningRuns::default())
