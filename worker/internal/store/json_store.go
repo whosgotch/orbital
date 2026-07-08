@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 )
 
 const stateFileName = "state.json"
@@ -61,10 +60,10 @@ func (s *JSONStore) Update(mutate func(*State) error) (*State, error) {
 	}
 	defer lockFile.Close()
 
-	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
+	if err := flock(lockFile); err != nil {
 		return nil, err
 	}
-	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	defer funlock(lockFile)
 
 	state, err := s.Load()
 	if err != nil {
