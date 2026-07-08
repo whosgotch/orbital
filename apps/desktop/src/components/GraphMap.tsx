@@ -24,7 +24,7 @@ import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type Wo
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 
 // Which agent staffs a drafted task, picked on the draft card.
-export type DraftWorker = "claude-manager" | "mock" | "local-command";
+export type DraftWorker = "claude-engineer" | "mock" | "local-command";
 
 // Actions a node card can fire. All are mission-scoped: the card is the
 // operating surface, the callbacks land in App's existing mission plumbing.
@@ -383,7 +383,7 @@ function OrbitalNode({ data, selected }: NodeProps) {
 function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: boolean }) {
   const [text, setText] = useState("");
   const [kind, setKind] = useState<"task" | "tool">("task");
-  const [worker, setWorker] = useState<DraftWorker>("claude-manager");
+  const [worker, setWorker] = useState<DraftWorker>("claude-engineer");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -472,7 +472,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
             onMouseDown={(event) => event.stopPropagation()}
             onChange={(event) => setWorker(event.target.value as DraftWorker)}
           >
-            <option value="claude-manager">Claude</option>
+            <option value="claude-engineer">Claude</option>
             <option value="mock">Demo agent</option>
             <option value="local-command">Local command</option>
           </select>

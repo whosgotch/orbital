@@ -133,7 +133,7 @@ export function App() {
   // File path to focus in the diff when a file node is clicked.
   const [focusedDiffFile, setFocusedDiffFile] = useState<string | undefined>(undefined);
   // Worker chosen at launch time (intake), applied to every mission queued.
-  const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-manager");
+  const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-engineer");
   // Claude model for every AI run and chat turn, persisted across sessions.
   // Empty string means the claude CLI's own default.
   const [claudeModel, setClaudeModel] = useState(() => localStorage.getItem("orbital:model") ?? "");
@@ -498,9 +498,9 @@ export function App() {
       [missionId]: { ...(current[missionId] ?? queuedRuntime), status: "running", step: Math.max(current[missionId]?.step ?? -1, 0) },
     }));
 
-    // Merge each streamed record straight into the workspace state, so agents
-    // appear on the canvas as the manager spawns them, the transcript fills
-    // while the agent thinks, and the changes gate opens the moment the patch
+    // Merge each streamed record straight into the workspace state, so the
+    // agent appears on the canvas the moment it starts, the transcript fills
+    // while it thinks, and the changes gate opens the moment the patch
     // lands — not after the whole run finishes.
     const unlistenRun = await listen<AgentRun>("agent_run", (e) => {
       if (e.payload.mission_id !== missionId) return;
@@ -1221,7 +1221,7 @@ export function App() {
               value={intakeWorkerMode}
               onChange={(event) => setIntakeWorkerMode(event.target.value as WorkerMode)}
             >
-              <option value="claude-manager">Claude Manager (AI)</option>
+              <option value="claude-engineer">Claude (AI)</option>
               <option value="mock">Demo worker</option>
               <option value="local-command">Local command</option>
             </select>

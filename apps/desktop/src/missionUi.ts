@@ -7,19 +7,19 @@ import type { WorkspaceRuntime } from "./workspaceAdapter";
 // The runtime a mission has before its first run touches it.
 export const queuedRuntime: WorkspaceRuntime = { step: -1, patchStatus: "pending", verified: false, status: "queued" };
 
-export type WorkerMode = "mock" | "local-command" | "claude-manager";
+export type WorkerMode = "mock" | "local-command" | "claude-engineer";
 
 // Map a mission's actual worker name to the selectable mode, so the per-mission
 // dropdown reflects whoever last ran it (any claude-* agent reads as Claude).
 export function workerModeFromName(workerName: string | undefined): WorkerMode {
   if (workerName === "local-command") return "local-command";
-  if (workerName?.startsWith("claude")) return "claude-manager";
+  if (workerName?.startsWith("claude")) return "claude-engineer";
   return "mock";
 }
 
 export function workerModeLabel(mode: WorkerMode): string {
   if (mode === "local-command") return "Local cmd";
-  if (mode === "claude-manager") return "Claude AI";
+  if (mode === "claude-engineer") return "Claude AI";
   return "Demo worker";
 }
 
