@@ -1,12 +1,12 @@
 [package]
-name = "orbital-app"
+name = "orbital"
 version = "0.1.0"
 description = "Orbital desktop shell"
 authors = ["Orbital"]
 edition = "2021"
 
 [lib]
-name = "orbital_app_lib"
+name = "orbital_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

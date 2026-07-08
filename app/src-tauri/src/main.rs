@@ -1,3 +1,3 @@
 fn main() {
-    orbital_app_lib::run();
+    orbital_lib::run();
 }
