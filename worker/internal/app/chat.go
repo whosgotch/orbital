@@ -25,7 +25,7 @@ func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text s
 	// Resolve the mission's live chat agent (a claude-engineer run that already
 	// owns a session), or mint a new run for the first turn.
 	var run domain.AgentRun
-	var repoPath string
+	var repoPath, upstreamCtx string
 	if _, err := s.store.Update(func(state *store.State) error {
 		missionIndex := findMissionIndex(state.Missions, missionID)
 		if missionIndex == -1 {
@@ -36,6 +36,9 @@ func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text s
 			return fmt.Errorf("repository not found: %s", state.Missions[missionIndex].RepositoryID)
 		}
 		repoPath = state.Repositories[repositoryIndex].Path
+		// A first chat turn starts a fresh session — hand it the upstream edge
+		// data the same way a run gets it. Resumed sessions already have it.
+		upstreamCtx, _ = upstreamContextFor(state, state.Missions[missionIndex])
 
 		if existing := latestChatRun(state.AgentRuns, missionID); existing != nil {
 			run = *existing
@@ -107,6 +110,7 @@ func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text s
 		MissionText:     text,
 		ResumeSessionID: run.SessionID,
 		Model:           s.runModel,
+		UpstreamContext: upstreamCtx,
 	}
 
 	events, err := worker.StartRun(ctx, runRequest)

@@ -32,7 +32,11 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 	// mission text so the rest of the run works without holding the lock.
 	// (resolveWorker's read and this write are separate transactions, but a
 	// mission's kind and tool command never change after creation.)
-	var repoPath, missionText string
+	// A chained mission also receives its upstreams' work products here — the
+	// data flowing along the task→task edge — recorded as a hand-off event so
+	// the feed shows where the agent's context came from.
+	var repoPath, missionText, upstreamCtx string
+	var handoffEvents []domain.WorkflowEvent
 	if _, err := s.store.Update(func(state *store.State) error {
 		missionIndex := findMissionIndex(state.Missions, missionID)
 		if missionIndex == -1 {
@@ -46,6 +50,16 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 
 		repoPath = state.Repositories[repositoryIndex].Path
 		missionText = state.Missions[missionIndex].Text
+		var upstreamTitles []string
+		upstreamCtx, upstreamTitles = upstreamContextFor(state, state.Missions[missionIndex])
+		for _, title := range upstreamTitles {
+			event := newWorkflowEvent(
+				missionID, run.ID, domain.WorkflowEventCommandExecuted,
+				fmt.Sprintf("Received hand-off from “%s” — summary and changes attached.", title), "", now,
+			)
+			state.WorkflowEvents = append(state.WorkflowEvents, event)
+			handoffEvents = append(handoffEvents, event)
+		}
 		state.AgentRuns = append(state.AgentRuns, run)
 		state.Missions[missionIndex].Status = domain.MissionStatusRunning
 		state.Missions[missionIndex].UpdatedAt = now
@@ -55,6 +69,10 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 	}
 
 	s.streamAgentRun(run)
+	for _, event := range handoffEvents {
+		handoff := event
+		s.streamRunEvent(agent.RunEvent{WorkflowEvent: &handoff})
+	}
 
 	// Give this mission its own git worktree so it can run alongside others
 	// without sharing a working tree. Fall back to the repo root if the repo
@@ -74,11 +92,12 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 	}
 
 	runRequest := agent.RunRequest{
-		RunID:       run.ID,
-		MissionID:   missionID,
-		RepoPath:    workdir,
-		MissionText: missionText,
-		Model:       s.runModel,
+		RunID:           run.ID,
+		MissionID:       missionID,
+		RepoPath:        workdir,
+		MissionText:     missionText,
+		Model:           s.runModel,
+		UpstreamContext: upstreamCtx,
 	}
 
 	if support := worker.Supports(ctx, runRequest); !support.Supported {
@@ -258,7 +277,7 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 	// Each child gets its own isolated worktree (created below), so the agents an
 	// AI manager spawns for independent parts can run in parallel without sharing
 	// a working tree.
-	var missionID, workdir, missionText, repoPath string
+	var missionID, workdir, missionText, repoPath, upstreamCtx string
 	var spawnEvent domain.WorkflowEvent
 	if _, err := s.store.Update(func(state *store.State) error {
 		parentIndex := findRunIndex(state.AgentRuns, parentRunID)
@@ -284,6 +303,9 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 		if task != "" {
 			missionText = task
 		}
+		// Children inherit the mission's upstream hand-off, so an engineer the
+		// manager spawns sees the same edge data the mission received.
+		upstreamCtx, _ = upstreamContextFor(state, state.Missions[missionIndex])
 
 		childRun.MissionID = missionID
 		state.AgentRuns[parentIndex].ChildRunIDs = append(state.AgentRuns[parentIndex].ChildRunIDs, childRun.ID)
@@ -321,11 +343,12 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 	}
 
 	runRequest := agent.RunRequest{
-		RunID:       childRun.ID,
-		MissionID:   missionID,
-		RepoPath:    workdir,
-		MissionText: missionText,
-		Model:       s.runModel,
+		RunID:           childRun.ID,
+		MissionID:       missionID,
+		RepoPath:        workdir,
+		MissionText:     missionText,
+		Model:           s.runModel,
+		UpstreamContext: upstreamCtx,
 	}
 
 	events, err := worker.StartRun(ctx, runRequest)

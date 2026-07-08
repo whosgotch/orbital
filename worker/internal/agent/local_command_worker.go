@@ -127,6 +127,7 @@ func (w *LocalCommandWorker) runCommand(ctx context.Context, request RunRequest,
 		"ORBITAL_MISSION_ID="+request.MissionID,
 		"ORBITAL_REPO_PATH="+request.RepoPath,
 		"ORBITAL_MISSION_TEXT="+request.MissionText,
+		"ORBITAL_UPSTREAM_CONTEXT="+request.UpstreamContext,
 		"ORBITAL_PATCH_PATH="+patchPath,
 	)
 

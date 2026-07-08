@@ -64,7 +64,13 @@ func (w *ClaudeManagerWorker) StartRun(ctx context.Context, request RunRequest) 
 		// optional verification stage cover that). Each task is an engineer that
 		// runs in sequence on the same working tree, so the cumulative diff is what
 		// reaches the gate.
-		tasks, err := w.decompose(ctx, request.RepoPath, request.MissionText, request.Model)
+		// Plan with the upstream hand-off in view, so the split accounts for what
+		// chained tasks already landed in the repository.
+		missionForPlanning := request.MissionText
+		if request.UpstreamContext != "" {
+			missionForPlanning = request.UpstreamContext + "\n\n# This task\n" + request.MissionText
+		}
+		tasks, err := w.decompose(ctx, request.RepoPath, missionForPlanning, request.Model)
 		if err != nil || len(tasks) == 0 {
 			// Planning unavailable: hand the whole mission to a single engineer.
 			tasks = []subTask{{Title: "Engineer", Prompt: request.MissionText}}

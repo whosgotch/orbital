@@ -33,6 +33,10 @@ type RunRequest struct {
 	// Model, when set, is passed to the claude CLI as --model (an alias like
 	// "opus"/"sonnet"/"haiku" or a full model id). Empty means the CLI default.
 	Model string `json:"model,omitempty"`
+	// UpstreamContext carries the work products of the missions this mission
+	// depends on (task text, final summary, landed diff) — the data that flows
+	// along a drawn task→task edge. Empty when the mission has no upstreams.
+	UpstreamContext string `json:"upstream_context,omitempty"`
 }
 
 type SupportResult struct {

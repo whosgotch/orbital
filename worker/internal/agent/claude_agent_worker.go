@@ -84,8 +84,12 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 
 		// A first turn gets the full engineer framing; a resumed turn sends the
 		// user's message verbatim, since the framing and context already live in
-		// the session being continued.
+		// the session being continued. Upstream hand-offs (edge data) lead the
+		// first turn so the agent builds on what already landed.
 		prompt := w.buildPrompt(request.MissionText)
+		if request.UpstreamContext != "" {
+			prompt = request.UpstreamContext + "\n\n" + prompt
+		}
 		if request.ResumeSessionID != "" {
 			prompt = request.MissionText
 		}
