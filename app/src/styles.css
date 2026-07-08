@@ -1360,13 +1360,6 @@ select:focus {
   flex: 1;
 }
 
-.graph-lane {
-  box-sizing: border-box;
-  border: 1px solid rgba(152, 152, 159, 0.16);
-  border-radius: 6px;
-  background: rgba(152, 152, 159, 0.045);
-  pointer-events: none;
-}
 
 /* Campaign target picker in the mission intake popover. */
 .campaign-targets {

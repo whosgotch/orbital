@@ -10,9 +10,7 @@ import {
   ReactFlow,
   SelectionMode,
   useEdgesState,
-  useNodes,
   useNodesState,
-  ViewportPortal,
   type Connection,
   type Edge,
   type Node,
@@ -52,12 +50,6 @@ type OrbitalNodeData = {
   actions: NodeActions;
 };
 
-// Fallback node footprint for the lane bounding box before React Flow has
-// measured the real DOM nodes. Matches graphLayout's spacing constants.
-const NODE_WIDTH = 236;
-const NODE_HEIGHT = 118;
-const LANE_PAD_X = 26;
-const LANE_PAD_Y = 22;
 
 type GraphMapProps = {
   nodes: GraphNode[];
@@ -281,7 +273,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         panActivationKeyCode="Space"
         selectNodesOnDrag
       >
-        <LaneBands />
         <Background variant={BackgroundVariant.Dots} gap={26} size={1} color="rgba(255, 255, 255, 0.06)" />
         <MiniMap
           position="bottom-left"
@@ -636,60 +627,3 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
   return null;
 }
 
-// LaneBands draws a labeled band behind every mission's nodes, computed from
-// their LIVE positions so a band always wraps its project — including after the
-// project is marquee-selected and dragged to a new spot. It renders inside a
-// ViewportPortal so the bands pan and zoom with the graph.
-function LaneBands() {
-  const nodes = useNodes();
-  const lanes = useMemo(() => {
-    const groups = new Map<string, Node[]>();
-    nodes.forEach((node) => {
-      const missionId = (node.data as OrbitalNodeData)?.missionId;
-      if (!missionId) return;
-      if (!groups.has(missionId)) groups.set(missionId, []);
-      groups.get(missionId)!.push(node);
-    });
-
-    const result: { missionId: string; x: number; y: number; width: number; height: number }[] = [];
-    groups.forEach((group, missionId) => {
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-      group.forEach((node) => {
-        const width = node.measured?.width ?? NODE_WIDTH;
-        const height = node.measured?.height ?? NODE_HEIGHT;
-        minX = Math.min(minX, node.position.x);
-        minY = Math.min(minY, node.position.y);
-        maxX = Math.max(maxX, node.position.x + width);
-        maxY = Math.max(maxY, node.position.y + height);
-      });
-      result.push({
-        missionId,
-        x: minX - LANE_PAD_X,
-        y: minY - LANE_PAD_Y,
-        width: maxX - minX + LANE_PAD_X * 2,
-        height: maxY - minY + LANE_PAD_Y * 2,
-      });
-    });
-    return result;
-  }, [nodes]);
-
-  return (
-    <ViewportPortal>
-      {lanes.map((lane) => (
-        <div
-          key={lane.missionId}
-          className="graph-lane"
-          style={{
-            position: "absolute",
-            transform: `translate(${lane.x}px, ${lane.y}px)`,
-            width: lane.width,
-            height: lane.height,
-          }}
-        />
-      ))}
-    </ViewportPortal>
-  );
-}
