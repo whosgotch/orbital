@@ -435,12 +435,18 @@ fn worker_dir() -> Result<PathBuf, String> {
 #[cfg(target_os = "macos")]
 fn adopt_login_shell_path() {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-    let Ok(output) = Command::new(shell).args(["-lc", "echo $PATH"]).output() else {
+    // Interactive + login shell: PATH exports commonly live in .zshrc, which
+    // a plain login shell never reads. Interactive rc files may print their
+    // own output, so the echoed PATH is the last non-empty stdout line.
+    let Ok(output) = Command::new(shell).args(["-ilc", "echo $PATH"]).output() else {
         return;
     };
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if output.status.success() && !path.is_empty() {
-        std::env::set_var("PATH", path);
+    if !output.status.success() {
+        return;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if let Some(path) = stdout.lines().rev().find(|line| !line.trim().is_empty()) {
+        std::env::set_var("PATH", path.trim());
     }
 }
 
