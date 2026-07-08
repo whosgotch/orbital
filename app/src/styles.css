@@ -1198,15 +1198,31 @@ button.mini-text {
 .canvas-hint {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
 }
 
+.canvas-hint-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 320px;
+  text-align: center;
+}
+
+.canvas-hint-title {
+  color: var(--soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .canvas-hint p {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .brand {

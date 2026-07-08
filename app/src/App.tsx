@@ -1184,11 +1184,11 @@ export function App() {
 
 
       {openPanel === "mission" ? (
-        <section className="popover mission-popover" aria-label="New mission">
-          <div className="section-label">Mission intake</div>
+        <section className="popover mission-popover" aria-label="Queue tasks">
+          <div className="section-label">Queue tasks</div>
           <textarea
-            aria-label="Mission intent"
-            placeholder={"One mission per line — queue a whole backlog at once.\nadd a healthcheck endpoint\nupgrade the logging library\n…"}
+            aria-label="Tasks to queue"
+            placeholder={"One task per line — queue a whole backlog at once.\nadd a healthcheck endpoint\nupgrade the logging library\n…"}
             value={missionDraft}
             onChange={(event) => setMissionDraft(event.target.value)}
           />
@@ -1235,12 +1235,9 @@ export function App() {
             }}
             disabled={!missionDraft.trim()}
           >
-            <Rocket size={17} aria-hidden="true" />
-            <span>
-              {campaignTargetRepos().length > 1
-                ? `Launch campaign · ${campaignTargetRepos().length} repos`
-                : `Queue ${missionDraft.split("\n").filter((line) => line.trim()).length > 1 ? "backlog" : "mission"}`}
-            </span>
+            {campaignTargetRepos().length > 1
+              ? `Queue in ${campaignTargetRepos().length} repos`
+              : `Queue ${missionDraft.split("\n").filter((line) => line.trim()).length > 1 ? "backlog" : "task"}`}
           </button>
         </section>
       ) : null}
@@ -1259,7 +1256,16 @@ export function App() {
 
         {workspaceMissions.length === 0 ? (
           <div className="canvas-hint">
-            <p>Open a repository, then draft a task to begin.</p>
+            <div className="canvas-hint-card">
+              <span className="canvas-hint-title">
+                {missionLoopState.repositories.length === 0 ? "No repository open" : "No tasks yet"}
+              </span>
+              <p>
+                {missionLoopState.repositories.length === 0
+                  ? "Add a repository from the sidebar to put it on the canvas."
+                  : "Draft a task from the sidebar — an agent picks it up from there."}
+              </p>
+            </div>
           </div>
         ) : null}
       </div>
