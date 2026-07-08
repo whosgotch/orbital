@@ -20,20 +20,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import {
-  Bot,
-  Boxes,
-  Check,
-  ClipboardList,
-  FolderGit2,
-  GitPullRequest,
-  Loader,
-  Play,
-  Plus,
-  ShieldCheck,
-  Terminal,
-  X,
-} from "lucide-react";
+import { Check, Loader, Play, Plus, ShieldCheck, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
 
@@ -87,12 +74,9 @@ type GraphMapProps = {
   canAddTask: boolean;
 };
 
+// Edges stay neutral unless they carry meaning: a chain (then) and a block are
+// the only relationships worth a hue.
 const EDGE_COLOR: Record<string, string> = {
-  runs: "#d9a441",
-  proposes: "#5b8bff",
-  verifies: "#5b8bff",
-  spawns: "#5b8bff",
-  coordinates: "#b07cff",
   blocks: "#e5615c",
   then: "#3fb96f",
 };
@@ -343,7 +327,7 @@ function toRfEdge(
   const selected = fromMission === selectedMissionId || toMission === selectedMissionId;
   const active =
     (fromMission != null && runningMissionIds.has(fromMission)) || (toMission != null && runningMissionIds.has(toMission));
-  const color = selected ? "#5b8bff" : edgeColor(edge.kind);
+  const color = selected ? "#ececee" : edgeColor(edge.kind);
 
   // Hand-drawn chain edges stay interactive so they can be selected and
   // deleted (= unlink); generated pipeline edges are wallpaper.
@@ -381,25 +365,6 @@ const KIND_LABEL: Record<GraphNodeKind, string> = {
   tool: "Tool",
 };
 
-function KindGlyph({ kind }: { kind: GraphNodeKind }) {
-  switch (kind) {
-    case "repo":
-      return <FolderGit2 size={14} aria-hidden="true" />;
-    case "task":
-      return <ClipboardList size={14} aria-hidden="true" />;
-    case "agent":
-      return <Bot size={14} aria-hidden="true" />;
-    case "changes":
-      return <GitPullRequest size={14} aria-hidden="true" />;
-    case "verify":
-      return <ShieldCheck size={14} aria-hidden="true" />;
-    case "campaign":
-      return <Boxes size={14} aria-hidden="true" />;
-    case "tool":
-      return <Terminal size={14} aria-hidden="true" />;
-  }
-}
-
 // One operable card per pipeline step. The header names the function, the body
 // shows its live state, the footer holds the action that step affords: Run on
 // a task, Approve/Reject on changes, Verify on the ship gate.
@@ -419,15 +384,12 @@ function OrbitalNode({ data, selected }: NodeProps) {
     <div className={`node-card ${node.kind} ${node.status ?? ""} ${selected ? "selected" : ""} ${live ? "live" : ""}`}>
       <Handle type="target" position={Position.Left} className="rf-handle" isConnectable={connectable} />
       <div className="node-card-head">
-        <span className={`node-card-icon ${node.kind}`}>
-          <KindGlyph kind={node.kind} />
-        </span>
-        <span className="node-card-kind">{KIND_LABEL[node.kind]}</span>
         {live ? (
-          <Loader size={12} className="spin node-card-live" aria-hidden="true" />
+          <Loader size={11} className="spin node-card-live" aria-hidden="true" />
         ) : (
           <span className={`node-status-dot ${node.status ?? ""}`} aria-hidden="true" />
         )}
+        <span className="node-card-kind">{KIND_LABEL[node.kind]}</span>
       </div>
       <div className="node-card-title" title={node.meta?.prompt ?? node.label}>{node.label}</div>
       <NodeBody node={node} />
@@ -469,9 +431,6 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
     <div className={`node-card ${kind} draft ${selected ? "selected" : ""}`}>
       <Handle type="target" position={Position.Left} className="rf-handle" isConnectable={false} />
       <div className="node-card-head">
-        <span className={`node-card-icon ${kind}`}>
-          {kind === "tool" ? <Terminal size={14} aria-hidden="true" /> : <ClipboardList size={14} aria-hidden="true" />}
-        </span>
         <div className="node-draft-kind nodrag" role="tablist" aria-label="Node type">
           <button
             type="button"

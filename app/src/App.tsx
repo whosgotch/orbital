@@ -1308,23 +1308,23 @@ export function App() {
               <div className="task-head-actions">
                 <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
                 <button
-                  className={`node-action secondary ${editingPrompt ? "active" : ""}`}
+                  className={`node-action secondary icon-button ${editingPrompt ? "active" : ""}`}
                   type="button"
                   onClick={editingPrompt ? () => setEditingPrompt(false) : beginEditPrompt}
                   disabled={selectedRuntime.status === "running"}
                   title="Edit this task's prompt"
+                  aria-label="Edit prompt"
                 >
                   <Pencil size={14} aria-hidden="true" />
-                  <span>Edit</span>
                 </button>
                 <button
-                  className="node-action secondary danger"
+                  className="node-action secondary danger icon-button"
                   type="button"
                   onClick={() => void deleteMission(selectedMission.id)}
                   title="Remove this task"
+                  aria-label="Remove task"
                 >
                   <Trash2 size={14} aria-hidden="true" />
-                  <span>Remove</span>
                 </button>
                 <button
                   className="node-action secondary icon-button"
