@@ -385,10 +385,10 @@ export function App() {
         detail: "task",
         mission_id: DRAFT_TASK_NODE_ID,
         repository_id: draftRepository?.id,
-        meta: { draft: true, worker: workerModeLabel(intakeWorkerMode) },
+        meta: { draft: true },
       },
     ];
-  }, [graphNodes, draftingTask, draftRepository?.id, intakeWorkerMode]);
+  }, [graphNodes, draftingTask, draftRepository?.id]);
 
   const canvasEdges = useMemo(() => {
     if (!draftingTask || !draftRepository) return graphEdges;
@@ -403,7 +403,7 @@ export function App() {
   // state yet, so the repo path and worker are passed to dispatch explicitly.
   // A tool draft's text doubles as its shell command; the worker resolves its
   // execution itself, so no worker mode is stamped or passed for tools.
-  const createTaskOnCanvas = async (text: string, run: boolean, kind: "task" | "tool") => {
+  const createTaskOnCanvas = async (text: string, run: boolean, kind: "task" | "tool", worker: WorkerMode) => {
     setDraftingTask(false);
     if (!draftRepository) return;
     setMissionLoopError("");
@@ -414,8 +414,8 @@ export function App() {
       const missionId = nextMissionLoopState.missions.at(-1)?.id;
       applyRepoState(nextMissionLoopState);
       if (missionId) {
-        if (!isTool) setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
-        if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : intakeWorkerMode });
+        if (!isTool) setWorkerModeByMission((current) => ({ ...current, [missionId]: worker }));
+        if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : worker });
       }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to create task."));
@@ -1174,7 +1174,7 @@ export function App() {
             onApprove: (missionId) => void approveMission(missionId),
             onReject: (missionId) => void rejectMission(missionId),
             onVerify: (missionId) => void runVerificationFor(missionId),
-            onCreateTask: (text, run, kind) => void createTaskOnCanvas(text, run, kind),
+            onCreateTask: (text, run, kind, worker) => void createTaskOnCanvas(text, run, kind, worker),
             onCancelDraft: () => setDraftingTask(false),
             onLinkTasks: (from, to) => void linkTasks(from, to),
             onUnlinkTasks: (from, to) => void unlinkTasks(from, to),

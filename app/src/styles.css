@@ -2199,6 +2199,23 @@ dd {
   border-radius: 6px;
 }
 
+/* Which agent staffs the drafted task — picked right on the card. */
+.node-draft-worker {
+  padding: 4px 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--soft);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.node-draft-worker:focus {
+  outline: none;
+  border-color: var(--line-strong);
+}
+
 .node-draft-kind-option {
   padding: 1px 8px;
   background: transparent;
