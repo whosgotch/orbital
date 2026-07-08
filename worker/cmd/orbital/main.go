@@ -50,6 +50,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return showHistory(args, stdout)
 	case "show":
 		return showCommit(args, stdout)
+	case "models":
+		return listModels(args, stdout)
 	case "demo-fixture":
 		return createDemoFixture(args, stdout)
 	default:

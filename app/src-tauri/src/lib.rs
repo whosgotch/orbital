@@ -236,6 +236,11 @@ fn kill_process_group(pgid: u32) {
 }
 
 #[tauri::command]
+fn list_models() -> Result<String, String> {
+    run_worker(&["models"])
+}
+
+#[tauri::command]
 fn load_repo_history(repo_path: String) -> Result<String, String> {
     run_worker(&["history", "--json", repo_path.trim()])
 }
@@ -422,7 +427,8 @@ pub fn run() {
             reject_patch,
             verify_mission,
             load_repo_history,
-            load_commit_diff
+            load_commit_diff,
+            list_models
         ])
         .run(tauri::generate_context!())
         .expect("error while running Orbital");

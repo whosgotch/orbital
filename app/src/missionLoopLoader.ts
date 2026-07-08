@@ -62,6 +62,15 @@ export function verifyMissionLoopState(repoPath: string, missionId: string, comm
   return invokeState("verify_mission", { repoPath, missionId, command });
 }
 
+export type ClaudeModel = { id: string; display_name: string };
+
+// All models currently available in the provider (live list when an API key is
+// configured, current catalog otherwise).
+export async function listClaudeModels(): Promise<ClaudeModel[]> {
+  const models = await invoke<string>("list_models");
+  return JSON.parse(models) as ClaudeModel[];
+}
+
 export async function loadRepoHistory(repoPath: string): Promise<RepoCommit[]> {
   const history = await invoke<string>("load_repo_history", { repoPath });
   return JSON.parse(history) as RepoCommit[];

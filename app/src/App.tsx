@@ -61,7 +61,9 @@ import {
   deleteMissionLoopState,
   demoRepoPath,
   linkMissionsLoopState,
+  listClaudeModels,
   loadMissionLoopState,
+  type ClaudeModel,
   openMissionLoopRepository,
   queueMissionLoopState,
   rejectPatchMissionLoopState,
@@ -139,10 +141,18 @@ export function App() {
   // Claude model for every AI run and chat turn, persisted across sessions.
   // Empty string means the claude CLI's own default.
   const [claudeModel, setClaudeModel] = useState(() => localStorage.getItem("orbital:model") ?? "");
+  // Every model the provider currently serves, loaded once at startup.
+  const [claudeModels, setClaudeModels] = useState<ClaudeModel[]>([]);
   const pickClaudeModel = (model: string) => {
     setClaudeModel(model);
     localStorage.setItem("orbital:model", model);
   };
+
+  useEffect(() => {
+    listClaudeModels()
+      .then(setClaudeModels)
+      .catch(() => setClaudeModels([]));
+  }, []);
   // Whether a draft task card is open on the canvas ("+ Task" was clicked).
   const [draftingTask, setDraftingTask] = useState(false);
   // Inline prompt editor for refining a mission's instruction before launch.
@@ -1042,9 +1052,11 @@ export function App() {
           <span>Model</span>
           <select aria-label="Claude model" value={claudeModel} onChange={(event) => pickClaudeModel(event.target.value)}>
             <option value="">default</option>
-            <option value="opus">opus — deep</option>
-            <option value="sonnet">sonnet — balanced</option>
-            <option value="haiku">haiku — fast</option>
+            {claudeModels.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.display_name}
+              </option>
+            ))}
           </select>
         </label>
         <div className="topbar-metrics">
