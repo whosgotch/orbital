@@ -6,3 +6,4 @@ target/
 app/src-tauri/gen/
 
 .vite/
+app/src-tauri/binaries/

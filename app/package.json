@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "build:worker": "node scripts/build-worker.mjs"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",

@@ -47,6 +47,29 @@ fn worker_binary() -> Result<PathBuf, String> {
         return Ok(path.clone());
     }
 
+    // Resolution order: explicit override, the sidecar shipped next to the app
+    // executable (bundled builds), then compiling from source (dev checkout).
+    let bin = if let Ok(path) = std::env::var("ORBITAL_WORKER") {
+        PathBuf::from(path)
+    } else if let Some(sidecar) = sidecar_worker() {
+        sidecar
+    } else {
+        build_worker_from_source()?
+    };
+
+    *cached = Some(bin.clone());
+    Ok(bin)
+}
+
+fn sidecar_worker() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let sidecar = exe
+        .parent()?
+        .join(format!("orbital-worker{}", std::env::consts::EXE_SUFFIX));
+    sidecar.exists().then_some(sidecar)
+}
+
+fn build_worker_from_source() -> Result<PathBuf, String> {
     let bin = std::env::temp_dir().join(format!("orbital-worker{}", std::env::consts::EXE_SUFFIX));
     let output = Command::new("go")
         .args(["build", "-o"])
@@ -66,7 +89,6 @@ fn worker_binary() -> Result<PathBuf, String> {
         });
     }
 
-    *cached = Some(bin.clone());
     Ok(bin)
 }
 
@@ -294,7 +316,6 @@ fn run_worker_streaming(
     let mut command = Command::new(worker_binary()?);
     command
         .args(args)
-        .current_dir(worker_dir()?)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -382,7 +403,6 @@ fn run_worker_status(repo_path: &str) -> Result<String, String> {
 fn run_worker(args: &[&str]) -> Result<String, String> {
     let output = Command::new(worker_binary()?)
         .args(args)
-        .current_dir(worker_dir()?)
         .output()
         .map_err(|error| format!("failed to run worker: {error}"))?;
 
