@@ -419,10 +419,11 @@ fn run_worker(args: &[&str]) -> Result<String, String> {
 }
 
 fn worker_dir() -> Result<PathBuf, String> {
+    // apps/desktop/src-tauri -> repo root
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     manifest_dir
-        .parent()
-        .and_then(|app_dir| app_dir.parent())
+        .ancestors()
+        .nth(3)
         .map(|repo_dir| repo_dir.join("worker"))
         .ok_or_else(|| "failed to resolve worker directory".to_string())
 }

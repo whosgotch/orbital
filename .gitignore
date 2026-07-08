@@ -3,8 +3,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 target/
-app/src-tauri/gen/
+apps/desktop/src-tauri/gen/
 
 .vite/
-app/src-tauri/binaries/
+apps/desktop/src-tauri/binaries/
 .claude/settings.local.json
