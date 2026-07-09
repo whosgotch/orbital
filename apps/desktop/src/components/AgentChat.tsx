@@ -1,7 +1,7 @@
 // A live, two-way conversation with an agent. You steer the agent by sending
 // messages; it keeps its session across turns and its diff evolves in place.
 // Agent replies render as markdown, and the change set rides along as a
-// clickable card — pick a file to land on it in the Changes view.
+// clickable card — pick a file to open its diff.
 import { useEffect, useRef, useState } from "react";
 import { FileMinus, FilePen, FilePlus, Loader, SendHorizontal } from "lucide-react";
 import { AgentStatus } from "./AgentStatus";
@@ -16,9 +16,9 @@ function ChangeGlyph({ change }: { change: FileChange }) {
   return <FilePen size={13} aria-hidden="true" />;
 }
 
-// The chat-side bridge to the diff: what changed, glanceable, one click from
-// the exact file in the Changes view.
-function ChangesCard({ files, onOpenFile }: { files: TouchedFile[]; onOpenFile: (path: string) => void }) {
+// The glanceable change set: what changed, one click from the file's diff.
+// Shared by chat (rides along with replies) and the Changes tab.
+export function ChangesCard({ files, onOpenFile }: { files: TouchedFile[]; onOpenFile: (path: string) => void }) {
   const additions = files.reduce((sum, file) => sum + file.added, 0);
   const deletions = files.reduce((sum, file) => sum + file.removed, 0);
 
@@ -40,7 +40,7 @@ function ChangesCard({ files, onOpenFile }: { files: TouchedFile[]; onOpenFile: 
               type="button"
               className={`chat-changes-file ${file.change}`}
               onClick={() => onOpenFile(file.path)}
-              title={`Open ${file.path} in Changes`}
+              title={`Open ${file.path} diff`}
             >
               <span className="chat-changes-glyph">
                 <ChangeGlyph change={file.change} />

@@ -476,11 +476,29 @@ h3 {
   flex-direction: column;
 }
 
-.task-changes .diff-view,
 .task-changes .diff-empty {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+}
+
+/* The changed-files card sizes to content but scrolls its list when tall,
+   keeping the verify bar and the approve gate pinned at the bottom. */
+.task-changes .chat-changes {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-changes .chat-changes-list {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.task-changes .verify-bar {
+  margin-top: auto;
+  padding-top: 12px;
 }
 
 .task-head-actions {

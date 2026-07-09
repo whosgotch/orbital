@@ -6,7 +6,6 @@ import {
   ChevronDown,
   CircleDot,
   History,
-  Maximize2,
   Network,
   Pencil,
   Play,
@@ -19,7 +18,7 @@ import {
 } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import { DiffView } from "./components/DiffView";
-import { AgentChat } from "./components/AgentChat";
+import { AgentChat, ChangesCard } from "./components/AgentChat";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
 import { buildAgentTranscript, groupChatByMission } from "./agentTranscript";
@@ -1363,17 +1362,6 @@ export function App() {
                 {patchReady && taskView !== "changes" ? <span className="task-switch-dot" aria-hidden="true" /> : null}
               </button>
               <div className="task-switch-spacer" />
-              {taskView === "changes" && patchReady ? (
-                <button
-                  className="secondary icon-button mini"
-                  type="button"
-                  onClick={() => setDiffModalOpen(true)}
-                  title="Expand diff"
-                  aria-label="Expand diff"
-                >
-                  <Maximize2 size={14} aria-hidden="true" />
-                </button>
-              ) : null}
             </div>
 
             <div className="task-body">
@@ -1385,7 +1373,7 @@ export function App() {
                   files={agentStatus.files}
                   onOpenFile={(path) => {
                     setFocusedDiffFile(path);
-                    setTaskView("changes");
+                    setDiffModalOpen(true);
                   }}
                   sending={selectedChatSending}
                   onSend={(text) => void sendAgentChat(selectedMission.id, text)}
@@ -1393,15 +1381,21 @@ export function App() {
                 />
               ) : (
                 <div className="task-changes">
-                  <DiffView
-                    diff={patchReady ? selectedPatchDiff : ""}
-                    focusPath={focusedDiffFile}
-                    emptyLabel={
-                      patchReady
+                  {agentStatus.files.length > 0 ? (
+                    <ChangesCard
+                      files={agentStatus.files}
+                      onOpenFile={(path) => {
+                        setFocusedDiffFile(path);
+                        setDiffModalOpen(true);
+                      }}
+                    />
+                  ) : (
+                    <div className="diff-empty">
+                      {patchReady
                         ? "No patch proposal captured for this task."
-                        : "No changes yet — chat with the agent to make some."
-                    }
-                  />
+                        : "No changes yet — chat with the agent to make some."}
+                    </div>
+                  )}
 
                   <div className="verify-bar">
                     <button
