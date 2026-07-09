@@ -94,6 +94,65 @@ func TestStartAgentRunWithMockWorkerSavesRunEventsAndPatch(t *testing.T) {
 	}
 }
 
+// A Run must leave behind a resumable agent: after StartAgentRun with an engine
+// that captures a session, a follow-up chat turn continues that same run (and
+// session) instead of forking a fresh one — so the diff on screen is the diff
+// you keep talking to.
+func TestStartAgentRunLeavesRunResumableInChat(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	worker := &recordingChatWorker{sessionID: "sess_run"}
+	registry := agent.NewWorkerRegistry()
+	registry.Register(worker)
+	svc := NewServiceWithWorkerRegistry(jsonStore, registry)
+
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{{ID: "repo_1", Path: t.TempDir(), Name: "demo"}},
+		Missions:     []domain.Mission{{ID: "mission_1", RepositoryID: "repo_1", Text: "add a route", Status: domain.MissionStatusDraft}},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	ctx := context.Background()
+	run, err := svc.StartAgentRun(ctx, "mission_1", "claude-engineer")
+	if err != nil {
+		t.Fatalf("StartAgentRun() error = %v", err)
+	}
+
+	state, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got := state.AgentRuns[findRunIndex(state.AgentRuns, run.ID)].SessionID; got != "sess_run" {
+		t.Fatalf("run session id = %q, want sess_run (Run must persist its session)", got)
+	}
+
+	// Talking to the mission now must resume the Run's agent, not start over.
+	if _, err := svc.SendAgentMessage(ctx, "mission_1", "also handle the empty case"); err != nil {
+		t.Fatalf("SendAgentMessage() error = %v", err)
+	}
+
+	state, err = jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	runs := 0
+	for _, r := range state.AgentRuns {
+		if r.MissionID == "mission_1" {
+			runs++
+		}
+	}
+	if runs != 1 {
+		t.Fatalf("agent runs for mission = %d, want 1 (chat must continue the Run, not fork)", runs)
+	}
+	reqs := worker.requests()
+	if len(reqs) != 2 {
+		t.Fatalf("worker turns = %d, want 2", len(reqs))
+	}
+	if reqs[1].ResumeSessionID != "sess_run" {
+		t.Fatalf("chat turn resume id = %q, want sess_run", reqs[1].ResumeSessionID)
+	}
+}
+
 func saveToolMissionState(t *testing.T, jsonStore *store.JSONStore, repoDir string, toolCommand string) {
 	t.Helper()
 

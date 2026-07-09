@@ -142,8 +142,28 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		return &run, err
 	}
 
+	var capturedSession string
 	for event := range events {
+		if event.SessionID != "" {
+			capturedSession = event.SessionID
+		}
 		if err := s.saveRunEvent(missionID, event); err != nil {
+			return nil, err
+		}
+	}
+
+	// Persist the session so a Run can be continued in chat: the diff it produced
+	// belongs to an agent you can keep talking to, revising it in place, instead
+	// of a frozen result you can only approve, reject, or redo from scratch. This
+	// is what makes latestChatRun resume this exact run rather than start a new
+	// session in a new worktree, blind to the change already on screen.
+	if capturedSession != "" {
+		if _, err := s.store.Update(func(state *store.State) error {
+			if runIndex := findRunIndex(state.AgentRuns, run.ID); runIndex != -1 {
+				state.AgentRuns[runIndex].SessionID = capturedSession
+			}
+			return nil
+		}); err != nil {
 			return nil, err
 		}
 	}
