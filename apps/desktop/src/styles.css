@@ -496,6 +496,50 @@ h3 {
   overflow-y: auto;
 }
 
+/* Talk-to-revise: a one-line composer that sits under the diff so the change
+   set stays part of the conversation. Compact so it never competes with the
+   diff or the approve gate. */
+.revise-box {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.revise-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 11px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.revise-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.revise-send {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.diff-modal .revise-box {
+  margin-top: 12px;
+}
+
 .task-changes .verify-bar {
   margin-top: auto;
   padding-top: 12px;

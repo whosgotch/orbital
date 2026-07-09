@@ -19,6 +19,7 @@ import {
 import { GraphMap } from "./components/GraphMap";
 import { DiffView } from "./components/DiffView";
 import { AgentChat, ChangesCard } from "./components/AgentChat";
+import { ReviseBox } from "./components/ReviseBox";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
 import { buildAgentTranscript, groupChatByMission } from "./agentTranscript";
@@ -1397,6 +1398,13 @@ export function App() {
                     </div>
                   )}
 
+                  {agentStatus.files.length > 0 && selectedMission.kind !== "tool" ? (
+                    <ReviseBox
+                      sending={selectedChatSending}
+                      onSend={(text) => void sendAgentChat(selectedMission.id, text)}
+                    />
+                  ) : null}
+
                   <div className="verify-bar">
                     <button
                       type="button"
@@ -1481,6 +1489,12 @@ export function App() {
               focusPath={focusedDiffFile}
               emptyLabel="No changes yet — this mission hasn't reached review."
             />
+            {patchReady && selectedMission.kind !== "tool" ? (
+              <ReviseBox
+                sending={selectedChatSending}
+                onSend={(text) => void sendAgentChat(selectedMission.id, text)}
+              />
+            ) : null}
             <div className="actions">
               <button
                 className="secondary"
