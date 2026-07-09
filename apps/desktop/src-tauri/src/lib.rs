@@ -283,9 +283,24 @@ fn unlink_missions(repo_path: String, from_mission_id: String, to_mission_id: St
 }
 
 #[tauri::command]
-fn decompose_mission(repo_path: String, mission_id: String, model: Option<String>) -> Result<String, String> {
+async fn decompose_mission(repo_path: String, mission_id: String, model: Option<String>) -> Result<String, String> {
     let model = model.unwrap_or_default();
-    run_worker(&["decompose", repo_path.trim(), mission_id.trim(), "--model", model.trim()])
+    let args: Vec<String> = vec![
+        "decompose".into(),
+        repo_path.trim().to_string(),
+        mission_id.trim().to_string(),
+        "--model".into(),
+        model.trim().to_string(),
+    ];
+
+    // Decomposition shells out to `claude`, which can take several seconds; keep
+    // it off the main thread so the whole app doesn't freeze while it thinks.
+    tauri::async_runtime::spawn_blocking(move || {
+        let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        run_worker(&arg_refs)
+    })
+    .await
+    .map_err(|e| format!("worker task failed: {e}"))?
 }
 
 #[tauri::command]
