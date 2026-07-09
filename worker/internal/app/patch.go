@@ -222,6 +222,7 @@ func applyDiff(repoPath string, diff string) error {
 	// the merge sees one consistent "ours" side; the leftovers then ride along
 	// into the mission's commit instead of wedging every future apply.
 	stagePatchPaths(repoPath, diff)
+	snapshot := indexSnapshot(repoPath)
 
 	merge := exec.Command("git", "apply", "--3way")
 	merge.Dir = repoPath
@@ -231,7 +232,48 @@ func applyDiff(repoPath string, diff string) error {
 		return nil
 	}
 
-	return fmt.Errorf("apply patch: %w: %s", err, strings.TrimSpace(string(output)))
+	// A failed 3-way leaves conflict markers and unmerged index entries in the
+	// user's repo; put everything back so a conflict costs nothing.
+	rollbackToSnapshot(repoPath, snapshot, changedFiles(diff))
+
+	return fmt.Errorf("patch conflicts with newer changes in the repo (nothing was applied — re-run the task so the agent rebuilds it on the current code): %s", strings.TrimSpace(string(output)))
+}
+
+// indexSnapshot captures the current index as a tree object so a failed merge
+// can be rolled back. Best-effort: "" when the repo has no usable index.
+func indexSnapshot(repoPath string) string {
+	cmd := exec.Command("git", "write-tree")
+	cmd.Dir = repoPath
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// rollbackToSnapshot restores the index and the patch's files to the snapshot
+// taken before the 3-way merge: conflict markers and unmerged entries reset,
+// half-applied files revert, and paths the snapshot never had are removed.
+func rollbackToSnapshot(repoPath, snapshot string, files []changedFile) {
+	if snapshot == "" {
+		return
+	}
+	readTree := exec.Command("git", "read-tree", "--reset", snapshot)
+	readTree.Dir = repoPath
+	if readTree.Run() != nil {
+		return
+	}
+	for _, file := range files {
+		inSnapshot := exec.Command("git", "cat-file", "-e", snapshot+":"+file.path)
+		inSnapshot.Dir = repoPath
+		if inSnapshot.Run() == nil {
+			checkout := exec.Command("git", "checkout-index", "-f", "--", file.path)
+			checkout.Dir = repoPath
+			_ = checkout.Run()
+		} else {
+			_ = os.Remove(filepath.Join(repoPath, file.path))
+		}
+	}
 }
 
 // stagePatchPaths aligns the index with the working tree for the files a diff
@@ -239,7 +281,11 @@ func applyDiff(repoPath string, diff string) error {
 func stagePatchPaths(repoPath string, diff string) {
 	paths := make([]string, 0)
 	for _, change := range changedFiles(diff) {
-		paths = append(paths, change.path)
+		// A path the patch introduces has no file yet; `git add` rejects the
+		// whole pathspec list over it, and there is nothing to stage anyway.
+		if _, err := os.Stat(filepath.Join(repoPath, change.path)); err == nil {
+			paths = append(paths, change.path)
+		}
 	}
 	if len(paths) == 0 {
 		return
