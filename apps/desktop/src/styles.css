@@ -496,6 +496,105 @@ h3 {
   overflow-y: auto;
 }
 
+/* Plan surface: the intake for kicking off a repo plan, and the rendered plan
+   document. Both live in the docked panel like the task inspector. */
+.plan-intro,
+.plan-foot {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.plan-goal {
+  width: 100%;
+  resize: vertical;
+  padding: 9px 11px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.plan-goal:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.plan-format-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.plan-format-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plan-format-options {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.plan-format-option {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--soft);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.plan-format-option.active {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.plan-submit {
+  align-self: flex-start;
+}
+
+.plan-doc {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  padding: 14px 16px;
+}
+
+.plan-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--soft);
+}
+
+.plan-html {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--soft);
+}
+
+.plan-html h1, .plan-html h2, .plan-html h3 { color: var(--text); }
+.plan-html a { color: var(--accent); }
+.plan-html table { border-collapse: collapse; }
+.plan-html th, .plan-html td { border: 1px solid var(--line); padding: 4px 8px; }
+
+/* Plan panels stack their controls/document with breathing room; the base
+   .task-panel already lays out as a flex column. */
+.plan-panel {
+  gap: 12px;
+}
+
 /* Talk-to-revise: a one-line composer that sits under the diff so the change
    set stays part of the conversation. Compact so it never competes with the
    diff or the approve gate. */

@@ -19,6 +19,7 @@ import {
 import { GraphMap } from "./components/GraphMap";
 import { DiffView } from "./components/DiffView";
 import { AgentChat, ChangesCard } from "./components/AgentChat";
+import { PlanPanel, PlanIntake } from "./components/PlanPanel";
 import { ReviseBox } from "./components/ReviseBox";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
@@ -46,7 +47,7 @@ import {
   upsertAgentRun,
   upsertPatchProposal,
 } from "./repoStates";
-import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
+import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, PlanFormat, Repository, WorkflowEvent } from "./domain";
 import {
   compactLabel,
   workspaceViewFromMissionLoop,
@@ -62,6 +63,7 @@ import {
   loadMissionLoopState,
   type ClaudeModel,
   openMissionLoopRepository,
+  planRepoLoopState,
   queueMissionLoopState,
   rejectPatchMissionLoopState,
   refreshMissionLoopState,
@@ -105,6 +107,7 @@ export function App() {
   const [activeRepoPath, setActiveRepoPath] = useState(demoRepoPath);
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const [decomposingMissionId, setDecomposingMissionId] = useState("");
+  const [planningRepoId, setPlanningRepoId] = useState("");
   const [missionDraft, setMissionDraft] = useState("");
   // Repos a queued intent fans out to. Picking >1 makes it a coordinated
   // campaign: the same intent is queued in each repo under a shared campaign id.
@@ -204,6 +207,19 @@ export function App() {
   // title is only the short node label.
   const selectedMissionRecord = missionLoopState.missions.find((mission) => mission.id === selectedMission?.id);
   const selectedRepository = selectedMission ? repositoryFor(selectedMission, missionLoopState.repositories) : undefined;
+  // A selected plan node shows its written document; a selected repo node offers
+  // the planning intake. Both are node-scoped surfaces, like the task panel.
+  const selectedPlan =
+    selectedGraphNode?.kind === "plan"
+      ? (missionLoopState.plans ?? []).find((plan) => plan.id === selectedGraphNode.id)
+      : undefined;
+  const selectedPlanTaskCount = selectedPlan
+    ? missionLoopState.missions.filter((mission) => mission.plan_id === selectedPlan.id).length
+    : 0;
+  const selectedRepoForPlan =
+    selectedGraphNode?.kind === "repo"
+      ? missionLoopState.repositories.find((repo) => repo.id === selectedGraphNode.id)
+      : undefined;
   const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? queuedRuntime;
   const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationOutput = (selectedMission ? verificationOutputByMission[selectedMission.id] : undefined) ?? "";
@@ -451,6 +467,21 @@ export function App() {
       applyRepoState(await unlinkMissionsLoopState(repoPathForMission(toMissionId), fromMissionId, toMissionId));
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to unlink tasks."));
+    }
+  };
+
+  // Plan work on a repo: the AI reads the code and drops a plan node plus the
+  // draft task nodes it fans out to. Nothing runs — the tasks are yours to steer.
+  const planRepo = async (repo: Repository, goal: string, format: PlanFormat) => {
+    if (planningRepoId) return;
+    setMissionLoopError("");
+    setPlanningRepoId(repo.id);
+    try {
+      applyRepoState(await planRepoLoopState(repo.path, goal, format, claudeModel));
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to plan the repo."));
+    } finally {
+      setPlanningRepoId("");
     }
   };
 
@@ -977,7 +1008,7 @@ export function App() {
   }, [diffModalOpen, openPanel, draftingTask, repoHistory]);
 
   return (
-    <main className={`canvas-shell${selectedMission ? " panel-open" : ""}`}>
+    <main className={`canvas-shell${selectedMission || selectedPlan || selectedRepoForPlan ? " panel-open" : ""}`}>
       <aside className="sidebar">
         <div className="sidebar-brand">
           <CircleDot size={16} aria-hidden="true" />
@@ -1289,6 +1320,16 @@ export function App() {
           </div>
         ) : null}
       </div>
+
+      {selectedPlan ? <PlanPanel plan={selectedPlan} taskCount={selectedPlanTaskCount} /> : null}
+
+      {selectedRepoForPlan ? (
+        <PlanIntake
+          repoName={selectedRepoForPlan.name}
+          planning={planningRepoId === selectedRepoForPlan.id}
+          onPlan={(goal, format) => void planRepo(selectedRepoForPlan, goal, format)}
+        />
+      ) : null}
 
       {selectedMission ? (
         <aside className="inspector task-window" aria-label="Task">

@@ -283,6 +283,35 @@ fn unlink_missions(repo_path: String, from_mission_id: String, to_mission_id: St
 }
 
 #[tauri::command]
+async fn plan_repo(
+    repo_path: String,
+    goal: String,
+    format: Option<String>,
+    model: Option<String>,
+) -> Result<String, String> {
+    let format = format.unwrap_or_else(|| "md".to_string());
+    let model = model.unwrap_or_default();
+    let args: Vec<String> = vec![
+        "plan".into(),
+        repo_path.trim().to_string(),
+        goal.trim().to_string(),
+        "--format".into(),
+        format.trim().to_string(),
+        "--model".into(),
+        model.trim().to_string(),
+    ];
+
+    // Planning reads the repo with `claude`, which can take a while; keep it off
+    // the main thread so the app stays responsive while it explores and plans.
+    tauri::async_runtime::spawn_blocking(move || {
+        let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        run_worker(&arg_refs)
+    })
+    .await
+    .map_err(|e| format!("worker task failed: {e}"))?
+}
+
+#[tauri::command]
 async fn decompose_mission(repo_path: String, mission_id: String, model: Option<String>) -> Result<String, String> {
     let model = model.unwrap_or_default();
     let args: Vec<String> = vec![
@@ -491,6 +520,7 @@ pub fn run() {
             link_missions,
             unlink_missions,
             decompose_mission,
+            plan_repo,
             approve_patch,
             reject_patch,
             verify_mission,

@@ -347,6 +347,7 @@ const KIND_LABEL: Record<GraphNodeKind, string> = {
   verify: "Verify",
   campaign: "Campaign",
   tool: "Tool",
+  plan: "Plan",
 };
 
 // One operable card per pipeline step. The header names the function, the body
@@ -517,6 +518,21 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
 
 function NodeBody({ node }: { node: OrbitalNodeData }) {
   const meta = node.meta;
+
+  if (node.kind === "plan") {
+    const tasks = meta?.taskCount ?? 0;
+    return (
+      <div className="node-card-body">
+        <div className="node-card-stats">
+          <span>
+            {tasks} task{tasks === 1 ? "" : "s"}
+          </span>
+          {meta?.planFormat ? <span className="node-tag">{meta.planFormat}</span> : null}
+        </div>
+        <p className="node-card-prompt">Open to read the plan.</p>
+      </div>
+    );
+  }
 
   if (node.kind === "task") {
     return (

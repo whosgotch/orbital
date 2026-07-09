@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MissionLoopState, RepoCommit } from "./domain";
+import type { MissionLoopState, PlanFormat, RepoCommit } from "./domain";
 
 export const demoRepoPath = "/private/tmp/orbital-demo-repo";
 
@@ -55,6 +55,12 @@ export function unlinkMissionsLoopState(repoPath: string, fromMissionId: string,
 // unchanged.
 export function decomposeMissionLoopState(repoPath: string, missionId: string, model = "") {
   return invokeState("decompose_mission", { repoPath, missionId, model });
+}
+
+// Plan work on a repo: the AI reads the code, writes a plan in `format`, and
+// fans out draft task nodes. Returns the refreshed state with the new plan.
+export function planRepoLoopState(repoPath: string, goal: string, format: PlanFormat = "md", model = "") {
+  return invokeState("plan_repo", { repoPath, goal, format, model });
 }
 
 export function approvePatchMissionLoopState(repoPath: string, missionId: string) {
