@@ -17,7 +17,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, Loader, Play, ShieldCheck, X } from "lucide-react";
+import { Check, Loader, Play, ShieldCheck, Split, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
 
@@ -42,6 +42,9 @@ export type NodeActions = {
   // upstream patch to land; deleting the edge dissolves the dependency.
   onLinkTasks: (fromMissionId: string, toMissionId: string) => void;
   onUnlinkTasks: (fromMissionId: string, toMissionId: string) => void;
+  // Ask the AI to break a draft task into sub-task nodes (no-op when the task
+  // is one coherent change). Shown only on draft task cards.
+  onDecompose: (missionId: string) => void;
 };
 
 type OrbitalNodeData = {
@@ -52,6 +55,8 @@ type OrbitalNodeData = {
   missionId?: string;
   meta?: GraphNodeMeta;
   actions: NodeActions;
+  // True while the AI is breaking this task into sub-tasks.
+  decomposing?: boolean;
 };
 
 
@@ -61,6 +66,7 @@ type GraphMapProps = {
   selectedNodeId: string;
   selectedMissionId: string;
   runningMissionIds: Set<string>;
+  decomposingMissionId: string;
   onSelectNode: (nodeId: string) => void;
   actions: NodeActions;
 };
@@ -85,7 +91,7 @@ function edgeDash(kind: string) {
 
 const nodeTypes = { orbital: OrbitalNode };
 
-export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions }: GraphMapProps) {
+export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // Only nodes the user explicitly dragged are pinned here. Everything else is
@@ -108,6 +114,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       onCancelDraft: () => actionsRef.current.onCancelDraft(),
       onLinkTasks: (from, to) => actionsRef.current.onLinkTasks(from, to),
       onUnlinkTasks: (from, to) => actionsRef.current.onUnlinkTasks(from, to),
+      onDecompose: (id) => actionsRef.current.onDecompose(id),
     }),
     [],
   );
@@ -169,8 +176,9 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       missionId: node.mission_id,
       meta: node.meta,
       actions: stableActions,
+      decomposing: node.mission_id != null && node.mission_id === decomposingMissionId,
     }),
-    [stableActions],
+    [stableActions, decomposingMissionId],
   );
 
   // Re-layout only when the graph's structure changes (nodes or edges added /
@@ -218,7 +226,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     );
     setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds]);
+  }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId]);
 
   const onNodeDragStop = useCallback((_event: unknown, node: Node) => {
     manualPositionsRef.current[node.id] = node.position;
@@ -578,11 +586,30 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
   // Interactive controls carry `nodrag` so React Flow lets the click through
   // instead of starting a card drag. On a failed tool the button is a re-run.
   if ((node.kind === "task" || node.kind === "tool") && meta?.launchable) {
+    // A draft coding task can be broken into sub-tasks before it runs; tools are
+    // a fixed command and never split.
+    const splittable = node.kind === "task" && node.status === "draft";
     return (
       <div className="node-card-actions">
+        {splittable ? (
+          <button
+            type="button"
+            className="node-btn nodrag"
+            disabled={node.decomposing}
+            onClick={(event) => {
+              event.stopPropagation();
+              act.onDecompose(missionId);
+            }}
+            title="Let the AI break this into sub-tasks"
+          >
+            {node.decomposing ? <Loader size={12} className="spin" aria-hidden="true" /> : <Split size={12} aria-hidden="true" />}
+            {node.decomposing ? "Splitting…" : "Break up"}
+          </button>
+        ) : null}
         <button
           type="button"
           className="node-btn primary nodrag"
+          disabled={node.decomposing}
           onClick={(event) => {
             event.stopPropagation();
             act.onRunTask(missionId);

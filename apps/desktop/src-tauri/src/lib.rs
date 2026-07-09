@@ -283,6 +283,12 @@ fn unlink_missions(repo_path: String, from_mission_id: String, to_mission_id: St
 }
 
 #[tauri::command]
+fn decompose_mission(repo_path: String, mission_id: String, model: Option<String>) -> Result<String, String> {
+    let model = model.unwrap_or_default();
+    run_worker(&["decompose", repo_path.trim(), mission_id.trim(), "--model", model.trim()])
+}
+
+#[tauri::command]
 fn approve_patch(repo_path: String, mission_id: String) -> Result<String, String> {
     run_worker(&["approve", repo_path.trim(), mission_id.trim()])
 }
@@ -469,6 +475,7 @@ pub fn run() {
             delete_mission,
             link_missions,
             unlink_missions,
+            decompose_mission,
             approve_patch,
             reject_patch,
             verify_mission,

@@ -21,6 +21,9 @@ type Service struct {
 	// corrupt the NDJSON event stream or race `git worktree add`.
 	streamMu   sync.Mutex
 	worktreeMu sync.Mutex
+	// decompose breaks a task into sub-tasks; nil uses the claude-backed default.
+	// Overridable so DecomposeMission is testable without the CLI.
+	decompose decomposeFunc
 }
 
 func NewService(store *store.JSONStore) *Service {
@@ -47,4 +50,10 @@ func (s *Service) SetRunModel(model string) {
 
 func (s *Service) RegisterWorker(w agent.Worker) {
 	s.workerRegistry.Register(w)
+}
+
+// SetDecomposer overrides how a task is broken into sub-tasks (tests inject a
+// deterministic one instead of the claude CLI).
+func (s *Service) SetDecomposer(fn decomposeFunc) {
+	s.decompose = fn
 }

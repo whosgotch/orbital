@@ -32,6 +32,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return editMission(args, stdout)
 	case "link":
 		return linkMissions(args, stdout)
+	case "decompose":
+		return decomposeMission(ctx, args, stdout)
 	case "unlink":
 		return unlinkMissions(args, stdout)
 	case "reject":

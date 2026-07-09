@@ -54,6 +54,7 @@ import {
 } from "./workspaceAdapter";
 import {
   approvePatchMissionLoopState,
+  decomposeMissionLoopState,
   deleteMissionLoopState,
   demoRepoPath,
   linkMissionsLoopState,
@@ -103,6 +104,7 @@ export function App() {
   const [repoPathDraft, setRepoPathDraft] = useState(demoRepoPath);
   const [activeRepoPath, setActiveRepoPath] = useState(demoRepoPath);
   const [selectedNodeId, setSelectedNodeId] = useState("");
+  const [decomposingMissionId, setDecomposingMissionId] = useState("");
   const [missionDraft, setMissionDraft] = useState("");
   // Repos a queued intent fans out to. Picking >1 makes it a coordinated
   // campaign: the same intent is queued in each repo under a shared campaign id.
@@ -449,6 +451,22 @@ export function App() {
       applyRepoState(await unlinkMissionsLoopState(repoPathForMission(toMissionId), fromMissionId, toMissionId));
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to unlink tasks."));
+    }
+  };
+
+  // Ask the AI to break a draft task into sub-task nodes. It splits only when the
+  // task is genuinely several pieces; a coherent task comes back unchanged. When
+  // it splits, applyRepoState swaps the umbrella node for its sub-tasks.
+  const breakUpTask = async (missionId: string) => {
+    if (decomposingMissionId) return;
+    setMissionLoopError("");
+    setDecomposingMissionId(missionId);
+    try {
+      applyRepoState(await decomposeMissionLoopState(repoPathForMission(missionId), missionId, claudeModel));
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to break up the task."));
+    } finally {
+      setDecomposingMissionId("");
     }
   };
 
@@ -1168,6 +1186,7 @@ export function App() {
           selectedNodeId={selectedGraphNode?.id ?? ""}
           selectedMissionId={selectedMission?.id ?? ""}
           runningMissionIds={runningMissionIds}
+          decomposingMissionId={decomposingMissionId}
           onSelectNode={handleSelectNode}
           actions={{
             onRunTask: (missionId) => void dispatchMission(missionId),
@@ -1178,6 +1197,7 @@ export function App() {
             onCancelDraft: () => setDraftingTask(false),
             onLinkTasks: (from, to) => void linkTasks(from, to),
             onUnlinkTasks: (from, to) => void unlinkTasks(from, to),
+            onDecompose: (missionId) => void breakUpTask(missionId),
           }}
         />
 

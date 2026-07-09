@@ -108,6 +108,31 @@ func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, ses
 	return summary, sessionID
 }
 
+// QueryClaudeText asks Claude a single question and returns its plain-text
+// answer. Unlike callClaudeAgentic it grants no edit permissions and starts no
+// session — it's for read-only reasoning tasks (like breaking a task into
+// sub-tasks) where nothing should touch the repo. Errors if the CLI is absent.
+func QueryClaudeText(ctx context.Context, model, prompt string) (string, error) {
+	if !claudeCLIAvailable() {
+		return "", fmt.Errorf("claude CLI not found on PATH")
+	}
+
+	args := []string{"--print", "--output-format", "text"}
+	if model != "" {
+		args = append(args, "--model", model)
+	}
+	args = append(args, prompt)
+
+	cmd := exec.CommandContext(ctx, "claude", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return strings.TrimSpace(stdout.String()), nil
+}
+
 // describeToolUse renders a concise, human-readable line for a Claude tool call.
 func describeToolUse(name string, input json.RawMessage) string {
 	var fields struct {

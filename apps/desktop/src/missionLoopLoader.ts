@@ -50,6 +50,13 @@ export function unlinkMissionsLoopState(repoPath: string, fromMissionId: string,
   return invokeState("unlink_missions", { repoPath, fromMissionId, toMissionId });
 }
 
+// Ask the AI to break a draft task into sub-task nodes. Returns the refreshed
+// state: split → the umbrella node is replaced by its sub-tasks; atomic →
+// unchanged.
+export function decomposeMissionLoopState(repoPath: string, missionId: string, model = "") {
+  return invokeState("decompose_mission", { repoPath, missionId, model });
+}
+
 export function approvePatchMissionLoopState(repoPath: string, missionId: string) {
   return invokeState("approve_patch", { repoPath, missionId });
 }
