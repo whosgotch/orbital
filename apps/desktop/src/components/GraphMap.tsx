@@ -586,9 +586,10 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
   // Interactive controls carry `nodrag` so React Flow lets the click through
   // instead of starting a card drag. On a failed tool the button is a re-run.
   if ((node.kind === "task" || node.kind === "tool") && meta?.launchable) {
-    // A draft coding task can be broken into sub-tasks before it runs; tools are
-    // a fixed command and never split.
-    const splittable = node.kind === "task" && node.status === "draft";
+    // A coding task can be broken into sub-tasks before it runs; tools are a
+    // fixed command and never split. `launchable` already means "not yet run and
+    // not chain-blocked", which matches the worker's draft-only guard.
+    const splittable = node.kind === "task";
     return (
       <div className="node-card-actions">
         {splittable ? (
