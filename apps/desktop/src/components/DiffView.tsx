@@ -205,8 +205,7 @@ function FileSection({
                 <span className="diff-hunk-text">{line.text || "…"}</span>
               ) : (
                 <>
-                  <span className="diff-gutter">{line.oldNo ?? ""}</span>
-                  <span className="diff-gutter">{line.newNo ?? ""}</span>
+                  <span className="diff-gutter">{(line.kind === "del" ? line.oldNo : line.newNo) ?? ""}</span>
                   <span className="diff-sign">{line.kind === "add" ? "+" : line.kind === "del" ? "−" : " "}</span>
                   <span className="diff-code hljs" dangerouslySetInnerHTML={{ __html: lineHtml(line, language) }} />
                 </>
