@@ -24,6 +24,9 @@ type Service struct {
 	// decompose breaks a task into sub-tasks; nil uses the claude-backed default.
 	// Overridable so DecomposeMission is testable without the CLI.
 	decompose decomposeFunc
+	// plan produces a repo-level plan; nil uses the claude-backed default.
+	// Overridable so PlanRepo is testable without the CLI.
+	plan planFunc
 }
 
 func NewService(store *store.JSONStore) *Service {
@@ -56,4 +59,10 @@ func (s *Service) RegisterWorker(w agent.Worker) {
 // deterministic one instead of the claude CLI).
 func (s *Service) SetDecomposer(fn decomposeFunc) {
 	s.decompose = fn
+}
+
+// SetPlanner overrides how a repo is planned (tests inject a deterministic one
+// instead of the claude CLI).
+func (s *Service) SetPlanner(fn planFunc) {
+	s.plan = fn
 }

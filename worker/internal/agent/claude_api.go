@@ -133,6 +133,31 @@ func QueryClaudeText(ctx context.Context, model, prompt string) (string, error) 
 	return strings.TrimSpace(stdout.String()), nil
 }
 
+// QueryClaudeInRepo asks Claude a question it can answer by reading the repo,
+// returning its plain-text answer. It runs in plan permission mode — Claude may
+// read/search files but cannot edit them — so it's safe for repo-aware planning.
+func QueryClaudeInRepo(ctx context.Context, repoPath, model, prompt string) (string, error) {
+	if !claudeCLIAvailable() {
+		return "", fmt.Errorf("claude CLI not found on PATH")
+	}
+
+	args := []string{"--print", "--permission-mode", "plan", "--output-format", "text"}
+	if model != "" {
+		args = append(args, "--model", model)
+	}
+	args = append(args, prompt)
+
+	cmd := exec.CommandContext(ctx, "claude", args...)
+	cmd.Dir = repoPath
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return strings.TrimSpace(stdout.String()), nil
+}
+
 // describeToolUse renders a concise, human-readable line for a Claude tool call.
 func describeToolUse(name string, input json.RawMessage) string {
 	var fields struct {

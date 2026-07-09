@@ -10,6 +10,7 @@ type State struct {
 	PatchProposals   []domain.PatchProposal   `json:"patch_proposals"`
 	VerificationRuns []domain.VerificationRun `json:"verification_runs"`
 	ChatMessages     []domain.ChatMessage     `json:"chat_messages"`
+	Plans            []domain.Plan            `json:"plans"`
 }
 
 func (s *State) Normalize() {
@@ -33,5 +34,8 @@ func (s *State) Normalize() {
 	}
 	if s.ChatMessages == nil {
 		s.ChatMessages = []domain.ChatMessage{}
+	}
+	if s.Plans == nil {
+		s.Plans = []domain.Plan{}
 	}
 }
