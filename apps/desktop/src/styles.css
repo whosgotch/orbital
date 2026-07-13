@@ -242,7 +242,8 @@ h3 {
   justify-content: flex-start;
 }
 
-.model-popover {
+/* Wins over the base .popover placement, which is declared later in the file. */
+.popover.model-popover {
   top: 34px;
   bottom: auto;
   left: auto;
@@ -2052,14 +2053,18 @@ dd {
   fill: var(--soft);
 }
 
-.react-flow__controls {
-  left: 16px;
-  bottom: 16px;
+/* Controls and minimap sit above the prompt bar's strip, so the bar never
+   covers them even on narrow windows. Margins steer the React Flow panels —
+   their own .react-flow__panel.bottom rule pins bottom: 0. */
+.react-flow__panel.react-flow__controls {
+  margin: 0 0 96px 16px;
+}
+
+.react-flow__panel.react-flow__minimap {
+  margin: 0 0 184px 16px;
 }
 
 .react-flow__minimap {
-  left: 16px;
-  bottom: 104px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 6px;
