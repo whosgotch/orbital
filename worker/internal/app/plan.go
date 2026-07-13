@@ -19,6 +19,15 @@ type PlanResult struct {
 	Subtasks []ProposedSubtask
 }
 
+// ProposedSubtask is one task the planner carved the goal into. DependsOn
+// holds indices of earlier sub-tasks that must land first, so the app can draw
+// the same waits/parallel structure a human would by hand.
+type ProposedSubtask struct {
+	Title     string `json:"title"`
+	Text      string `json:"text"`
+	DependsOn []int  `json:"dependsOn"`
+}
+
 // planFunc explores a repo toward a goal and returns a plan, reporting each
 // step (thought/action) to onStep as it happens. Injectable so PlanRepo is
 // testable without the claude CLI.
@@ -215,4 +224,16 @@ func parsePlanResult(raw string) (PlanResult, error) {
 		return PlanResult{}, nil
 	}
 	return PlanResult{Content: parsed.Plan, Subtasks: parsed.Subtasks}, nil
+}
+
+// extractJSONObject slices out the first {...} span, so a model that wraps its
+// JSON in ```json fences or a sentence still parses.
+func extractJSONObject(s string) string {
+	s = strings.TrimSpace(s)
+	start := strings.IndexByte(s, '{')
+	end := strings.LastIndexByte(s, '}')
+	if start >= 0 && end > start {
+		return s[start : end+1]
+	}
+	return s
 }

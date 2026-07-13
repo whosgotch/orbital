@@ -32,8 +32,6 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return editMission(args, stdout)
 	case "link":
 		return linkMissions(args, stdout)
-	case "decompose":
-		return decomposeMission(ctx, args, stdout)
 	case "plan":
 		return planRepo(ctx, args, stdout)
 	case "unlink":
@@ -64,5 +62,5 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 }
 
 func usageError() error {
-	return fmt.Errorf("usage: orbital open <repo-path>\n       orbital queue <repo-path> <mission-text> [--campaign <id>] [--tool <command>]\n       orbital edit-mission <repo-path> <mission-id> <text>\n       orbital link <repo-path> <from-mission-id> <to-mission-id>\n       orbital unlink <repo-path> <from-mission-id> <to-mission-id>\n       orbital decompose <repo-path> <mission-id> [--model <id>]\n       orbital plan <repo-path> [goal] [--format md|html|text] [--model <id>]\n       orbital start-run <repo-path> <mission-id>\n       orbital send-message <repo-path> <mission-id> <text>\n       orbital approve <repo-path> <mission-id>\n       orbital reject <repo-path> <mission-id>\n       orbital verify <repo-path> <mission-id> <verification-command>\n       orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital history <repo-path>\n       orbital history --json <repo-path>\n       orbital show <repo-path> <commit-hash>\n       orbital demo-fixture <repo-path>")
+	return fmt.Errorf("usage: orbital open <repo-path>\n       orbital queue <repo-path> <mission-text> [--campaign <id>] [--tool <command>]\n       orbital edit-mission <repo-path> <mission-id> <text>\n       orbital link <repo-path> <from-mission-id> <to-mission-id>\n       orbital unlink <repo-path> <from-mission-id> <to-mission-id>\n       orbital plan <repo-path> [goal] [--format md|html|text] [--model <id>]\n       orbital start-run <repo-path> <mission-id>\n       orbital send-message <repo-path> <mission-id> <text>\n       orbital approve <repo-path> <mission-id>\n       orbital reject <repo-path> <mission-id>\n       orbital verify <repo-path> <mission-id> <verification-command>\n       orbital run <repo-path> <mission-text> <verification-command>\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital history <repo-path>\n       orbital history --json <repo-path>\n       orbital show <repo-path> <commit-hash>\n       orbital demo-fixture <repo-path>")
 }
