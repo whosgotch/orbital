@@ -55,7 +55,6 @@ import {
 } from "./workspaceAdapter";
 import {
   approvePatchMissionLoopState,
-  decomposeMissionLoopState,
   deleteMissionLoopState,
   demoRepoPath,
   linkMissionsLoopState,
@@ -106,10 +105,6 @@ export function App() {
   const [repoPathDraft, setRepoPathDraft] = useState(demoRepoPath);
   const [activeRepoPath, setActiveRepoPath] = useState(demoRepoPath);
   const [selectedNodeId, setSelectedNodeId] = useState("");
-  const [decomposingMissionId, setDecomposingMissionId] = useState("");
-  // Task the AI just declined to split: its card briefly says "kept whole" so
-  // an atomic verdict isn't silent.
-  const [keptWholeMissionId, setKeptWholeMissionId] = useState("");
   const [planningRepoId, setPlanningRepoId] = useState("");
   // The AI's streamed steps while a plan is in flight — shown live on the
   // surface that started the plan (draft card or repo panel), then discarded.
@@ -510,32 +505,6 @@ export function App() {
   const planGoalOnCanvas = (text: string) => {
     if (!draftRepository) return;
     void planRepo(draftRepository, text, "md");
-  };
-
-  // Ask the AI to break a draft task into sub-task nodes. It splits only when the
-  // task is genuinely several pieces; a coherent task comes back unchanged. When
-  // it splits, applyRepoState swaps the umbrella node for its sub-tasks.
-  const breakUpTask = async (missionId: string) => {
-    if (decomposingMissionId) return;
-    setMissionLoopError("");
-    setDecomposingMissionId(missionId);
-    setKeptWholeMissionId("");
-    try {
-      const state = await decomposeMissionLoopState(repoPathForMission(missionId), missionId, claudeModel);
-      applyRepoState(state);
-      // The mission surviving the round-trip means the AI kept it whole — show
-      // that verdict on the card for a moment instead of doing nothing visible.
-      if ((state.missions ?? []).some((mission) => mission.id === missionId)) {
-        setKeptWholeMissionId(missionId);
-        window.setTimeout(() => {
-          setKeptWholeMissionId((current) => (current === missionId ? "" : current));
-        }, 6000);
-      }
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to break up the task."));
-    } finally {
-      setDecomposingMissionId("");
-    }
   };
 
   const runningMissionIds = useMemo(
@@ -1254,8 +1223,6 @@ export function App() {
           selectedNodeId={selectedGraphNode?.id ?? ""}
           selectedMissionId={selectedMission?.id ?? ""}
           runningMissionIds={runningMissionIds}
-          decomposingMissionId={decomposingMissionId}
-          keptWholeMissionId={keptWholeMissionId}
           planningActive={planningRepoId !== ""}
           planFeed={planFeed}
           onSelectNode={handleSelectNode}
@@ -1269,7 +1236,6 @@ export function App() {
             onCancelDraft: () => setDraftingTask(false),
             onLinkTasks: (from, to) => void linkTasks(from, to),
             onUnlinkTasks: (from, to) => void unlinkTasks(from, to),
-            onDecompose: (missionId) => void breakUpTask(missionId),
           }}
         />
 

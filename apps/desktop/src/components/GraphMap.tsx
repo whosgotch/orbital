@@ -17,7 +17,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, Loader, Play, ShieldCheck, Sparkles, Split, X } from "lucide-react";
+import { Check, Loader, Play, ShieldCheck, Sparkles, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
 import type { PlanFeedItem } from "../domain";
@@ -44,9 +44,6 @@ export type NodeActions = {
   // upstream patch to land; deleting the edge dissolves the dependency.
   onLinkTasks: (fromMissionId: string, toMissionId: string) => void;
   onUnlinkTasks: (fromMissionId: string, toMissionId: string) => void;
-  // Ask the AI to break a draft task into sub-task nodes (no-op when the task
-  // is one coherent change). Shown only on draft task cards.
-  onDecompose: (missionId: string) => void;
   // Plan a typed goal instead of queueing it: the AI reads the repo and fans
   // the goal out into a plan node plus its tasks. The big-task path.
   onPlanGoal: (text: string) => void;
@@ -60,10 +57,6 @@ type OrbitalNodeData = {
   missionId?: string;
   meta?: GraphNodeMeta;
   actions: NodeActions;
-  // True while the AI is breaking this task into sub-tasks.
-  decomposing?: boolean;
-  // True just after the AI declined to split this task (it's one coherent change).
-  keptWhole?: boolean;
   // Set on the draft card while a plan is in flight: the card stays open and
   // shows the AI's streamed thinking instead of its action buttons.
   planning?: boolean;
@@ -77,8 +70,6 @@ type GraphMapProps = {
   selectedNodeId: string;
   selectedMissionId: string;
   runningMissionIds: Set<string>;
-  decomposingMissionId: string;
-  keptWholeMissionId: string;
   planningActive: boolean;
   planFeed: PlanFeedItem[];
   onSelectNode: (nodeId: string) => void;
@@ -105,7 +96,7 @@ function edgeDash(kind: string) {
 
 const nodeTypes = { orbital: OrbitalNode };
 
-export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId, keptWholeMissionId, planningActive, planFeed, onSelectNode, actions }: GraphMapProps) {
+export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, planningActive, planFeed, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // Only nodes the user explicitly dragged are pinned here. Everything else is
@@ -128,7 +119,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       onCancelDraft: () => actionsRef.current.onCancelDraft(),
       onLinkTasks: (from, to) => actionsRef.current.onLinkTasks(from, to),
       onUnlinkTasks: (from, to) => actionsRef.current.onUnlinkTasks(from, to),
-      onDecompose: (id) => actionsRef.current.onDecompose(id),
       onPlanGoal: (text) => actionsRef.current.onPlanGoal(text),
     }),
     [],
@@ -191,13 +181,11 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       missionId: node.mission_id,
       meta: node.meta,
       actions: stableActions,
-      decomposing: node.mission_id != null && node.mission_id === decomposingMissionId,
-      keptWhole: node.mission_id != null && node.mission_id === keptWholeMissionId,
       // Only the draft card carries the live plan feed; other nodes stay lean.
       planning: node.meta?.draft ? planningActive : undefined,
       planFeed: node.meta?.draft && planningActive ? planFeed : undefined,
     }),
-    [stableActions, decomposingMissionId, keptWholeMissionId, planningActive, planFeed],
+    [stableActions, planningActive, planFeed],
   );
 
   // Re-layout only when the graph's structure changes (nodes or edges added /
@@ -245,7 +233,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     );
     setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId, keptWholeMissionId, planningActive, planFeed]);
+  }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, planningActive, planFeed]);
 
   const onNodeDragStop = useCallback((_event: unknown, node: Node) => {
     manualPositionsRef.current[node.id] = node.position;
@@ -645,35 +633,11 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
   // Interactive controls carry `nodrag` so React Flow lets the click through
   // instead of starting a card drag. On a failed tool the button is a re-run.
   if ((node.kind === "task" || node.kind === "tool") && meta?.launchable) {
-    // A coding task can be broken into sub-tasks before it runs; tools are a
-    // fixed command and never split. `launchable` already means "not yet run and
-    // not chain-blocked", which matches the worker's draft-only guard.
-    const splittable = node.kind === "task";
     return (
       <div className="node-card-actions">
-        {node.keptWhole ? (
-          <span className="node-kept-whole" title="The AI judged this one coherent change — nothing to split">
-            ⏺ kept whole
-          </span>
-        ) : splittable ? (
-          <button
-            type="button"
-            className="node-btn nodrag"
-            disabled={node.decomposing}
-            onClick={(event) => {
-              event.stopPropagation();
-              act.onDecompose(missionId);
-            }}
-            title="Let the AI plan a split into sub-tasks"
-          >
-            {node.decomposing ? <Loader size={12} className="spin" aria-hidden="true" /> : <Split size={12} aria-hidden="true" />}
-            {node.decomposing ? "Planning…" : "Break up"}
-          </button>
-        ) : null}
         <button
           type="button"
           className="node-btn primary nodrag"
-          disabled={node.decomposing}
           onClick={(event) => {
             event.stopPropagation();
             act.onRunTask(missionId);

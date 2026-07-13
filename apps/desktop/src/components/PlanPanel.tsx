@@ -46,7 +46,7 @@ export function PlanPanel({ plan, taskCount }: { plan: Plan; taskCount: number }
           )}
         </div>
 
-        <p className="plan-foot">The tasks this plan proposes are on the canvas — run, break up, or delete them.</p>
+        <p className="plan-foot">The tasks this plan proposes are on the canvas — run, edit, or delete them.</p>
       </section>
     </aside>
   );
