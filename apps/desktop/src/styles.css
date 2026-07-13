@@ -2127,6 +2127,21 @@ dd {
   border-color: rgba(226, 97, 95, 0.6);
 }
 
+/* Landed work fades into the fabric: still on the canvas, still clickable,
+   but the eye goes to what's moving. Hover or selection brings it forward. */
+.node-card.approved,
+.node-card.verified {
+  opacity: 0.55;
+  transition: opacity 180ms ease;
+}
+
+.node-card.approved:hover,
+.node-card.verified:hover,
+.node-card.approved.selected,
+.node-card.verified.selected {
+  opacity: 1;
+}
+
 .node-card-head {
   display: flex;
   align-items: center;
