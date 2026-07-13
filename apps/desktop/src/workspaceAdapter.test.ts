@@ -98,6 +98,31 @@ describe("workspaceViewFromMissionLoop", () => {
     ]);
   });
 
+  it("renders a plan as a node spawning the tasks linked to it", () => {
+    const view = workspaceViewFromMissionLoop(
+      state({
+        plans: [
+          {
+            id: "plan1",
+            repository_id: "r1",
+            goal: "add config parsing",
+            format: "md",
+            content: "## Plan",
+            created_at: "2026-07-01T00:00:00Z",
+          },
+        ],
+        missions: [mission({ plan_id: "plan1" }), mission({ id: "m2", plan_id: "plan1", depends_on: ["m1"] })],
+      }),
+    );
+    const planNode = view.graphNodes.find((node) => node.kind === "plan");
+    expect(planNode?.id).toBe("plan1");
+    expect(planNode?.meta?.taskCount).toBe(2);
+    expect(view.graphEdges.filter((edge) => edge.kind === "spawns")).toEqual([
+      { id: "plan_plan1_m1", from: "plan1", to: "m1", kind: "spawns" },
+      { id: "plan_plan1_m2", from: "plan1", to: "m2", kind: "spawns" },
+    ]);
+  });
+
   it("maps verification results onto mission status", () => {
     const verification: VerificationRun = {
       id: "v1",
