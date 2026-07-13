@@ -81,131 +81,88 @@ h3 {
 }
 
 .canvas-shell {
-  /* Width of the docked task panel on the right edge. */
+  /* Width of the docked task panel on the right edge, and the height of the
+     top operating bar the panel and canvas sit under. */
   --task-panel-width: min(440px, calc(100vw - 560px));
+  --topbar-height: 44px;
   position: relative;
   display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100vh;
   overflow: hidden;
 }
 
-/* Left sidebar: the operating chrome — repos, tasks, history, model. The
-   canvas and the task panel are the only other surfaces. */
-.sidebar {
-  flex: 0 0 236px;
-  min-width: 0;
+/* The top bar: all operating chrome in one strip — brand, open repos, and the
+   workspace actions. The canvas below stays uncovered. */
+.topbar {
+  flex: 0 0 var(--topbar-height);
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
   background: var(--panel);
-  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
-.sidebar-brand {
-  flex: 0 0 auto;
+.topbar-brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--line);
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
 }
 
-.sidebar-refresh {
-  margin-left: auto;
-}
-
-.sidebar-section {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border-bottom: 1px solid var(--line);
-}
-
-.sidebar-section > .section-label {
-  display: block;
-}
-
-/* The task list owns the leftover vertical space and scrolls internally. */
-.sidebar-tasks {
-  flex: 1 1 auto;
-  min-height: 0;
-  border-bottom: none;
-}
-
-.sidebar-tasks .control-list {
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: none;
-}
-
-.sidebar-tasks-head {
+/* Open repositories as tabs: click activates, x closes. */
+.topbar-repos {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-
-.sidebar-new-task-row {
-  display: flex;
-  gap: 6px;
-}
-
-.sidebar-new-task {
-  flex: 1 1 auto;
-}
-
-.sidebar-repo-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.sidebar-repo-actions .secondary {
-  flex: 1 1 auto;
-}
-
-.workspace-repo {
-  flex: 1;
+  gap: 4px;
   min-width: 0;
-  display: flex;
+  overflow-x: auto;
+}
+
+.repo-tab {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--soft);
+  white-space: nowrap;
+}
+
+.repo-tab.active {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.repo-tab-name {
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--soft);
+  color: inherit;
   font: inherit;
   font-size: 12.5px;
   cursor: pointer;
-  text-align: left;
 }
 
-.workspace-repos li.active {
-  border-color: var(--line-strong);
-}
-
-.workspace-repos li.active .workspace-repo {
-  color: var(--text);
+.repo-tab.active .repo-tab-name {
   font-weight: 600;
 }
 
-.sidebar-footer {
+.topbar-actions {
   position: relative;
-  flex: 0 0 auto;
+  margin-left: auto;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border-top: 1px solid var(--line);
+  align-items: center;
+  gap: 4px;
 }
 
-.sidebar-history {
-  justify-content: flex-start;
+.topbar-model {
+  position: relative;
 }
 
 .canvas-area {
@@ -270,21 +227,20 @@ h3 {
 }
 
 /* Model picker: a curated family with plain-language guidance, opened from
-   the sidebar footer. The trigger shows the current pick's friendly name. */
+   the top bar. The trigger shows the current pick's friendly name. */
 .model-trigger {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   justify-content: flex-start;
-  width: 100%;
 }
 
 .model-popover {
-  top: auto;
-  bottom: 48px;
-  left: 12px;
-  right: 12px;
-  width: auto;
+  top: 34px;
+  bottom: auto;
+  left: auto;
+  right: 0;
+  width: 300px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -457,7 +413,7 @@ h3 {
    Fixed chat-sized width; full diff review lives in the expand modal. */
 .inspector {
   position: absolute;
-  top: 0;
+  top: calc(var(--topbar-height) + 1px);
   right: 0;
   bottom: 0;
   z-index: 4;
@@ -1449,6 +1405,31 @@ button.mini-text {
   gap: 6px;
   max-width: 320px;
   text-align: center;
+  /* The hint layer swallows clicks; the card itself is interactive — it
+     carries the open/recent/demo affordances when nothing is open. */
+  pointer-events: auto;
+}
+
+.canvas-hint-card > .secondary {
+  margin-top: 8px;
+  justify-content: center;
+}
+
+.canvas-hint-recent {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.canvas-hint-recent li {
+  display: flex;
+  padding: 6px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
 }
 
 .canvas-hint-title {
@@ -1668,63 +1649,10 @@ select:focus {
   flex: 0 0 auto;
 }
 
-.control-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-.control-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px 6px 6px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-}
-
-.control-list li.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent-soft);
-}
-
-.control-row {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  text-align: left;
-}
-
-.control-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .control-repo {
   flex: 0 0 auto;
   color: var(--muted);
   font-size: 11px;
-}
-
-.control-actions {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 5px;
 }
 
 button.mini {
@@ -1767,60 +1695,6 @@ button.ghost.danger:hover {
 
 .control-state.blocked {
   color: var(--red);
-}
-
-.status-dot {
-  flex: 0 0 auto;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #39414f;
-}
-
-.status-dot.running {
-  background: #d9a441;
-  box-shadow: 0 0 0 3px rgba(217, 164, 65, 0.18);
-}
-
-.status-dot.review,
-.status-dot.approved {
-  background: var(--accent);
-}
-
-.status-dot.verified {
-  background: var(--green);
-}
-
-.status-dot.blocked {
-  background: var(--red);
-}
-
-.workspace-repos {
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.workspace-repos li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px 7px 10px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-}
-
-.workspace-repos li svg {
-  color: var(--muted);
-  flex: 0 0 auto;
-}
-
-.recent-label {
-  margin-top: 12px;
 }
 
 /* A recent repo row is one whole click target that reopens the repo. */
@@ -1877,16 +1751,6 @@ button.ghost.danger:hover {
   width: 38px;
   flex: 0 0 38px;
   padding: 0;
-}
-
-.workspace-input-row {
-  display: flex;
-  gap: 8px;
-}
-
-.workspace-input-row input {
-  flex: 1;
-  min-width: 0;
 }
 
 .metric-grid {

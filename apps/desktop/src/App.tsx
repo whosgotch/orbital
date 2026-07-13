@@ -7,9 +7,8 @@ import {
   CircleDot,
   Cpu,
   History,
-  Network,
   Pencil,
-  Play,
+  Plus,
   RefreshCw,
   Rocket,
   Terminal,
@@ -103,7 +102,6 @@ export function App() {
   const cancelledMissionsRef = useRef<Set<string>>(new Set());
   const [refreshingMissionLoop, setRefreshingMissionLoop] = useState(false);
   const [missionLoopError, setMissionLoopError] = useState("");
-  const [repoPathDraft, setRepoPathDraft] = useState(demoRepoPath);
   const [activeRepoPath, setActiveRepoPath] = useState(demoRepoPath);
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const [planningRepoId, setPlanningRepoId] = useState("");
@@ -544,8 +542,6 @@ export function App() {
     [workspaceMissions, runtimeByMission],
   );
 
-  const missionAwaitsApproval = (missionId: string) =>
-    (patchDiffByMission[missionId] ?? "") !== "" && runtimeByMission[missionId]?.patchStatus === "pending";
   const missionIsLaunchable = (missionId: string) => {
     const status = runtimeByMission[missionId]?.status;
     if (status === undefined || status === "queued" || status === "draft") return true;
@@ -935,11 +931,6 @@ export function App() {
     }
   };
 
-  const openWorkspace = async () => {
-    const repoPath = repoPathDraft.trim();
-    if (repoPath) await openRepoAtPath(repoPath);
-  };
-
   const chooseWorkspaceFolder = async () => {
     setMissionLoopError("");
 
@@ -954,7 +945,6 @@ export function App() {
         return;
       }
 
-      setRepoPathDraft(repoPath);
       await openRepoAtPath(repoPath);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to choose repository folder."));
@@ -962,7 +952,6 @@ export function App() {
   };
 
   const loadDemoFactory = async () => {
-    setRepoPathDraft(demoRepoPath);
     setActiveRepoPath(demoRepoPath);
     await refreshMissionLoop();
   };
@@ -996,7 +985,6 @@ export function App() {
             applyRepoState(await openMissionLoopRepository(repoPath));
             if (!reopened) {
               setActiveRepoPath(repoPath);
-              setRepoPathDraft(repoPath);
             }
             reopened = true;
           } catch (error) {
@@ -1052,12 +1040,120 @@ export function App() {
 
   return (
     <main className={`canvas-shell${selectedMission || selectedPlan || selectedRepoForPlan ? " panel-open" : ""}`}>
-      <aside className="sidebar">
-        <div className="sidebar-brand">
+      <header className="topbar">
+        <div className="topbar-brand">
           <CircleDot size={16} aria-hidden="true" />
           <span>Orbital</span>
+        </div>
+
+        <div className="topbar-repos">
+          {missionLoopState.repositories.map((repo) => (
+            <span key={repo.id} className={`repo-tab ${repo.path === activeRepoPath ? "active" : ""}`}>
+              <button
+                className="repo-tab-name"
+                type="button"
+                onClick={() => {
+                  setActiveRepoPath(repo.path);
+                }}
+                title={repo.path}
+              >
+                {repo.name}
+              </button>
+              <button
+                className="repo-close"
+                type="button"
+                onClick={() => closeRepo(repo.id)}
+                title="Close repository"
+                aria-label={`Close ${repo.name}`}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </span>
+          ))}
           <button
-            className="ghost icon-button sidebar-refresh"
+            className="ghost icon-button"
+            type="button"
+            onClick={chooseWorkspaceFolder}
+            disabled={refreshingMissionLoop}
+            title="Open a repository"
+            aria-label="Open a repository"
+          >
+            <FolderOpen size={14} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="topbar-actions">
+          {launchableCount > 1 ? (
+            <button className="ghost mini-text" type="button" onClick={launchAllMissions} title="Launch every queued task in parallel">
+              Run all
+            </button>
+          ) : null}
+          <button
+            className="ghost icon-button"
+            type="button"
+            onClick={() => setDraftingTask(true)}
+            disabled={!draftRepository}
+            title={draftRepository ? "Draft a task card on the canvas" : "Open a repository first"}
+            aria-label="Draft a task card"
+          >
+            <Plus size={15} aria-hidden="true" />
+          </button>
+          <button
+            className={`ghost icon-button ${openPanel === "mission" ? "active" : ""}`}
+            type="button"
+            onClick={() => togglePanel("mission")}
+            title="Queue a backlog or multi-repo campaign"
+            aria-label="Queue a backlog or campaign"
+          >
+            <Rocket size={14} aria-hidden="true" />
+          </button>
+          <button
+            className={`ghost icon-button ${openPanel === "history" ? "active" : ""}`}
+            type="button"
+            onClick={() => togglePanel("history")}
+            title="Git history"
+            aria-label="Git history"
+          >
+            <History size={14} aria-hidden="true" />
+          </button>
+          <div className="topbar-model">
+            <button
+              type="button"
+              className={`chip model-trigger ${modelPickerOpen ? "active" : ""}`}
+              title="Model used by every AI run and chat turn"
+              aria-haspopup="listbox"
+              aria-expanded={modelPickerOpen}
+              onClick={() => setModelPickerOpen((open) => !open)}
+            >
+              <Cpu size={14} aria-hidden="true" />
+              <span>{modelName(claudeModel)}</span>
+            </button>
+            {modelPickerOpen ? (
+              <div className="popover model-popover" role="listbox" aria-label="Claude model">
+                {CURATED_MODELS.map((model) => (
+                  <button
+                    key={model.id}
+                    type="button"
+                    role="option"
+                    aria-selected={claudeModel === model.id}
+                    className={`model-option ${claudeModel === model.id ? "active" : ""}`}
+                    onClick={() => {
+                      pickClaudeModel(model.id);
+                      setModelPickerOpen(false);
+                    }}
+                  >
+                    <span className="model-option-name">
+                      {model.name}
+                      {claudeModel === model.id ? <Check size={12} aria-hidden="true" /> : null}
+                    </span>
+                    <span className="model-option-blurb">{model.blurb}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <button
+            className="ghost icon-button"
             type="button"
             onClick={refreshMissionLoop}
             disabled={refreshingMissionLoop}
@@ -1067,214 +1163,7 @@ export function App() {
             <RefreshCw size={14} aria-hidden="true" />
           </button>
         </div>
-
-        <div className="sidebar-section">
-          <div className="section-label">Repositories</div>
-          {missionLoopState.repositories.length > 0 ? (
-            <ul className="workspace-repos">
-              {missionLoopState.repositories.map((repo) => (
-                <li key={repo.id} className={repo.path === activeRepoPath ? "active" : ""}>
-                  <button
-                    className="workspace-repo"
-                    type="button"
-                    onClick={() => {
-                      setActiveRepoPath(repo.path);
-                      setRepoPathDraft(repo.path);
-                    }}
-                    title={repo.path}
-                  >
-                    <Network size={14} aria-hidden="true" />
-                    <span className="workspace-repo-name">{repo.name}</span>
-                  </button>
-                  <button
-                    className="repo-close"
-                    type="button"
-                    onClick={() => closeRepo(repo.id)}
-                    title="Close repository"
-                    aria-label={`Close ${repo.name}`}
-                  >
-                    <X size={13} aria-hidden="true" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {(() => {
-            // Recently opened repos that aren't on the canvas — one click reopens.
-            const openPaths = new Set(missionLoopState.repositories.map((repo) => repo.path));
-            const recent = recentRepoPaths().filter((path) => !openPaths.has(path));
-            if (recent.length === 0) return null;
-            return (
-              <>
-                <div className="section-label recent-label">Recent</div>
-                <ul className="workspace-repos">
-                  {recent.map((path) => (
-                    <li key={path}>
-                      <button
-                        className="recent-repo"
-                        type="button"
-                        onClick={() => void openRepoAtPath(path)}
-                        disabled={refreshingMissionLoop}
-                        title={path}
-                      >
-                        <FolderOpen size={14} aria-hidden="true" />
-                        <span className="workspace-repo-name">{repoNameFromPath(path)}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            );
-          })()}
-          <div className="workspace-input-row">
-            <input
-              aria-label="Repository path"
-              placeholder="/path/to/repository"
-              value={repoPathDraft}
-              onChange={(event) => setRepoPathDraft(event.target.value)}
-            />
-            <button
-              className="secondary icon-button"
-              type="button"
-              onClick={chooseWorkspaceFolder}
-              disabled={refreshingMissionLoop}
-              title="Browse for a folder"
-              aria-label="Browse for a folder"
-            >
-              <FolderOpen size={14} aria-hidden="true" />
-            </button>
-          </div>
-          <div className="sidebar-repo-actions">
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => void openWorkspace()}
-              disabled={!repoPathDraft.trim() || refreshingMissionLoop}
-            >
-              Add repo
-            </button>
-            <button className="ghost mini-text" type="button" onClick={loadDemoFactory} disabled={refreshingMissionLoop}>
-              Demo
-            </button>
-          </div>
-        </div>
-
-        <div className="sidebar-section sidebar-tasks">
-          <div className="section-label sidebar-tasks-head">
-            <span>Tasks</span>
-            {launchableCount > 1 ? (
-              <button className="ghost mini-text" type="button" onClick={launchAllMissions} title="Launch every queued task in parallel">
-                Run all
-              </button>
-            ) : null}
-          </div>
-          <div className="sidebar-new-task-row">
-            <button
-              className="secondary sidebar-new-task"
-              type="button"
-              onClick={() => setDraftingTask(true)}
-              disabled={!draftRepository}
-              title={draftRepository ? "Draft a task on the canvas" : "Add a repository first"}
-            >
-              New task
-            </button>
-            <button
-              className={`secondary icon-button ${openPanel === "mission" ? "active" : ""}`}
-              type="button"
-              onClick={() => togglePanel("mission")}
-              title="Queue a backlog or multi-repo campaign"
-              aria-label="Queue a backlog or campaign"
-            >
-              <Rocket size={14} aria-hidden="true" />
-            </button>
-          </div>
-          <ul className="control-list">
-            {workspaceMissions.map((mission) => {
-              const runtime = runtimeByMission[mission.id];
-              const status = runtime ? statusFromRuntime(runtime) : undefined;
-              return (
-                <li key={mission.id} className={mission.id === selectedMission?.id ? "selected" : ""}>
-                  <button type="button" className="control-row" onClick={() => setSelectedNodeId(mission.id)}>
-                    <span className={`status-dot ${status ?? ""}`} aria-hidden="true" />
-                    <span className="control-title">{mission.title}</span>
-                  </button>
-                  <div className="control-actions">
-                    {missionAwaitsApproval(mission.id) ? (
-                      <>
-                        <button className="secondary mini" type="button" onClick={() => void rejectMission(mission.id)} title="Reject">
-                          <X size={13} aria-hidden="true" />
-                        </button>
-                        <button className="primary mini" type="button" onClick={() => void approveMission(mission.id)} title="Approve + apply">
-                          <Check size={13} aria-hidden="true" />
-                        </button>
-                      </>
-                    ) : missionIsLaunchable(mission.id) ? (
-                      <button className="primary mini" type="button" onClick={() => void dispatchMission(mission.id)} title="Launch">
-                        <Play size={13} aria-hidden="true" />
-                      </button>
-                    ) : null}
-                    <button
-                      className="ghost mini danger"
-                      type="button"
-                      onClick={() => void deleteMission(mission.id)}
-                      title={status === "running" ? "Delete — shuts the agent down" : "Delete task"}
-                      aria-label="Delete task"
-                    >
-                      <Trash2 size={13} aria-hidden="true" />
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        <div className="sidebar-footer">
-          <button
-            className={`chip sidebar-history ${openPanel === "history" ? "active" : ""}`}
-            type="button"
-            onClick={() => togglePanel("history")}
-            title="Git history"
-          >
-            <History size={14} aria-hidden="true" />
-            <span>History</span>
-          </button>
-          <button
-            type="button"
-            className={`chip model-trigger ${modelPickerOpen ? "active" : ""}`}
-            title="Model used by every AI run and chat turn"
-            aria-haspopup="listbox"
-            aria-expanded={modelPickerOpen}
-            onClick={() => setModelPickerOpen((open) => !open)}
-          >
-            <Cpu size={14} aria-hidden="true" />
-            <span>{modelName(claudeModel)}</span>
-          </button>
-          {modelPickerOpen ? (
-            <div className="popover model-popover" role="listbox" aria-label="Claude model">
-              {CURATED_MODELS.map((model) => (
-                <button
-                  key={model.id}
-                  type="button"
-                  role="option"
-                  aria-selected={claudeModel === model.id}
-                  className={`model-option ${claudeModel === model.id ? "active" : ""}`}
-                  onClick={() => {
-                    pickClaudeModel(model.id);
-                    setModelPickerOpen(false);
-                  }}
-                >
-                  <span className="model-option-name">
-                    {model.name}
-                    {claudeModel === model.id ? <Check size={12} aria-hidden="true" /> : null}
-                  </span>
-                  <span className="model-option-blurb">{model.blurb}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </aside>
+      </header>
 
       <div className="canvas-area">
         <GraphMap
@@ -1388,9 +1277,43 @@ export function App() {
               </span>
               <p>
                 {missionLoopState.repositories.length === 0
-                  ? "Add a repository from the sidebar to put it on the canvas."
-                  : "Draft a task from the sidebar — an agent picks it up from there."}
+                  ? "Open a repository to put it on the canvas."
+                  : "Describe a task in the prompt bar below — an agent picks it up from there."}
               </p>
+              {missionLoopState.repositories.length === 0 ? (
+                <>
+                  <button className="secondary" type="button" onClick={chooseWorkspaceFolder} disabled={refreshingMissionLoop}>
+                    <FolderOpen size={14} aria-hidden="true" />
+                    <span>Open repository</span>
+                  </button>
+                  {(() => {
+                    // Recently opened repos — one click reopens.
+                    const recent = recentRepoPaths();
+                    if (recent.length === 0) return null;
+                    return (
+                      <ul className="canvas-hint-recent">
+                        {recent.map((path) => (
+                          <li key={path}>
+                            <button
+                              className="recent-repo"
+                              type="button"
+                              onClick={() => void openRepoAtPath(path)}
+                              disabled={refreshingMissionLoop}
+                              title={path}
+                            >
+                              <FolderOpen size={14} aria-hidden="true" />
+                              <span className="workspace-repo-name">{repoNameFromPath(path)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
+                  <button className="ghost mini-text" type="button" onClick={loadDemoFactory} disabled={refreshingMissionLoop}>
+                    Demo
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
         ) : null}
