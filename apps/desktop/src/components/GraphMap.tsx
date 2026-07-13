@@ -17,7 +17,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, Loader, Play, ShieldCheck, Split, X } from "lucide-react";
+import { Check, Loader, Play, ShieldCheck, Sparkles, Split, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
 
@@ -45,6 +45,9 @@ export type NodeActions = {
   // Ask the AI to break a draft task into sub-task nodes (no-op when the task
   // is one coherent change). Shown only on draft task cards.
   onDecompose: (missionId: string) => void;
+  // Plan a typed goal instead of queueing it: the AI reads the repo and fans
+  // the goal out into a plan node plus its tasks. The big-task path.
+  onPlanGoal: (text: string) => void;
 };
 
 type OrbitalNodeData = {
@@ -118,6 +121,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       onLinkTasks: (from, to) => actionsRef.current.onLinkTasks(from, to),
       onUnlinkTasks: (from, to) => actionsRef.current.onUnlinkTasks(from, to),
       onDecompose: (id) => actionsRef.current.onDecompose(id),
+      onPlanGoal: (text) => actionsRef.current.onPlanGoal(text),
     }),
     [],
   );
@@ -492,6 +496,25 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
         ) : null}
       </div>
       <div className="node-card-actions">
+        {kind === "task" ? (
+          <button
+            type="button"
+            className="node-btn nodrag"
+            title="Big task? The AI reads the repo, plans it, and creates the tasks"
+            onClick={(event) => {
+              event.stopPropagation();
+              const trimmed = text.trim();
+              if (!trimmed) {
+                inputRef.current?.focus();
+                return;
+              }
+              node.actions.onPlanGoal(trimmed);
+            }}
+          >
+            <Sparkles size={12} aria-hidden="true" />
+            Plan
+          </button>
+        ) : null}
         <button
           type="button"
           className="node-btn nodrag"

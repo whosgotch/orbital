@@ -479,13 +479,22 @@ export function App() {
     if (planningRepoId) return;
     setMissionLoopError("");
     setPlanningRepoId(repo.id);
+    const requestId = crypto.randomUUID();
     try {
-      applyRepoState(await planRepoLoopState(repo.path, goal, format, claudeModel));
+      applyRepoState(await planRepoLoopState(repo.path, goal, format, claudeModel, requestId));
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to plan the repo."));
     } finally {
       setPlanningRepoId("");
     }
+  };
+
+  // Plan a goal typed into the draft card: the big-task path. The AI reads the
+  // repo and replaces the draft with a plan node fanning out to its tasks.
+  const planGoalOnCanvas = (text: string) => {
+    setDraftingTask(false);
+    if (!draftRepository) return;
+    void planRepo(draftRepository, text, "md");
   };
 
   // Ask the AI to break a draft task into sub-task nodes. It splits only when the
@@ -1239,6 +1248,7 @@ export function App() {
             onReject: (missionId) => void rejectMission(missionId),
             onVerify: (missionId) => void runVerificationFor(missionId),
             onCreateTask: (text, run, kind, worker) => void createTaskOnCanvas(text, run, kind, worker),
+            onPlanGoal: (text) => planGoalOnCanvas(text),
             onCancelDraft: () => setDraftingTask(false),
             onLinkTasks: (from, to) => void linkTasks(from, to),
             onUnlinkTasks: (from, to) => void unlinkTasks(from, to),

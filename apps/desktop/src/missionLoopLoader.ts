@@ -58,9 +58,10 @@ export function decomposeMissionLoopState(repoPath: string, missionId: string, m
 }
 
 // Plan work on a repo: the AI reads the code, writes a plan in `format`, and
-// fans out draft task nodes. Returns the refreshed state with the new plan.
-export function planRepoLoopState(repoPath: string, goal: string, format: PlanFormat = "md", model = "") {
-  return invokeState("plan_repo", { repoPath, goal, format, model });
+// fans out draft task nodes. While it thinks, its steps stream as Tauri events
+// on `plan_event:<requestId>`; the promise resolves with the refreshed state.
+export function planRepoLoopState(repoPath: string, goal: string, format: PlanFormat = "md", model = "", requestId = "") {
+  return invokeState("plan_repo", { repoPath, goal, format, model, requestId });
 }
 
 export function approvePatchMissionLoopState(repoPath: string, missionId: string) {
