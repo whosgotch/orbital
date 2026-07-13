@@ -195,6 +195,7 @@ h3 {
 }
 
 .sidebar-footer {
+  position: relative;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
@@ -207,42 +208,63 @@ h3 {
   justify-content: flex-start;
 }
 
-.sidebar-footer .model-select {
-  width: 100%;
-  justify-content: space-between;
-}
-
 .canvas-area {
   flex: 1 1 auto;
   position: relative;
   min-width: 0;
 }
 
-/* Model picker: which claude model every AI run and chat turn uses. */
-.model-select {
+/* Model picker: a curated family with plain-language guidance, opened from
+   the sidebar footer. The trigger shows the current pick's friendly name. */
+.model-trigger {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 6px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
+  justify-content: flex-start;
+  width: 100%;
 }
 
-.model-select select {
+.model-popover {
+  top: auto;
+  bottom: 48px;
+  left: 12px;
+  right: 12px;
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+}
+
+.model-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 9px;
   border: none;
+  border-radius: 6px;
   background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-  outline: none;
+  text-align: left;
   cursor: pointer;
+}
+
+.model-option:hover {
+  background: var(--panel-2);
+}
+
+.model-option-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.model-option-blurb {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .chip {
@@ -2432,6 +2454,12 @@ dd {
 }
 
 /* Which agent staffs the drafted task — picked right on the card. */
+.node-draft-selects {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
 .node-draft-worker {
   padding: 4px 6px;
   background: var(--panel-2);

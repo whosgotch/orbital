@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   CircleDot,
+  Cpu,
   History,
   Network,
   Pencil,
@@ -48,6 +49,7 @@ import {
   upsertPatchProposal,
 } from "./repoStates";
 import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, PlanFeedItem, PlanFormat, Repository, WorkflowEvent } from "./domain";
+import { CURATED_MODELS, modelName } from "./models";
 import {
   compactLabel,
   workspaceViewFromMissionLoop,
@@ -58,9 +60,7 @@ import {
   deleteMissionLoopState,
   demoRepoPath,
   linkMissionsLoopState,
-  listClaudeModels,
   loadMissionLoopState,
-  type ClaudeModel,
   openMissionLoopRepository,
   planRepoLoopState,
   queueMissionLoopState,
@@ -143,18 +143,14 @@ export function App() {
   // Claude model for every AI run and chat turn, persisted across sessions.
   // Empty string means the claude CLI's own default.
   const [claudeModel, setClaudeModel] = useState(() => localStorage.getItem("orbital:model") ?? "");
-  // Every model the provider currently serves, loaded once at startup.
-  const [claudeModels, setClaudeModels] = useState<ClaudeModel[]>([]);
   const pickClaudeModel = (model: string) => {
     setClaudeModel(model);
     localStorage.setItem("orbital:model", model);
   };
-
-  useEffect(() => {
-    listClaudeModels()
-      .then(setClaudeModels)
-      .catch(() => setClaudeModels([]));
-  }, []);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  // Per-mission model overrides, chosen on the intake card. Missions without
+  // an entry follow the global pick.
+  const [modelByMission, setModelByMission] = useState<Record<string, string>>({});
   // Whether a draft task card is open on the canvas ("+ Task" was clicked).
   const [draftingTask, setDraftingTask] = useState(false);
   // Inline prompt editor for refining a mission's instruction before launch.
@@ -422,7 +418,7 @@ export function App() {
   // state yet, so the repo path and worker are passed to dispatch explicitly.
   // A tool draft's text doubles as its shell command; the worker resolves its
   // execution itself, so no worker mode is stamped or passed for tools.
-  const createTaskOnCanvas = async (text: string, run: boolean, kind: "task" | "tool", worker: WorkerMode) => {
+  const createTaskOnCanvas = async (text: string, run: boolean, kind: "task" | "tool", worker: WorkerMode, model?: string) => {
     setDraftingTask(false);
     if (!draftRepository) return;
     setMissionLoopError("");
@@ -434,7 +430,8 @@ export function App() {
       applyRepoState(nextMissionLoopState);
       if (missionId) {
         if (!isTool) setWorkerModeByMission((current) => ({ ...current, [missionId]: worker }));
-        if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : worker });
+        if (model) setModelByMission((current) => ({ ...current, [missionId]: model }));
+        if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : worker, model });
       }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to create task."));
@@ -473,11 +470,12 @@ export function App() {
 
   // Plan work on a repo: the AI reads the code and drops a plan node plus the
   // draft task nodes it fans out to. Nothing runs — the tasks are yours to steer.
-  const planRepo = async (repo: Repository, goal: string, format: PlanFormat) => {
+  const planRepo = async (repo: Repository, goal: string, format: PlanFormat, model?: string) => {
     if (planningRepoId) return;
     setMissionLoopError("");
     setPlanningRepoId(repo.id);
     setPlanFeed([]);
+    const runModel = model || claudeModel;
     const requestId = crypto.randomUUID();
     // The planner's steps stream on this request's own channel so parallel
     // surfaces (and future concurrent plans) never see each other's thinking.
@@ -489,8 +487,21 @@ export function App() {
       ]);
     });
     try {
-      applyRepoState(await planRepoLoopState(repo.path, goal, format, claudeModel, requestId));
+      const nextState = await planRepoLoopState(repo.path, goal, format, runModel, requestId);
+      applyRepoState(nextState);
       setDraftingTask(false);
+      // Tasks born from this plan inherit its model override, so a plan drawn
+      // up by Opus runs its tasks on Opus too.
+      if (model) {
+        const plan = nextState.plans?.at(-1);
+        if (plan) {
+          const spawned = nextState.missions.filter((mission) => mission.plan_id === plan.id);
+          setModelByMission((current) => ({
+            ...current,
+            ...Object.fromEntries(spawned.map((mission) => [mission.id, model])),
+          }));
+        }
+      }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to plan the repo."));
     } finally {
@@ -502,9 +513,9 @@ export function App() {
 
   // Plan a goal typed into the draft card: the big-task path. The card stays
   // open showing the AI's thinking, then the plan node + its tasks replace it.
-  const planGoalOnCanvas = (text: string) => {
+  const planGoalOnCanvas = (text: string, model?: string) => {
     if (!draftRepository) return;
-    void planRepo(draftRepository, text, "md");
+    void planRepo(draftRepository, text, "md", model);
   };
 
   const runningMissionIds = useMemo(
@@ -540,11 +551,12 @@ export function App() {
   // dispatchMission starts one mission by id, independent of the current
   // selection, so several can be fired concurrently. Overrides cover missions
   // created a moment ago whose state isn't in this closure yet.
-  const dispatchMission = async (missionId: string, overrides?: { repoPath?: string; workerMode?: WorkerMode }) => {
+  const dispatchMission = async (missionId: string, overrides?: { repoPath?: string; workerMode?: WorkerMode; model?: string }) => {
     setMissionLoopError("");
     const repoPath = overrides?.repoPath ?? repoPathForMission(missionId);
     const mission = workspaceMissions.find((item) => item.id === missionId);
     const workerMode = overrides?.workerMode ?? workerModeByMission[missionId] ?? workerModeFromName(mission?.worker);
+    const runModel = overrides?.model ?? modelByMission[missionId] ?? claudeModel;
     const localCommand = defaultLocalCommand();
 
     // Optimistically mark it running so the canvas pulses immediately.
@@ -578,7 +590,7 @@ export function App() {
         missionId,
         workerMode,
         workerMode === "local-command" ? localCommand : undefined,
-        claudeModel,
+        runModel,
       );
       applyRepoState(nextMissionLoopState);
       // A tool mission lands the moment its command exits cleanly — there is
@@ -656,7 +668,7 @@ export function App() {
     });
 
     try {
-      applyRepoState(await sendAgentMessageLoopState(repoPath, missionId, text, claudeModel));
+      applyRepoState(await sendAgentMessageLoopState(repoPath, missionId, text, modelByMission[missionId] ?? claudeModel));
     } catch (error) {
       if (cancelledMissionsRef.current.has(missionId)) return;
       console.error("[orbital] chat failed", error);
@@ -1003,6 +1015,10 @@ export function App() {
         setOpenPanel(null);
         return;
       }
+      if (modelPickerOpen) {
+        setModelPickerOpen(false);
+        return;
+      }
       if (draftingTask) {
         setDraftingTask(false);
         return;
@@ -1011,7 +1027,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [diffModalOpen, openPanel, draftingTask, repoHistory]);
+  }, [diffModalOpen, openPanel, modelPickerOpen, draftingTask, repoHistory]);
 
   return (
     <main className={`canvas-shell${selectedMission || selectedPlan || selectedRepoForPlan ? " panel-open" : ""}`}>
@@ -1202,17 +1218,40 @@ export function App() {
             <History size={14} aria-hidden="true" />
             <span>History</span>
           </button>
-          <label className="model-select" title="Model used by every AI run and chat turn">
-            <span>Model</span>
-            <select aria-label="Claude model" value={claudeModel} onChange={(event) => pickClaudeModel(event.target.value)}>
-              <option value="">default</option>
-              {claudeModels.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.display_name}
-                </option>
+          <button
+            type="button"
+            className={`chip model-trigger ${modelPickerOpen ? "active" : ""}`}
+            title="Model used by every AI run and chat turn"
+            aria-haspopup="listbox"
+            aria-expanded={modelPickerOpen}
+            onClick={() => setModelPickerOpen((open) => !open)}
+          >
+            <Cpu size={14} aria-hidden="true" />
+            <span>{modelName(claudeModel)}</span>
+          </button>
+          {modelPickerOpen ? (
+            <div className="popover model-popover" role="listbox" aria-label="Claude model">
+              {CURATED_MODELS.map((model) => (
+                <button
+                  key={model.id}
+                  type="button"
+                  role="option"
+                  aria-selected={claudeModel === model.id}
+                  className={`model-option ${claudeModel === model.id ? "active" : ""}`}
+                  onClick={() => {
+                    pickClaudeModel(model.id);
+                    setModelPickerOpen(false);
+                  }}
+                >
+                  <span className="model-option-name">
+                    {model.name}
+                    {claudeModel === model.id ? <Check size={12} aria-hidden="true" /> : null}
+                  </span>
+                  <span className="model-option-blurb">{model.blurb}</span>
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          ) : null}
         </div>
       </aside>
 
@@ -1231,8 +1270,8 @@ export function App() {
             onApprove: (missionId) => void approveMission(missionId),
             onReject: (missionId) => void rejectMission(missionId),
             onVerify: (missionId) => void runVerificationFor(missionId),
-            onCreateTask: (text, run, kind, worker) => void createTaskOnCanvas(text, run, kind, worker),
-            onPlanGoal: (text) => planGoalOnCanvas(text),
+            onCreateTask: (text, run, kind, worker, model) => void createTaskOnCanvas(text, run, kind, worker, model),
+            onPlanGoal: (text, model) => planGoalOnCanvas(text, model),
             onCancelDraft: () => setDraftingTask(false),
             onLinkTasks: (from, to) => void linkTasks(from, to),
             onUnlinkTasks: (from, to) => void unlinkTasks(from, to),

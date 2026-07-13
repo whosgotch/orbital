@@ -22,6 +22,7 @@ import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
 import type { PlanFeedItem } from "../domain";
 import { PlanLiveFeed } from "./PlanLiveFeed";
+import { CURATED_MODELS } from "../models";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 
@@ -38,7 +39,7 @@ export type NodeActions = {
   // Draft task card: turn the typed prompt into a real mission (optionally
   // launching it immediately), or discard the draft. The worker is chosen on
   // the card itself; tools resolve their own execution and ignore it.
-  onCreateTask: (text: string, run: boolean, kind: "task" | "tool", worker: DraftWorker) => void;
+  onCreateTask: (text: string, run: boolean, kind: "task" | "tool", worker: DraftWorker, model?: string) => void;
   onCancelDraft: () => void;
   // Task chains: a drawn task→task edge makes the downstream task wait for the
   // upstream patch to land; deleting the edge dissolves the dependency.
@@ -46,7 +47,7 @@ export type NodeActions = {
   onUnlinkTasks: (fromMissionId: string, toMissionId: string) => void;
   // Plan a typed goal instead of queueing it: the AI reads the repo and fans
   // the goal out into a plan node plus its tasks. The big-task path.
-  onPlanGoal: (text: string) => void;
+  onPlanGoal: (text: string, model?: string) => void;
 };
 
 type OrbitalNodeData = {
@@ -115,11 +116,11 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       onApprove: (id) => actionsRef.current.onApprove(id),
       onReject: (id) => actionsRef.current.onReject(id),
       onVerify: (id) => actionsRef.current.onVerify(id),
-      onCreateTask: (text, run, kind, worker) => actionsRef.current.onCreateTask(text, run, kind, worker),
+      onCreateTask: (text, run, kind, worker, model) => actionsRef.current.onCreateTask(text, run, kind, worker, model),
       onCancelDraft: () => actionsRef.current.onCancelDraft(),
       onLinkTasks: (from, to) => actionsRef.current.onLinkTasks(from, to),
       onUnlinkTasks: (from, to) => actionsRef.current.onUnlinkTasks(from, to),
-      onPlanGoal: (text) => actionsRef.current.onPlanGoal(text),
+      onPlanGoal: (text, model) => actionsRef.current.onPlanGoal(text, model),
     }),
     [],
   );
@@ -400,6 +401,8 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
   const [text, setText] = useState("");
   const [kind, setKind] = useState<"task" | "tool">("task");
   const [worker, setWorker] = useState<DraftWorker>("claude-engineer");
+  // Model for this one task/plan; empty follows the global pick.
+  const [model, setModel] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -412,7 +415,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
       inputRef.current?.focus();
       return;
     }
-    node.actions.onCreateTask(trimmed, run, kind, worker);
+    node.actions.onCreateTask(trimmed, run, kind, worker, model || undefined);
   };
 
   const pickKind = (next: "task" | "tool") => {
@@ -482,18 +485,36 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
       {node.planning ? <PlanLiveFeed feed={node.planFeed ?? []} /> : null}
       <div className="node-card-body">
         {kind === "task" ? (
-          <select
-            className="node-draft-worker nodrag"
-            aria-label="Agent that runs this task"
-            title="Agent that runs this task"
-            value={worker}
-            onMouseDown={(event) => event.stopPropagation()}
-            onChange={(event) => setWorker(event.target.value as DraftWorker)}
-          >
-            <option value="claude-engineer">Claude</option>
-            <option value="mock">Demo agent</option>
-            <option value="local-command">Local command</option>
-          </select>
+          <div className="node-draft-selects">
+            <select
+              className="node-draft-worker nodrag"
+              aria-label="Agent that runs this task"
+              title="Agent that runs this task"
+              value={worker}
+              disabled={node.planning}
+              onMouseDown={(event) => event.stopPropagation()}
+              onChange={(event) => setWorker(event.target.value as DraftWorker)}
+            >
+              <option value="claude-engineer">Claude</option>
+              <option value="mock">Demo agent</option>
+              <option value="local-command">Local command</option>
+            </select>
+            <select
+              className="node-draft-worker nodrag"
+              aria-label="Model for this task"
+              title="Model for this task (default follows the sidebar pick)"
+              value={model}
+              disabled={node.planning}
+              onMouseDown={(event) => event.stopPropagation()}
+              onChange={(event) => setModel(event.target.value)}
+            >
+              {CURATED_MODELS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.id === "" ? "Default model" : option.name}
+                </option>
+              ))}
+            </select>
+          </div>
         ) : null}
       </div>
       <div className="node-card-actions">
@@ -510,7 +531,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
                 inputRef.current?.focus();
                 return;
               }
-              node.actions.onPlanGoal(trimmed);
+              node.actions.onPlanGoal(trimmed, model || undefined);
             }}
           >
             {node.planning ? <Loader size={12} className="spin" aria-hidden="true" /> : <Sparkles size={12} aria-hidden="true" />}
