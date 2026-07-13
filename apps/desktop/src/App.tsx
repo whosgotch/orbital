@@ -22,6 +22,7 @@ import { DiffView } from "./components/DiffView";
 import { AgentChat, ChangesCard } from "./components/AgentChat";
 import { PlanPanel, PlanIntake } from "./components/PlanPanel";
 import { ReviseBox } from "./components/ReviseBox";
+import { PromptBar } from "./components/PromptBar";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
 import { buildAgentTranscript, groupChatByMission } from "./agentTranscript";
@@ -516,6 +517,26 @@ export function App() {
   const planGoalOnCanvas = (text: string, model?: string) => {
     if (!draftRepository) return;
     void planRepo(draftRepository, text, "md", model);
+  };
+
+  // Create task(s) typed into the prompt bar: one mission per non-empty line,
+  // landing in the repo that owns canvas drafts.
+  const createFromPrompt = async (text: string) => {
+    if (!draftRepository) return;
+    setMissionLoopError("");
+    const titles = text.split("\n").map((line) => line.trim()).filter(Boolean);
+    try {
+      for (const title of titles) {
+        const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, title);
+        const missionId = nextMissionLoopState.missions.at(-1)?.id;
+        applyRepoState(nextMissionLoopState);
+        if (missionId) {
+          setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
+        }
+      }
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to create task."));
+    }
   };
 
   const runningMissionIds = useMemo(
@@ -1350,6 +1371,14 @@ export function App() {
       ) : null}
 
         {missionLoopError ? <div className="floating-error">{missionLoopError}</div> : null}
+
+        <PromptBar
+          repoName={draftRepository?.name}
+          planning={planningRepoId !== ""}
+          planFeed={planFeed}
+          onCreate={(text) => void createFromPrompt(text)}
+          onPlan={(text) => planGoalOnCanvas(text)}
+        />
 
         {workspaceMissions.length === 0 ? (
           <div className="canvas-hint">

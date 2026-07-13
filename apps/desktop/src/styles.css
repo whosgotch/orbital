@@ -214,6 +214,61 @@ h3 {
   min-width: 0;
 }
 
+/* The universal intake: a chat-style prompt bar floating bottom-center over
+   the canvas. It shifts left when the task panel docks on the right. */
+.prompt-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: min(620px, calc(100% - 48px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.canvas-shell.panel-open .prompt-bar {
+  left: calc((100% - var(--task-panel-width)) / 2);
+}
+
+.prompt-bar-input {
+  width: 100%;
+  padding: 2px 2px 0;
+  background: transparent;
+  border: none;
+  resize: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.prompt-bar-input:focus {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+.prompt-bar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* The repo new work lands in — quiet, informational only. */
+.prompt-bar-target {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 /* Model picker: a curated family with plain-language guidance, opened from
    the sidebar footer. The trigger shows the current pick's friendly name. */
 .model-trigger {
