@@ -9,7 +9,6 @@ import {
   History,
   Pencil,
   Plus,
-  RefreshCw,
   Rocket,
   Terminal,
   Trash2,
@@ -1152,16 +1151,6 @@ export function App() {
               </div>
             ) : null}
           </div>
-          <button
-            className="ghost icon-button"
-            type="button"
-            onClick={refreshMissionLoop}
-            disabled={refreshingMissionLoop}
-            title="Refresh workspace"
-            aria-label="Refresh workspace"
-          >
-            <RefreshCw size={14} aria-hidden="true" />
-          </button>
         </div>
       </header>
 
