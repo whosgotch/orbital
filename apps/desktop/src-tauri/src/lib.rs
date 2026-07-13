@@ -174,7 +174,7 @@ async fn start_agent_run(
     // while events stream in over the ~minute the run takes.
     tauri::async_runtime::spawn_blocking(move || {
         let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        run_worker_streaming(&app, &runs, &mission_id, &arg_refs)
+        run_worker_streaming(&app, &runs, &mission_id, &arg_refs, None)
     })
     .await
     .map_err(|e| format!("worker task failed: {e}"))?
@@ -206,7 +206,7 @@ async fn send_agent_message(
     // thread so the UI stays responsive while the agent thinks and edits.
     tauri::async_runtime::spawn_blocking(move || {
         let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        run_worker_streaming(&app, &runs, &mission_id, &arg_refs)
+        run_worker_streaming(&app, &runs, &mission_id, &arg_refs, None)
     })
     .await
     .map_err(|e| format!("worker task failed: {e}"))?
@@ -284,10 +284,13 @@ fn unlink_missions(repo_path: String, from_mission_id: String, to_mission_id: St
 
 #[tauri::command]
 async fn plan_repo(
+    app: tauri::AppHandle,
+    runs: State<'_, RunningRuns>,
     repo_path: String,
     goal: String,
     format: Option<String>,
     model: Option<String>,
+    request_id: String,
 ) -> Result<String, String> {
     let format = format.unwrap_or_else(|| "md".to_string());
     let model = model.unwrap_or_default();
@@ -301,32 +304,13 @@ async fn plan_repo(
         model.trim().to_string(),
     ];
 
-    // Planning reads the repo with `claude`, which can take a while; keep it off
-    // the main thread so the app stays responsive while it explores and plans.
+    let runs = runs.inner().clone();
+    // Planning reads the repo with `claude`, which can take a while; run it off
+    // the main thread and stream its thinking to this request's own event
+    // channel so the UI can show the planner working live.
     tauri::async_runtime::spawn_blocking(move || {
         let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        run_worker(&arg_refs)
-    })
-    .await
-    .map_err(|e| format!("worker task failed: {e}"))?
-}
-
-#[tauri::command]
-async fn decompose_mission(repo_path: String, mission_id: String, model: Option<String>) -> Result<String, String> {
-    let model = model.unwrap_or_default();
-    let args: Vec<String> = vec![
-        "decompose".into(),
-        repo_path.trim().to_string(),
-        mission_id.trim().to_string(),
-        "--model".into(),
-        model.trim().to_string(),
-    ];
-
-    // Decomposition shells out to `claude`, which can take several seconds; keep
-    // it off the main thread so the whole app doesn't freeze while it thinks.
-    tauri::async_runtime::spawn_blocking(move || {
-        let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        run_worker(&arg_refs)
+        run_worker_streaming(&app, &runs, &request_id, &arg_refs, Some(&request_id))
     })
     .await
     .map_err(|e| format!("worker task failed: {e}"))?
@@ -362,6 +346,10 @@ fn run_worker_streaming(
     runs: &RunningRuns,
     mission_id: &str,
     args: &[&str],
+    // When set, EVENT: lines go to this request's own channel
+    // (`plan_event:<scope>`) instead of the shared workflow_event stream —
+    // planning steps are ephemeral and must not mix into run transcripts.
+    event_scope: Option<&str>,
 ) -> Result<String, String> {
     let mut command = Command::new(worker_binary()?);
     command
@@ -408,7 +396,14 @@ fn run_worker_streaming(
         let line = line.map_err(|e| format!("failed to read worker output: {e}"))?;
         if let Some(json_str) = line.strip_prefix("EVENT:") {
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
-                let _ = app.emit("workflow_event", val);
+                match event_scope {
+                    Some(scope) => {
+                        let _ = app.emit(&format!("plan_event:{scope}"), val);
+                    }
+                    None => {
+                        let _ = app.emit("workflow_event", val);
+                    }
+                }
             }
         } else if let Some(json_str) = line.strip_prefix("PATCH:") {
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
@@ -519,7 +514,6 @@ pub fn run() {
             delete_mission,
             link_missions,
             unlink_missions,
-            decompose_mission,
             plan_repo,
             approve_patch,
             reject_patch,
