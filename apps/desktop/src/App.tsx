@@ -47,7 +47,7 @@ import {
   upsertAgentRun,
   upsertPatchProposal,
 } from "./repoStates";
-import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, PlanFormat, Repository, WorkflowEvent } from "./domain";
+import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, PlanFeedItem, PlanFormat, Repository, WorkflowEvent } from "./domain";
 import {
   compactLabel,
   workspaceViewFromMissionLoop,
@@ -111,6 +111,9 @@ export function App() {
   // an atomic verdict isn't silent.
   const [keptWholeMissionId, setKeptWholeMissionId] = useState("");
   const [planningRepoId, setPlanningRepoId] = useState("");
+  // The AI's streamed steps while a plan is in flight — shown live on the
+  // surface that started the plan (draft card or repo panel), then discarded.
+  const [planFeed, setPlanFeed] = useState<PlanFeedItem[]>([]);
   const [missionDraft, setMissionDraft] = useState("");
   // Repos a queued intent fans out to. Picking >1 makes it a coordinated
   // campaign: the same intent is queued in each repo under a shared campaign id.
@@ -479,20 +482,32 @@ export function App() {
     if (planningRepoId) return;
     setMissionLoopError("");
     setPlanningRepoId(repo.id);
+    setPlanFeed([]);
     const requestId = crypto.randomUUID();
+    // The planner's steps stream on this request's own channel so parallel
+    // surfaces (and future concurrent plans) never see each other's thinking.
+    const unlisten = await listen<WorkflowEvent>(`plan_event:${requestId}`, (event) => {
+      const step = event.payload;
+      setPlanFeed((current) => [
+        ...current,
+        { kind: step.type === "agent_thought" ? "thought" : "action", text: step.message },
+      ]);
+    });
     try {
       applyRepoState(await planRepoLoopState(repo.path, goal, format, claudeModel, requestId));
+      setDraftingTask(false);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to plan the repo."));
     } finally {
+      unlisten();
       setPlanningRepoId("");
+      setPlanFeed([]);
     }
   };
 
-  // Plan a goal typed into the draft card: the big-task path. The AI reads the
-  // repo and replaces the draft with a plan node fanning out to its tasks.
+  // Plan a goal typed into the draft card: the big-task path. The card stays
+  // open showing the AI's thinking, then the plan node + its tasks replace it.
   const planGoalOnCanvas = (text: string) => {
-    setDraftingTask(false);
     if (!draftRepository) return;
     void planRepo(draftRepository, text, "md");
   };
@@ -1241,6 +1256,8 @@ export function App() {
           runningMissionIds={runningMissionIds}
           decomposingMissionId={decomposingMissionId}
           keptWholeMissionId={keptWholeMissionId}
+          planningActive={planningRepoId !== ""}
+          planFeed={planFeed}
           onSelectNode={handleSelectNode}
           actions={{
             onRunTask: (missionId) => void dispatchMission(missionId),
@@ -1351,6 +1368,7 @@ export function App() {
         <PlanIntake
           repoName={selectedRepoForPlan.name}
           planning={planningRepoId === selectedRepoForPlan.id}
+          feed={planFeed}
           onPlan={(goal, format) => void planRepo(selectedRepoForPlan, goal, format)}
         />
       ) : null}

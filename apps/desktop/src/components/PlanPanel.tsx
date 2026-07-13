@@ -5,7 +5,8 @@
 import { useState } from "react";
 import { Loader, Sparkles } from "lucide-react";
 import { Markdown } from "./Markdown";
-import type { Plan, PlanFormat } from "../domain";
+import { PlanLiveFeed } from "./PlanLiveFeed";
+import type { Plan, PlanFeedItem, PlanFormat } from "../domain";
 
 const FORMATS: { value: PlanFormat; label: string }[] = [
   { value: "md", label: "Markdown" },
@@ -54,10 +55,12 @@ export function PlanPanel({ plan, taskCount }: { plan: Plan; taskCount: number }
 export function PlanIntake({
   repoName,
   planning,
+  feed,
   onPlan,
 }: {
   repoName: string;
   planning: boolean;
+  feed: PlanFeedItem[];
   onPlan: (goal: string, format: PlanFormat) => void;
 }) {
   const [goal, setGoal] = useState("");
@@ -106,6 +109,8 @@ export function PlanIntake({
             ))}
           </div>
         </div>
+
+        {planning ? <PlanLiveFeed feed={feed} /> : null}
 
         <button
           type="button"

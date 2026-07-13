@@ -20,6 +20,8 @@ import "@xyflow/react/dist/style.css";
 import { Check, Loader, Play, ShieldCheck, Sparkles, Split, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
+import type { PlanFeedItem } from "../domain";
+import { PlanLiveFeed } from "./PlanLiveFeed";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 
@@ -62,6 +64,10 @@ type OrbitalNodeData = {
   decomposing?: boolean;
   // True just after the AI declined to split this task (it's one coherent change).
   keptWhole?: boolean;
+  // Set on the draft card while a plan is in flight: the card stays open and
+  // shows the AI's streamed thinking instead of its action buttons.
+  planning?: boolean;
+  planFeed?: PlanFeedItem[];
 };
 
 
@@ -73,6 +79,8 @@ type GraphMapProps = {
   runningMissionIds: Set<string>;
   decomposingMissionId: string;
   keptWholeMissionId: string;
+  planningActive: boolean;
+  planFeed: PlanFeedItem[];
   onSelectNode: (nodeId: string) => void;
   actions: NodeActions;
 };
@@ -97,7 +105,7 @@ function edgeDash(kind: string) {
 
 const nodeTypes = { orbital: OrbitalNode };
 
-export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId, keptWholeMissionId, onSelectNode, actions }: GraphMapProps) {
+export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId, keptWholeMissionId, planningActive, planFeed, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // Only nodes the user explicitly dragged are pinned here. Everything else is
@@ -185,8 +193,11 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       actions: stableActions,
       decomposing: node.mission_id != null && node.mission_id === decomposingMissionId,
       keptWhole: node.mission_id != null && node.mission_id === keptWholeMissionId,
+      // Only the draft card carries the live plan feed; other nodes stay lean.
+      planning: node.meta?.draft ? planningActive : undefined,
+      planFeed: node.meta?.draft && planningActive ? planFeed : undefined,
     }),
-    [stableActions, decomposingMissionId, keptWholeMissionId],
+    [stableActions, decomposingMissionId, keptWholeMissionId, planningActive, planFeed],
   );
 
   // Re-layout only when the graph's structure changes (nodes or edges added /
@@ -234,7 +245,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     );
     setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId, keptWholeMissionId]);
+  }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId, keptWholeMissionId, planningActive, planFeed]);
 
   const onNodeDragStop = useCallback((_event: unknown, node: Node) => {
     manualPositionsRef.current[node.id] = node.position;
@@ -468,6 +479,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
         className={`node-draft-input nodrag nowheel ${kind === "tool" ? "mono" : ""}`}
         placeholder={kind === "tool" ? "Command to run (sh -c in the repo)" : "What should get done?"}
         value={text}
+        disabled={node.planning}
         onChange={(event) => setText(event.target.value)}
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
@@ -479,6 +491,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
           }
         }}
       />
+      {node.planning ? <PlanLiveFeed feed={node.planFeed ?? []} /> : null}
       <div className="node-card-body">
         {kind === "task" ? (
           <select
@@ -500,6 +513,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
           <button
             type="button"
             className="node-btn nodrag"
+            disabled={node.planning}
             title="Big task? The AI reads the repo, plans it, and creates the tasks"
             onClick={(event) => {
               event.stopPropagation();
@@ -511,13 +525,14 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
               node.actions.onPlanGoal(trimmed);
             }}
           >
-            <Sparkles size={12} aria-hidden="true" />
-            Plan
+            {node.planning ? <Loader size={12} className="spin" aria-hidden="true" /> : <Sparkles size={12} aria-hidden="true" />}
+            {node.planning ? "Planning…" : "Plan"}
           </button>
         ) : null}
         <button
           type="button"
           className="node-btn nodrag"
+          disabled={node.planning}
           onClick={(event) => {
             event.stopPropagation();
             submit(false);
@@ -528,6 +543,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
         <button
           type="button"
           className="node-btn primary nodrag"
+          disabled={node.planning}
           title="Create and launch (⌘↵)"
           onClick={(event) => {
             event.stopPropagation();

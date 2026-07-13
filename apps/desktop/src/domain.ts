@@ -39,6 +39,9 @@ export type Mission = {
 
 export type PlanFormat = "md" | "html" | "text";
 
+// One streamed step of a live planning pass (ephemeral — never persisted).
+export type PlanFeedItem = { kind: "thought" | "action"; text: string };
+
 // A repo-level plan: the AI's written document (authored in `format`) plus the
 // task missions it fans out to (linked back by plan_id).
 export type Plan = {

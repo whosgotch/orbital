@@ -2325,6 +2325,35 @@ dd {
   color: var(--soft);
 }
 
+/* Live planning feed: the AI's streamed steps while it reads the repo and
+   plans. The only motion is text updating — terminal-like, never animated. */
+.plan-live {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  color: var(--soft);
+  min-width: 0;
+}
+
+.plan-live-now {
+  color: var(--text);
+}
+
+.plan-live-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.plan-live-line.thought {
+  color: var(--muted);
+}
+
 .node-btn {
   display: inline-flex;
   align-items: center;
