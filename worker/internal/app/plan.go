@@ -19,9 +19,10 @@ type PlanResult struct {
 	Subtasks []ProposedSubtask
 }
 
-// planFunc explores a repo toward a goal and returns a plan. Injectable so
-// PlanRepo is testable without the claude CLI.
-type planFunc func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat) (PlanResult, error)
+// planFunc explores a repo toward a goal and returns a plan, reporting each
+// step (thought/action) to onStep as it happens. Injectable so PlanRepo is
+// testable without the claude CLI.
+type planFunc func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, onStep func(kind, text string)) (PlanResult, error)
 
 // PlanRepo runs a repo-level planning pass: the AI reads the repo, writes a plan
 // for the goal in the chosen format, and proposes the tasks to get there. It
@@ -45,12 +46,21 @@ func (s *Service) PlanRepo(ctx context.Context, repoID, goal string, format doma
 	if planner == nil {
 		planner = claudePlan
 	}
-	result, err := planner(ctx, s.runModel, repoPath, strings.TrimSpace(goal), format)
+	result, err := planner(ctx, s.runModel, repoPath, strings.TrimSpace(goal), format, s.streamPlanEvent)
 	if err != nil {
 		return nil, nil, err
 	}
 	if strings.TrimSpace(result.Content) == "" {
 		return nil, nil, fmt.Errorf("planner returned an empty plan")
+	}
+	// Planning never returns nothing to do: a plan with no proposed tasks falls
+	// back to one task carrying the goal itself.
+	if len(result.Subtasks) == 0 {
+		fallback := strings.TrimSpace(goal)
+		if fallback == "" {
+			return nil, nil, fmt.Errorf("planner proposed no tasks")
+		}
+		result.Subtasks = []ProposedSubtask{{Text: fallback}}
 	}
 
 	now := time.Now().UTC()
@@ -127,12 +137,37 @@ func normalizePlanFormat(format domain.PlanFormat) domain.PlanFormat {
 	}
 }
 
-func claudePlan(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat) (PlanResult, error) {
-	out, err := agent.QueryClaudeInRepo(ctx, repoPath, model, planPrompt(goal, format))
+func claudePlan(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, onStep func(kind, text string)) (PlanResult, error) {
+	out, err := agent.QueryClaudeInRepoStreaming(ctx, repoPath, model, planPrompt(goal, format), onStep)
 	if err != nil {
 		return PlanResult{}, err
 	}
 	return parsePlanResult(out)
+}
+
+// streamPlanEvent surfaces one planner step as an EVENT: line so the UI can
+// show the AI thinking live. Plan steps are ephemeral — streamed, never
+// persisted — the durable artifact is the plan document itself.
+func (s *Service) streamPlanEvent(kind, message string) {
+	if s.eventOut == nil {
+		return
+	}
+	eventType := domain.WorkflowEventAgentAction
+	if kind == "thought" {
+		eventType = domain.WorkflowEventAgentThought
+	}
+	data, err := json.Marshal(domain.WorkflowEvent{
+		ID:        fmt.Sprintf("plan_event_%d", time.Now().UnixNano()),
+		Type:      eventType,
+		Message:   message,
+		CreatedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		return
+	}
+	s.streamMu.Lock()
+	defer s.streamMu.Unlock()
+	fmt.Fprintf(s.eventOut, "EVENT:%s\n", data)
 }
 
 func planPrompt(goal string, format domain.PlanFormat) string {
@@ -155,9 +190,9 @@ func planPrompt(goal string, format domain.PlanFormat) string {
 
 Produce:
 1. A written plan authored in ` + formatName + `, explaining what to do and why.
-2. A list of concrete task nodes that carry the plan out. Each task needs a short "title", a "text" prompt an engineer can act on directly, and "dependsOn": indices of earlier tasks that must finish first (empty if it can run in parallel).
+2. The FEWEST concrete task nodes that carry the plan out — a single task is a perfectly good answer for a focused goal; only split when the work genuinely contains distinct pieces. Each task needs a short "title", a "text" prompt an engineer can act on directly, and "dependsOn": indices of earlier tasks that must finish first (empty if it can run in parallel).
 
-Keep tasks few and real — only the work the goal actually needs, never busywork.
+Keep tasks few and real — only the work the goal actually needs, never busywork. Never propose a testing/verifying/reviewing task: verification is a lifecycle stage every task already has.
 
 Output ONLY this JSON, no prose or fences around it:
 {"plan": "<the plan document as a string, in the requested format>", "subtasks": [{"title": "...", "text": "...", "dependsOn": []}]}`

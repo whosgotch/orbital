@@ -158,6 +158,45 @@ func QueryClaudeInRepo(ctx context.Context, repoPath, model, prompt string) (str
 	return strings.TrimSpace(stdout.String()), nil
 }
 
+// QueryClaudeInRepoStreaming is QueryClaudeInRepo with the steps made visible:
+// still plan permission mode (read-only), but stream-json output so the caller
+// can surface Claude's narration and tool calls live through onStep while the
+// answer is being produced. Returns the final result text.
+func QueryClaudeInRepoStreaming(ctx context.Context, repoPath, model, prompt string, onStep func(kind, msg string)) (string, error) {
+	if !claudeCLIAvailable() {
+		return "", fmt.Errorf("claude CLI not found on PATH")
+	}
+
+	args := []string{"--print",
+		"--permission-mode", "plan",
+		"--output-format", "stream-json", "--verbose"}
+	if model != "" {
+		args = append(args, "--model", model)
+	}
+	args = append(args, prompt)
+
+	cmd := exec.CommandContext(ctx, "claude", args...)
+	cmd.Dir = repoPath
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("claude CLI start: %w", err)
+	}
+
+	result, _ := scanAgenticStream(stdout, onStep)
+
+	if err := cmd.Wait(); err != nil {
+		return "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return result, nil
+}
+
 // describeToolUse renders a concise, human-readable line for a Claude tool call.
 func describeToolUse(name string, input json.RawMessage) string {
 	var fields struct {

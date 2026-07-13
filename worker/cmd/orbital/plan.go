@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"path/filepath"
 
@@ -42,6 +44,10 @@ func planRepo(ctx context.Context, args []string, stdout io.Writer) error {
 
 	jsonStore := store.NewJSONStore(filepath.Join(repoPath, ".orbital"))
 	service := app.NewService(jsonStore)
+	// Planning streams the AI's thinking as EVENT: lines while it reads the
+	// repo, then the refreshed state as a final STATE: line — the same NDJSON
+	// protocol runs use, so the GUI can show the planner working live.
+	service.SetEventOut(stdout)
 	service.SetRunModel(model)
 
 	repository, err := service.OpenRepository(repoPath)
@@ -53,5 +59,14 @@ func planRepo(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 
-	return showStatusJSON(repoPath, stdout)
+	state, err := jsonStore.Load()
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "STATE:%s\n", data)
+	return err
 }

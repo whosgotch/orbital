@@ -1,7 +1,9 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
@@ -25,7 +27,7 @@ func planState(t *testing.T) *store.JSONStore {
 func TestPlanRepoRecordsPlanAndFansOutTasks(t *testing.T) {
 	jsonStore := planState(t)
 	svc := NewService(jsonStore)
-	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat) (PlanResult, error) {
+	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, onStep func(kind, text string)) (PlanResult, error) {
 		return PlanResult{
 			Content: "# Plan\n1. Add parser\n2. Wire CLI",
 			Subtasks: []ProposedSubtask{
@@ -77,16 +79,71 @@ func TestPlanRepoRecordsPlanAndFansOutTasks(t *testing.T) {
 	}
 }
 
+// A plan that proposes no tasks still yields one: the goal itself becomes the
+// single task, so planning never produces an empty fan-out.
+func TestPlanRepoFallsBackToSingleTask(t *testing.T) {
+	jsonStore := planState(t)
+	svc := NewService(jsonStore)
+	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, onStep func(kind, text string)) (PlanResult, error) {
+		return PlanResult{Content: "## Plan\nOne focused change."}, nil
+	})
+
+	plan, tasks, err := svc.PlanRepo(context.Background(), "repo_1", "fix the typo in README", domain.PlanFormatMarkdown)
+	if err != nil {
+		t.Fatalf("PlanRepo() error = %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].Text != "fix the typo in README" {
+		t.Fatalf("tasks = %+v, want one task carrying the goal", tasks)
+	}
+	if tasks[0].PlanID != plan.ID {
+		t.Fatalf("fallback task not linked to plan")
+	}
+}
+
+// Planner steps stream as EVENT: NDJSON lines on eventOut, and are ephemeral —
+// none of them end up persisted in the state.
+func TestPlanRepoStreamsStepsWithoutPersistingThem(t *testing.T) {
+	jsonStore := planState(t)
+	svc := NewService(jsonStore)
+	var out bytes.Buffer
+	svc.SetEventOut(&out)
+	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, onStep func(kind, text string)) (PlanResult, error) {
+		onStep("thought", "surveying the parser")
+		onStep("action", "Read(config.py)")
+		return PlanResult{Content: "plan", Subtasks: []ProposedSubtask{{Text: "do it"}}}, nil
+	})
+
+	if _, _, err := svc.PlanRepo(context.Background(), "repo_1", "goal", domain.PlanFormatMarkdown); err != nil {
+		t.Fatalf("PlanRepo() error = %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 2 || !strings.HasPrefix(lines[0], "EVENT:") || !strings.HasPrefix(lines[1], "EVENT:") {
+		t.Fatalf("streamed lines = %q, want two EVENT: lines", out.String())
+	}
+	if !strings.Contains(lines[0], "agent_thought") || !strings.Contains(lines[1], "agent_action") {
+		t.Fatalf("event types wrong: %q", out.String())
+	}
+
+	state, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(state.WorkflowEvents) != 0 {
+		t.Fatalf("plan steps must not persist, got %+v", state.WorkflowEvents)
+	}
+}
+
 // An unknown format falls back to markdown rather than storing something the UI
 // can't render.
 func TestPlanRepoNormalizesUnknownFormat(t *testing.T) {
 	jsonStore := planState(t)
 	svc := NewService(jsonStore)
-	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat) (PlanResult, error) {
+	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, onStep func(kind, text string)) (PlanResult, error) {
 		if format != domain.PlanFormatMarkdown {
 			t.Fatalf("planner got format %q, want normalized md", format)
 		}
-		return PlanResult{Content: "plan", Subtasks: nil}, nil
+		return PlanResult{Content: "plan", Subtasks: []ProposedSubtask{{Text: "tidy"}}}, nil
 	})
 
 	plan, _, err := svc.PlanRepo(context.Background(), "repo_1", "", domain.PlanFormat("bogus"))
@@ -101,7 +158,7 @@ func TestPlanRepoNormalizesUnknownFormat(t *testing.T) {
 func TestPlanRepoRejectsUnknownRepo(t *testing.T) {
 	jsonStore := planState(t)
 	svc := NewService(jsonStore)
-	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat) (PlanResult, error) {
+	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, onStep func(kind, text string)) (PlanResult, error) {
 		return PlanResult{Content: "plan"}, nil
 	})
 	if _, _, err := svc.PlanRepo(context.Background(), "nope", "goal", domain.PlanFormatMarkdown); err == nil {
