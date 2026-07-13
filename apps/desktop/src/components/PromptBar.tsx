@@ -53,7 +53,7 @@ export function PromptBar({ repoName, planning, planFeed, onCreate, onPlan }: Pr
         {repoName ? <span className="prompt-bar-target">{repoName}</span> : null}
         <button
           type="button"
-          className="secondary mini"
+          className="secondary"
           disabled={!ready}
           onClick={() => submit(onPlan)}
           title="Let the AI read the repo and plan this goal into tasks"
@@ -63,7 +63,7 @@ export function PromptBar({ repoName, planning, planFeed, onCreate, onPlan }: Pr
         </button>
         <button
           type="button"
-          className="primary mini"
+          className="primary"
           disabled={!ready}
           onClick={() => submit(onCreate)}
           title="Create task — one per line"

@@ -196,6 +196,7 @@ h3 {
 
 .prompt-bar-input {
   width: 100%;
+  min-height: 0;
   padding: 2px 2px 0;
   background: transparent;
   border: none;
@@ -204,6 +205,12 @@ h3 {
   font: inherit;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.prompt-bar-actions button {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .prompt-bar-input:focus {
