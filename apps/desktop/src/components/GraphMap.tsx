@@ -57,6 +57,8 @@ type OrbitalNodeData = {
   actions: NodeActions;
   // True while the AI is breaking this task into sub-tasks.
   decomposing?: boolean;
+  // True just after the AI declined to split this task (it's one coherent change).
+  keptWhole?: boolean;
 };
 
 
@@ -67,6 +69,7 @@ type GraphMapProps = {
   selectedMissionId: string;
   runningMissionIds: Set<string>;
   decomposingMissionId: string;
+  keptWholeMissionId: string;
   onSelectNode: (nodeId: string) => void;
   actions: NodeActions;
 };
@@ -91,7 +94,7 @@ function edgeDash(kind: string) {
 
 const nodeTypes = { orbital: OrbitalNode };
 
-export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId, onSelectNode, actions }: GraphMapProps) {
+export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId, keptWholeMissionId, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // Only nodes the user explicitly dragged are pinned here. Everything else is
@@ -177,8 +180,9 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       meta: node.meta,
       actions: stableActions,
       decomposing: node.mission_id != null && node.mission_id === decomposingMissionId,
+      keptWhole: node.mission_id != null && node.mission_id === keptWholeMissionId,
     }),
-    [stableActions, decomposingMissionId],
+    [stableActions, decomposingMissionId, keptWholeMissionId],
   );
 
   // Re-layout only when the graph's structure changes (nodes or edges added /
@@ -226,7 +230,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     );
     setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId]);
+  }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, decomposingMissionId, keptWholeMissionId]);
 
   const onNodeDragStop = useCallback((_event: unknown, node: Node) => {
     manualPositionsRef.current[node.id] = node.position;
@@ -608,7 +612,11 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
     const splittable = node.kind === "task";
     return (
       <div className="node-card-actions">
-        {splittable ? (
+        {node.keptWhole ? (
+          <span className="node-kept-whole" title="The AI judged this one coherent change — nothing to split">
+            ⏺ kept whole
+          </span>
+        ) : splittable ? (
           <button
             type="button"
             className="node-btn nodrag"

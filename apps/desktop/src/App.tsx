@@ -107,6 +107,9 @@ export function App() {
   const [activeRepoPath, setActiveRepoPath] = useState(demoRepoPath);
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const [decomposingMissionId, setDecomposingMissionId] = useState("");
+  // Task the AI just declined to split: its card briefly says "kept whole" so
+  // an atomic verdict isn't silent.
+  const [keptWholeMissionId, setKeptWholeMissionId] = useState("");
   const [planningRepoId, setPlanningRepoId] = useState("");
   const [missionDraft, setMissionDraft] = useState("");
   // Repos a queued intent fans out to. Picking >1 makes it a coordinated
@@ -492,8 +495,18 @@ export function App() {
     if (decomposingMissionId) return;
     setMissionLoopError("");
     setDecomposingMissionId(missionId);
+    setKeptWholeMissionId("");
     try {
-      applyRepoState(await decomposeMissionLoopState(repoPathForMission(missionId), missionId, claudeModel));
+      const state = await decomposeMissionLoopState(repoPathForMission(missionId), missionId, claudeModel);
+      applyRepoState(state);
+      // The mission surviving the round-trip means the AI kept it whole — show
+      // that verdict on the card for a moment instead of doing nothing visible.
+      if ((state.missions ?? []).some((mission) => mission.id === missionId)) {
+        setKeptWholeMissionId(missionId);
+        window.setTimeout(() => {
+          setKeptWholeMissionId((current) => (current === missionId ? "" : current));
+        }, 6000);
+      }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to break up the task."));
     } finally {
@@ -1218,6 +1231,7 @@ export function App() {
           selectedMissionId={selectedMission?.id ?? ""}
           runningMissionIds={runningMissionIds}
           decomposingMissionId={decomposingMissionId}
+          keptWholeMissionId={keptWholeMissionId}
           onSelectNode={handleSelectNode}
           actions={{
             onRunTask: (missionId) => void dispatchMission(missionId),

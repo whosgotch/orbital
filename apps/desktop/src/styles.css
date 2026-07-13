@@ -2314,6 +2314,17 @@ dd {
   gap: 6px;
 }
 
+/* The AI's "no split needed" verdict, shown for a moment where the Break up
+   button was — a mono status line, not a control. */
+.node-kept-whole {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 0;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  color: var(--soft);
+}
+
 .node-btn {
   display: inline-flex;
   align-items: center;
