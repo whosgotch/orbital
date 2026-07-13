@@ -617,10 +617,10 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
               event.stopPropagation();
               act.onDecompose(missionId);
             }}
-            title="Let the AI break this into sub-tasks"
+            title="Let the AI plan a split into sub-tasks"
           >
             {node.decomposing ? <Loader size={12} className="spin" aria-hidden="true" /> : <Split size={12} aria-hidden="true" />}
-            {node.decomposing ? "Splitting…" : "Break up"}
+            {node.decomposing ? "Planning…" : "Break up"}
           </button>
         ) : null}
         <button
