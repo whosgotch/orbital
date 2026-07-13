@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -12,7 +11,7 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
-// ProposedSubtask is one piece the decomposer carved a task into. DependsOn
+// ProposedSubtask is one piece the planner carved a task into. DependsOn
 // holds indices of earlier sub-tasks that must land first, so the app can draw
 // the same waits/parallel structure a human would by hand.
 type ProposedSubtask struct {
@@ -21,17 +20,20 @@ type ProposedSubtask struct {
 	DependsOn []int  `json:"dependsOn"`
 }
 
-// decomposeFunc turns a task's prompt into sub-tasks. It returns an empty slice
-// when the task is a single coherent change that should not be split. Injectable
-// so the split logic is testable without the claude CLI.
-type decomposeFunc func(ctx context.Context, model, missionText string) ([]ProposedSubtask, error)
+// decomposeFunc plans a task's split inside its repo: it returns a plan
+// document explaining the split plus the sub-tasks, or empty Subtasks when the
+// task is a single coherent change that should not be split. Injectable so the
+// split logic is testable without the claude CLI.
+type decomposeFunc func(ctx context.Context, model, repoPath, missionText string) (PlanResult, error)
 
-// DecomposeMission breaks a draft task into sub-task nodes, but only when the
-// work is genuinely several pieces — the decomposer is asked to prefer NOT
-// splitting, so a coherent task returns unchanged (nil, nil). When it does
-// split, the original node is replaced by its sub-tasks (draft nodes you can
-// still edit, delete, chain, or run), with dependency links carried over so
-// independent pieces run in parallel and sequential ones wait.
+// DecomposeMission breaks a draft task into sub-task nodes plan-first: the AI
+// reads the repo, writes a plan for the split, and only splits when the work is
+// genuinely several pieces — a coherent task returns unchanged (nil, nil).
+// When it does split, the umbrella node is replaced by a plan node (holding the
+// written plan) fanning out to the sub-tasks (draft nodes you can still edit,
+// delete, chain, or run). Dependencies are rewired rather than dropped: root
+// sub-tasks inherit the umbrella's upstream deps, and anything that waited on
+// the umbrella now waits on its terminal sub-tasks.
 func (s *Service) DecomposeMission(ctx context.Context, missionID string) ([]domain.Mission, error) {
 	state, err := s.store.Load()
 	if err != nil {
@@ -48,57 +50,57 @@ func (s *Service) DecomposeMission(ctx context.Context, missionID string) ([]dom
 	if mission.Status != domain.MissionStatusDraft {
 		return nil, fmt.Errorf("only a draft task can be broken up")
 	}
+	repoIndex := findRepositoryIndex(state.Repositories, mission.RepositoryID)
+	if repoIndex == -1 {
+		return nil, fmt.Errorf("repository not found: %s", mission.RepositoryID)
+	}
+	repoPath := state.Repositories[repoIndex].Path
 
 	decompose := s.decompose
 	if decompose == nil {
 		decompose = claudeDecompose
 	}
-	subtasks, err := decompose(ctx, s.runModel, mission.Text)
+	result, err := decompose(ctx, s.runModel, repoPath, mission.Text)
 	if err != nil {
 		return nil, err
 	}
-	// The decomposer judged it one coherent change (or found nothing worth
+	// The planner judged it one coherent change (or found nothing worth
 	// separating). Leave the node exactly as it was.
-	if len(subtasks) < 2 {
+	if len(result.Subtasks) < 2 || strings.TrimSpace(result.Content) == "" {
 		return nil, nil
 	}
 
 	now := time.Now().UTC()
-	ids := make([]string, len(subtasks))
-	for i := range subtasks {
-		ids[i] = fmt.Sprintf("mission_%d_%d", now.UnixNano(), i)
+	plan := domain.Plan{
+		ID:           fmt.Sprintf("plan_%d", now.UnixNano()),
+		RepositoryID: mission.RepositoryID,
+		Goal:         mission.Text,
+		Format:       domain.PlanFormatMarkdown,
+		Content:      result.Content,
+		CreatedAt:    now,
 	}
-
-	created := make([]domain.Mission, 0, len(subtasks))
-	for i, subtask := range subtasks {
-		text := strings.TrimSpace(subtask.Text)
-		if text == "" {
-			text = strings.TrimSpace(subtask.Title)
-		}
-		if text == "" {
-			continue
-		}
-		var deps []string
-		for _, d := range subtask.DependsOn {
-			// Only depend on earlier siblings: that keeps the chain acyclic and
-			// ignores any forward or self reference a model might hallucinate.
-			if d >= 0 && d < i {
-				deps = append(deps, ids[d])
-			}
-		}
-		created = append(created, domain.Mission{
-			ID:           ids[i],
-			RepositoryID: mission.RepositoryID,
-			Text:         text,
-			Status:       domain.MissionStatusDraft,
-			CreatedAt:    now,
-			UpdatedAt:    now,
-			CampaignID:   mission.CampaignID,
-			DependsOn:    deps,
-		})
-	}
+	created := buildSubtaskMissions(mission.RepositoryID, plan.ID, mission.CampaignID, result.Subtasks, now)
 	if len(created) < 2 {
 		return nil, nil
+	}
+
+	// Root sub-tasks (no sibling deps) inherit the umbrella's upstream deps:
+	// they must wait for whatever the umbrella waited for. Terminal sub-tasks
+	// (no sibling depends on them) stand in for the umbrella downstream.
+	dependedOn := make(map[string]bool)
+	for i := range created {
+		for _, id := range created[i].DependsOn {
+			dependedOn[id] = true
+		}
+		if len(created[i].DependsOn) == 0 {
+			created[i].DependsOn = append([]string(nil), mission.DependsOn...)
+		}
+	}
+	var terminals []string
+	for _, m := range created {
+		if !dependedOn[m.ID] {
+			terminals = append(terminals, m.ID)
+		}
 	}
 
 	if _, err := s.store.Update(func(state *store.State) error {
@@ -109,18 +111,21 @@ func (s *Service) DecomposeMission(ctx context.Context, missionID string) ([]dom
 		if state.Missions[index].Status != domain.MissionStatusDraft {
 			return fmt.Errorf("only a draft task can be broken up")
 		}
-		// Replace the umbrella node with its sub-tasks: break-this-up turns one
-		// node into several rather than leaving the original prompt behind.
+		// Replace the umbrella node with a plan fanning out to its sub-tasks:
+		// break-this-up turns one node into a reviewed plan plus several tasks.
 		state.Missions = append(state.Missions[:index], state.Missions[index+1:]...)
 		state.Missions = append(state.Missions, created...)
+		state.Plans = append(state.Plans, plan)
 
-		// Drop any dangling dependency on the node we just removed so nothing is
-		// left waiting on a mission that no longer exists.
+		// Rewire any dependency on the removed umbrella to its terminal
+		// sub-tasks so nothing waits on a mission that no longer exists.
 		for i := range state.Missions {
 			deps := state.Missions[i].DependsOn
 			kept := deps[:0]
 			for _, id := range deps {
-				if id != missionID {
+				if id == missionID {
+					kept = append(kept, terminals...)
+				} else {
 					kept = append(kept, id)
 				}
 			}
@@ -137,48 +142,32 @@ func (s *Service) DecomposeMission(ctx context.Context, missionID string) ([]dom
 	return created, nil
 }
 
-func claudeDecompose(ctx context.Context, model, missionText string) ([]ProposedSubtask, error) {
-	out, err := agent.QueryClaudeText(ctx, model, decomposePrompt(missionText))
+func claudeDecompose(ctx context.Context, model, repoPath, missionText string) (PlanResult, error) {
+	out, err := agent.QueryClaudeInRepo(ctx, repoPath, model, decomposePrompt(missionText))
 	if err != nil {
-		return nil, err
+		return PlanResult{}, err
 	}
-	return parseDecomposition(out)
+	return parsePlanResult(out)
 }
 
 // decomposePrompt biases hard toward NOT splitting: over-splitting produces
 // noise, so a task only breaks apart when it plainly contains separate pieces.
 func decomposePrompt(missionText string) string {
-	return `You split a software task into the FEWEST independent sub-tasks a developer would actually track as separate units of work.
+	return `You split a software task into the FEWEST independent sub-tasks a developer would actually track as separate units of work. The task targets the repository in the current directory — read the code to ground the split in what is actually there.
 
 Rules:
 - Strongly prefer NOT splitting. If the task is a single coherent change, return exactly: {"atomic": true}
 - Only split when the task clearly contains distinct pieces (e.g. separate features, or a piece that must land before another can use it).
 - Never produce more than 4 sub-tasks.
+- When splitting, also write a short plan in Markdown explaining how the task breaks apart and why, grounded in the code.
 - Each sub-task needs a short "title", a "text" prompt an engineer can act on directly, and "dependsOn": a list of indices of earlier sub-tasks that must finish first (empty if it can run in parallel).
 - Output ONLY JSON, no prose, no code fences.
 
 JSON shape when splitting:
-{"subtasks": [{"title": "...", "text": "...", "dependsOn": []}]}
+{"plan": "<the plan document in Markdown>", "subtasks": [{"title": "...", "text": "...", "dependsOn": []}]}
 
 Task:
 ` + missionText
-}
-
-// parseDecomposition reads the model's JSON, tolerating stray prose or code
-// fences around it. An {"atomic": true} answer (or no sub-tasks) yields nil.
-func parseDecomposition(raw string) ([]ProposedSubtask, error) {
-	clean := extractJSONObject(raw)
-	var parsed struct {
-		Atomic   bool              `json:"atomic"`
-		Subtasks []ProposedSubtask `json:"subtasks"`
-	}
-	if err := json.Unmarshal([]byte(clean), &parsed); err != nil {
-		return nil, fmt.Errorf("decompose: model output was not valid JSON: %w", err)
-	}
-	if parsed.Atomic {
-		return nil, nil
-	}
-	return parsed.Subtasks, nil
 }
 
 // extractJSONObject slices out the first {...} span, so a model that wraps its

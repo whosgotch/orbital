@@ -117,4 +117,12 @@ func TestParsePlanResultToleratesFences(t *testing.T) {
 	if result.Content != "<h1>Plan</h1>" || len(result.Subtasks) != 1 {
 		t.Fatalf("parsed = %+v", result)
 	}
+
+	atomic, err := parsePlanResult(`{"atomic": true}`)
+	if err != nil {
+		t.Fatalf("parsePlanResult(atomic) error = %v", err)
+	}
+	if atomic.Content != "" || len(atomic.Subtasks) != 0 {
+		t.Fatalf("atomic parse = %+v, want empty result", atomic)
+	}
 }

@@ -63,12 +63,33 @@ func (s *Service) PlanRepo(ctx context.Context, repoID, goal string, format doma
 		CreatedAt:    now,
 	}
 
-	ids := make([]string, len(result.Subtasks))
-	for i := range result.Subtasks {
+	created := buildSubtaskMissions(repoID, plan.ID, "", result.Subtasks, now)
+
+	if _, err := s.store.Update(func(state *store.State) error {
+		if findRepositoryIndex(state.Repositories, repoID) == -1 {
+			return fmt.Errorf("repository not found: %s", repoID)
+		}
+		state.Plans = append(state.Plans, plan)
+		state.Missions = append(state.Missions, created...)
+		return nil
+	}); err != nil {
+		return nil, nil, err
+	}
+
+	return &plan, created, nil
+}
+
+// buildSubtaskMissions turns proposed subtasks into draft missions with
+// sibling-only deps (indices before the subtask's own position — keeps the
+// chain acyclic and ignores forward/self references a model might hallucinate).
+// planID and campaignID may be empty.
+func buildSubtaskMissions(repoID, planID, campaignID string, subtasks []ProposedSubtask, now time.Time) []domain.Mission {
+	ids := make([]string, len(subtasks))
+	for i := range subtasks {
 		ids[i] = fmt.Sprintf("mission_%d_%d", now.UnixNano(), i)
 	}
-	created := make([]domain.Mission, 0, len(result.Subtasks))
-	for i, subtask := range result.Subtasks {
+	created := make([]domain.Mission, 0, len(subtasks))
+	for i, subtask := range subtasks {
 		text := strings.TrimSpace(subtask.Text)
 		if text == "" {
 			text = strings.TrimSpace(subtask.Title)
@@ -89,23 +110,12 @@ func (s *Service) PlanRepo(ctx context.Context, repoID, goal string, format doma
 			Status:       domain.MissionStatusDraft,
 			CreatedAt:    now,
 			UpdatedAt:    now,
-			PlanID:       plan.ID,
+			CampaignID:   campaignID,
+			PlanID:       planID,
 			DependsOn:    deps,
 		})
 	}
-
-	if _, err := s.store.Update(func(state *store.State) error {
-		if findRepositoryIndex(state.Repositories, repoID) == -1 {
-			return fmt.Errorf("repository not found: %s", repoID)
-		}
-		state.Plans = append(state.Plans, plan)
-		state.Missions = append(state.Missions, created...)
-		return nil
-	}); err != nil {
-		return nil, nil, err
-	}
-
-	return &plan, created, nil
+	return created
 }
 
 func normalizePlanFormat(format domain.PlanFormat) domain.PlanFormat {
@@ -154,14 +164,20 @@ Output ONLY this JSON, no prose or fences around it:
 }
 
 // parsePlanResult reads the planner's JSON, tolerating stray prose or fences.
+// An {"atomic": true} answer yields an empty result: the work is one coherent
+// change, no plan or split needed.
 func parsePlanResult(raw string) (PlanResult, error) {
 	clean := extractJSONObject(raw)
 	var parsed struct {
+		Atomic   bool              `json:"atomic"`
 		Plan     string            `json:"plan"`
 		Subtasks []ProposedSubtask `json:"subtasks"`
 	}
 	if err := json.Unmarshal([]byte(clean), &parsed); err != nil {
 		return PlanResult{}, fmt.Errorf("plan: model output was not valid JSON: %w", err)
+	}
+	if parsed.Atomic {
+		return PlanResult{}, nil
 	}
 	return PlanResult{Content: parsed.Plan, Subtasks: parsed.Subtasks}, nil
 }
