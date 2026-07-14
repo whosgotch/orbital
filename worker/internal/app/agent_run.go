@@ -187,6 +187,12 @@ func (s *Service) resolveWorker(missionID string, workerName string) (agent.Work
 		return toolWorker, toolWorker.Name(), nil
 	}
 
+	// A research mission always runs the read-only researcher, so dispatchers
+	// never need to know (or thread) which agent answers questions.
+	if state.Missions[missionIndex].IsResearch() {
+		workerName = researcherWorkerName
+	}
+
 	worker, err := s.workerRegistry.Lookup(workerName)
 	if err != nil {
 		return nil, "", err
@@ -220,9 +226,10 @@ func (s *Service) finishAgentRun(runID string, missionID string) (*domain.AgentR
 		// A tool step has no patch gate: its command finishing cleanly IS the
 		// outcome, so land the mission as verified to release chained tasks.
 		// A tool that did emit a patch artifact is in waiting_approval by now
-		// and keeps the normal approve gate.
+		// and keeps the normal approve gate. Research lands the same way — its
+		// deliverable is the findings document, there is nothing to approve.
 		mission := state.Missions[missionIndex]
-		if mission.IsTool() && finalStatus == domain.AgentRunStatusCompleted && mission.Status == domain.MissionStatusRunning {
+		if (mission.IsTool() || mission.IsResearch()) && finalStatus == domain.AgentRunStatusCompleted && mission.Status == domain.MissionStatusRunning {
 			state.Missions[missionIndex].Status = domain.MissionStatusVerified
 			state.Missions[missionIndex].UpdatedAt = completedAt
 		}

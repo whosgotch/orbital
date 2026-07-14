@@ -125,16 +125,23 @@ func TestChatPatchSupersedesPriorPending(t *testing.T) {
 	}
 }
 
-// recordingChatWorker stands in for claude-engineer: it records each turn's
-// request and emits a captured session id plus an assistant reply, so the chat
-// orchestration can be tested without the claude CLI.
+// recordingChatWorker stands in for a claude chat agent (engineer by default,
+// researcher when named so): it records each turn's request and emits a
+// captured session id plus an assistant reply, so the chat orchestration can
+// be tested without the claude CLI.
 type recordingChatWorker struct {
+	name      string
 	sessionID string
 	mu        sync.Mutex
 	seen      []agent.RunRequest
 }
 
-func (w *recordingChatWorker) Name() string { return "claude-engineer" }
+func (w *recordingChatWorker) Name() string {
+	if w.name != "" {
+		return w.name
+	}
+	return "claude-engineer"
+}
 
 func (w *recordingChatWorker) Profile() agent.WorkerProfile {
 	return agent.WorkerProfile{Name: w.Name(), Mode: "test"}

@@ -5,14 +5,16 @@ import "time"
 type MissionStatus string
 
 // MissionKind separates AI tasks (an agent works toward an outcome) from tool
-// steps (a deterministic command whose exit code decides pass/fail). An empty
-// kind reads as a task so state files written before the field existed load
-// unchanged.
+// steps (a deterministic command whose exit code decides pass/fail) and from
+// research (a read-only agent whose deliverable is a findings document, not a
+// patch). An empty kind reads as a task so state files written before the
+// field existed load unchanged.
 type MissionKind string
 
 const (
-	MissionKindTask MissionKind = "task"
-	MissionKindTool MissionKind = "tool"
+	MissionKindTask     MissionKind = "task"
+	MissionKindTool     MissionKind = "tool"
+	MissionKindResearch MissionKind = "research"
 )
 
 const (
@@ -52,4 +54,8 @@ type Mission struct {
 
 func (m Mission) IsTool() bool {
 	return m.Kind == MissionKindTool
+}
+
+func (m Mission) IsResearch() bool {
+	return m.Kind == MissionKindResearch
 }

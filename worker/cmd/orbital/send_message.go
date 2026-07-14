@@ -39,6 +39,7 @@ func sendAgentMessage(ctx context.Context, args []string, stdout io.Writer) erro
 	service.SetRunModel(model)
 
 	service.RegisterWorker(agent.NewClaudeEngineerWorker())
+	service.RegisterWorker(agent.NewClaudeResearcherWorker())
 
 	if _, err := service.SendAgentMessage(ctx, missionID, text); err != nil {
 		return err

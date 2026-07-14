@@ -11,21 +11,24 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/domain"
 )
 
-// claudeAgentWorker is a Claude-backed agent that edits the repository working
-// tree directly and captures its changes as a patch proposal. The role and
-// prompt distinguish the specialized agents the manager spawns.
+// claudeAgentWorker is a Claude-backed agent working in the repository. The
+// role and prompt distinguish the specialized agents; capturesPatch separates
+// engineers (whose deliverable is a diff) from researchers (whose deliverable
+// is the written reply itself).
 type claudeAgentWorker struct {
-	name        string
-	role        string
-	startLabel  string
-	buildPrompt func(task string) string
+	name          string
+	role          string
+	startLabel    string
+	capturesPatch bool
+	buildPrompt   func(task string) string
 }
 
 func NewClaudeEngineerWorker() *claudeAgentWorker {
 	return &claudeAgentWorker{
-		name:       "claude-engineer",
-		role:       "Engineer",
-		startLabel: "Claude Engineer started.",
+		name:          "claude-engineer",
+		role:          "Engineer",
+		startLabel:    "Claude Engineer started.",
+		capturesPatch: true,
 		buildPrompt: func(task string) string {
 			return fmt.Sprintf(`You are an autonomous software engineer working in this repository.
 
@@ -36,17 +39,46 @@ Make the necessary code changes directly by editing files. Keep the change focus
 	}
 }
 
+// NewClaudeResearcherWorker answers questions about the repository instead of
+// changing it. Its whole deliverable is the findings document it replies with;
+// each follow-up turn re-issues the full updated document, so the mission's
+// latest assistant message is always the current findings.
+func NewClaudeResearcherWorker() *claudeAgentWorker {
+	return &claudeAgentWorker{
+		name:          "claude-researcher",
+		role:          "Researcher",
+		startLabel:    "Claude Researcher started.",
+		capturesPatch: false,
+		buildPrompt: func(task string) string {
+			return fmt.Sprintf(`You are a researcher exploring the repository in the current directory. Read the code, trace how things actually work, and answer with evidence — file paths and specifics, never guesses.
+
+Question: %s
+
+Work strictly read-only: do NOT create, modify, or delete any files.
+
+Reply with a findings document in Markdown: a one-paragraph answer first, then the supporting detail (structure, key files, gaps, options). The document is your whole deliverable — on every follow-up turn, reply with the full updated document, not a delta.`, task)
+		},
+	}
+}
+
 func (w *claudeAgentWorker) Name() string { return w.name }
 
 func (w *claudeAgentWorker) Profile() WorkerProfile {
+	capabilities := []string{
+		"edit repository files via claude CLI",
+		"capture changes as a unified diff for review",
+	}
+	if !w.capturesPatch {
+		capabilities = []string{
+			"read the repository via claude CLI",
+			"answer with a written findings document",
+		}
+	}
 	return WorkerProfile{
-		Name:  w.name,
-		Mode:  "claude-cli",
-		Roles: []string{w.role},
-		Capabilities: []string{
-			"edit repository files via claude CLI",
-			"capture changes as a unified diff for review",
-		},
+		Name:         w.name,
+		Mode:         "claude-cli",
+		Roles:        []string{w.role},
+		Capabilities: capabilities,
 	}
 }
 
@@ -138,6 +170,12 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 				CreatedAt: now,
 			}}:
 			}
+		}
+
+		// A researcher's deliverable is the reply itself — no diff to capture.
+		if !w.capturesPatch {
+			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunCompleted, fmt.Sprintf("Claude %s completed.", w.role), "", "")
+			return
 		}
 
 		diff, err := captureGitDiff(ctx, request.RepoPath)

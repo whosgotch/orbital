@@ -31,6 +31,7 @@ func startAgentRun(ctx context.Context, args []string, stdout io.Writer) error {
 	service.SetRunModel(options.model)
 
 	service.RegisterWorker(agent.NewClaudeEngineerWorker())
+	service.RegisterWorker(agent.NewClaudeResearcherWorker())
 
 	if _, err := service.StartAgentRun(ctx, missionID, options.workerName); err != nil {
 		return err
