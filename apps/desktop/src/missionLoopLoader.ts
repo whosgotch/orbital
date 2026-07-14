@@ -22,8 +22,14 @@ export function openMissionLoopRepository(repoPath: string) {
   return invokeState("open_repository", { repoPath });
 }
 
-export function queueMissionLoopState(repoPath: string, missionText: string, campaignId?: string, toolCommand?: string) {
-  return invokeState("queue_mission", { repoPath, missionText, campaignId, toolCommand });
+export function queueMissionLoopState(
+  repoPath: string,
+  missionText: string,
+  campaignId?: string,
+  toolCommand?: string,
+  research?: boolean,
+) {
+  return invokeState("queue_mission", { repoPath, missionText, campaignId, toolCommand, research });
 }
 
 export function updateMissionTextLoopState(repoPath: string, missionId: string, text: string) {

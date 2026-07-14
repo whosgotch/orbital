@@ -121,6 +121,7 @@ fn queue_mission(
     mission_text: String,
     campaign_id: Option<String>,
     tool_command: Option<String>,
+    research: Option<bool>,
 ) -> Result<String, String> {
     let mut args = vec!["queue", repo_path.trim(), mission_text.trim()];
     if let Some(id) = campaign_id.as_deref().map(str::trim).filter(|id| !id.is_empty()) {
@@ -128,6 +129,9 @@ fn queue_mission(
     }
     if let Some(cmd) = tool_command.as_deref().map(str::trim).filter(|cmd| !cmd.is_empty()) {
         args.extend(["--tool", cmd]);
+    }
+    if research.unwrap_or(false) {
+        args.push("--research");
     }
     run_worker(&args)
 }
