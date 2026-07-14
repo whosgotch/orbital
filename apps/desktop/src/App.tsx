@@ -22,6 +22,7 @@ import { PlanPanel, PlanIntake } from "./components/PlanPanel";
 import { ReviseBox } from "./components/ReviseBox";
 import { PromptBar } from "./components/PromptBar";
 import { HistoryPanel } from "./components/HistoryPanel";
+import { Markdown } from "./components/Markdown";
 import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
 import { buildAgentTranscript, groupChatByMission } from "./agentTranscript";
 import {
@@ -125,8 +126,9 @@ export function App() {
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, workerModeFromName(mission.worker)])),
   );
   // Which full-width view the task window shows, and whether the verification
-  // detail (command + output) is expanded under the diff.
-  const [taskView, setTaskView] = useState<"chat" | "changes">("chat");
+  // detail (command + output) is expanded under the diff. Research missions
+  // show "doc" (the findings document) instead of "changes".
+  const [taskView, setTaskView] = useState<"chat" | "changes" | "doc">("chat");
   // The live conversation with each mission's agent, and which missions have a
   // chat turn in flight (so the composer shows a spinner while the agent works).
   const [chatByMission, setChatByMission] = useState<Record<string, ChatMessage[]>>({});
@@ -182,6 +184,9 @@ export function App() {
       case "verify":
         setTaskView("changes");
         setVerifyOpen(true);
+        break;
+      case "research":
+        setTaskView("doc");
         break;
       case "task":
       case "agent":
@@ -256,8 +261,15 @@ export function App() {
   if (editorMissionId !== selectedMissionId) {
     setEditorMissionId(selectedMissionId);
     setEditingPrompt(false);
-    setTaskView("chat");
+    setTaskView(selectedMission?.kind === "research" ? "doc" : "chat");
   }
+
+  // The research node's document: the researcher re-issues the full updated
+  // findings every turn, so the latest assistant reply IS the current document.
+  const researchDoc =
+    selectedMission?.kind === "research"
+      ? [...selectedChatMessages].reverse().find((message) => message.role === "assistant")?.text ?? ""
+      : "";
 
   // Enrich each pipeline card with the live data its step operates on: the
   // task's worker + launchability, the agent's "now" line, the change set's
@@ -315,6 +327,22 @@ export function App() {
                 live: runtime?.status === "running",
                 waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
                 verifyState: status === "verified" ? ("passed" as const) : status === "blocked" ? ("failed" as const) : undefined,
+              },
+            };
+          }
+          case "research": {
+            const mission = workspaceMissions.find((m) => m.id === missionId);
+            const pendingUpstreams = (mission?.depends_on ?? []).filter((id) => !upstreamLanded(id));
+            const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
+            const launchable =
+              (!runtime || runtime.status === "queued" || runtime.status === "draft") && pendingUpstreams.length === 0;
+            return {
+              ...node,
+              status,
+              meta: {
+                ...node.meta,
+                launchable,
+                waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
               },
             };
           }
@@ -514,6 +542,21 @@ export function App() {
   const planGoalOnCanvas = (text: string, model?: string) => {
     if (!draftRepository) return;
     void planRepo(draftRepository, text, "md", model);
+  };
+
+  // Research typed into the prompt bar: the whole text is one question. It
+  // dispatches immediately — a read-only run is always safe to start.
+  const researchFromPrompt = async (text: string) => {
+    if (!draftRepository) return;
+    setMissionLoopError("");
+    try {
+      const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, text, undefined, undefined, true);
+      const missionId = nextMissionLoopState.missions.at(-1)?.id;
+      applyRepoState(nextMissionLoopState);
+      if (missionId) void dispatchMission(missionId, { repoPath: draftRepository.path });
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to start research."));
+    }
   };
 
   // Create task(s) typed into the prompt bar: one mission per non-empty line,
@@ -1256,6 +1299,7 @@ export function App() {
           planFeed={planFeed}
           onCreate={(text) => void createFromPrompt(text)}
           onPlan={(text) => planGoalOnCanvas(text)}
+          onResearch={(text) => void researchFromPrompt(text)}
         />
 
         {workspaceMissions.length === 0 ? (
@@ -1325,7 +1369,8 @@ export function App() {
             <div className="panel-head review-head">
               <div>
                 <div className="section-label">
-                  {selectedRepository?.name ?? "workspace"} · {selectedMission.kind === "tool" ? "tool" : "task"}
+                  {selectedRepository?.name ?? "workspace"} ·{" "}
+                  {selectedMission.kind === "tool" ? "tool" : selectedMission.kind === "research" ? "research" : "task"}
                 </div>
                 <h2 className="work-order-title">{selectedMission.title}</h2>
               </div>
@@ -1389,6 +1434,17 @@ export function App() {
             ) : null}
 
             <div className="task-switch" role="tablist">
+              {selectedMission.kind === "research" ? (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={taskView === "doc"}
+                  className={`task-switch-btn ${taskView === "doc" ? "active" : ""}`}
+                  onClick={() => setTaskView("doc")}
+                >
+                  Document
+                </button>
+              ) : null}
               <button
                 type="button"
                 role="tab"
@@ -1398,24 +1454,38 @@ export function App() {
               >
                 Chat
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={taskView === "changes"}
-                className={`task-switch-btn ${taskView === "changes" ? "active" : ""}`}
-                onClick={() => setTaskView("changes")}
-              >
-                Changes
-                {agentStatus.files.length > 0 ? (
-                  <span className="tab-count">{agentStatus.files.length}</span>
-                ) : null}
-                {patchReady && taskView !== "changes" ? <span className="task-switch-dot" aria-hidden="true" /> : null}
-              </button>
+              {selectedMission.kind !== "research" ? (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={taskView === "changes"}
+                  className={`task-switch-btn ${taskView === "changes" ? "active" : ""}`}
+                  onClick={() => setTaskView("changes")}
+                >
+                  Changes
+                  {agentStatus.files.length > 0 ? (
+                    <span className="tab-count">{agentStatus.files.length}</span>
+                  ) : null}
+                  {patchReady && taskView !== "changes" ? <span className="task-switch-dot" aria-hidden="true" /> : null}
+                </button>
+              ) : null}
               <div className="task-switch-spacer" />
             </div>
 
             <div className="task-body">
-              {taskView === "chat" ? (
+              {taskView === "doc" ? (
+                <div className="plan-doc research-doc">
+                  {researchDoc ? (
+                    <Markdown text={researchDoc} />
+                  ) : (
+                    <div className="diff-empty">
+                      {selectedRuntime.status === "running"
+                        ? "The researcher is reading the repo — findings land here."
+                        : "No findings yet — run the research or ask it something in Chat."}
+                    </div>
+                  )}
+                </div>
+              ) : taskView === "chat" ? (
                 <AgentChat
                   messages={selectedChatMessages}
                   statusModel={agentStatus}

@@ -4,7 +4,7 @@
 // node plus the tasks it fans out to. While a plan is in flight the bar shows
 // the AI's streamed thinking.
 import { useRef, useState } from "react";
-import { CornerDownLeft, Loader, Sparkles } from "lucide-react";
+import { CornerDownLeft, Loader, Search, Sparkles } from "lucide-react";
 import { PlanLiveFeed } from "./PlanLiveFeed";
 import type { PlanFeedItem } from "../domain";
 
@@ -15,9 +15,10 @@ type PromptBarProps = {
   planFeed: PlanFeedItem[];
   onCreate: (text: string) => void;
   onPlan: (text: string) => void;
+  onResearch: (text: string) => void;
 };
 
-export function PromptBar({ repoName, planning, planFeed, onCreate, onPlan }: PromptBarProps) {
+export function PromptBar({ repoName, planning, planFeed, onCreate, onPlan, onResearch }: PromptBarProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const trimmed = text.trim();
@@ -51,6 +52,16 @@ export function PromptBar({ repoName, planning, planFeed, onCreate, onPlan }: Pr
       />
       <div className="prompt-bar-actions">
         {repoName ? <span className="prompt-bar-target">{repoName}</span> : null}
+        <button
+          type="button"
+          className="secondary"
+          disabled={!ready}
+          onClick={() => submit(onResearch)}
+          title="Ask about the repo — a read-only researcher answers with a findings document"
+        >
+          <Search size={13} aria-hidden="true" />
+          <span>Research</span>
+        </button>
         <button
           type="button"
           className="secondary"

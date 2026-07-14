@@ -18,13 +18,15 @@ export type WorkspaceMission = {
   map_position: "north" | "east" | "south" | "west" | "center";
   // Upstream missions whose patches must land before this one auto-starts.
   depends_on?: string[];
-  // Absent kind reads as "task"; tool missions render as a single tool card.
-  kind?: "task" | "tool";
+  // Absent kind reads as "task"; tool and research missions render as a
+  // single card — their whole pipeline is the card itself.
+  kind?: "task" | "tool" | "research";
 };
 
 // Every node is a step you operate, not a picture of state: a task you run, an
-// agent you talk to, a change set you gate, a verification you fire.
-export type GraphNodeKind = "repo" | "task" | "agent" | "changes" | "verify" | "campaign" | "tool" | "plan";
+// agent you talk to, a change set you gate, a verification you fire, a
+// research whose findings you read and question.
+export type GraphNodeKind = "repo" | "task" | "agent" | "changes" | "verify" | "campaign" | "tool" | "plan" | "research";
 
 // Per-kind payload that makes a node card operable and glanceable.
 export type GraphNodeMeta = {

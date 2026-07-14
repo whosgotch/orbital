@@ -88,6 +88,18 @@ describe("workspaceViewFromMissionLoop", () => {
     expect(view.runtimeByMission.m1.status).toBe("verified");
   });
 
+  it("keeps a research mission as one node with no pipeline stages", () => {
+    const view = workspaceViewFromMissionLoop(
+      state({
+        missions: [mission({ kind: "research", text: "how does the plan engine work?", status: "verified" })],
+        agent_runs: [{ ...run, worker_name: "claude-researcher" }],
+      }),
+    );
+    expect(view.graphNodes.map((node) => node.kind)).toEqual(["repo", "research"]);
+    expect(view.graphEdges.map((edge) => edge.kind)).toEqual(["owns"]);
+    expect(view.runtimeByMission.m1.status).toBe("verified");
+  });
+
   it("chains dependent tasks and connects only chain heads to the repo", () => {
     const view = workspaceViewFromMissionLoop(
       state({ missions: [mission({}), mission({ id: "m2", depends_on: ["m1"] })] }),

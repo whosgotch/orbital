@@ -17,7 +17,7 @@ export type MissionStatus =
   | "verified"
   | "failed";
 
-export type MissionKind = "task" | "tool";
+export type MissionKind = "task" | "tool" | "research";
 
 export type Mission = {
   id: string;

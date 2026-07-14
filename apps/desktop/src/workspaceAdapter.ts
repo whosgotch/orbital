@@ -146,6 +146,21 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
       ];
     }
 
+    // Research is one card too: the findings document lives in the node's
+    // panel, and there is never a change set or verify gate behind it.
+    if (mission.kind === "research") {
+      return [
+        {
+          id: mission.id,
+          kind: "research" as const,
+          label: compactLabel(mission.title),
+          detail: "research",
+          meta: { prompt: mission.title },
+          ...base,
+        },
+      ];
+    }
+
     const nodes: WorkspaceGraphNode[] = [
       {
         id: mission.id,
@@ -225,9 +240,9 @@ function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopSta
       edges.push({ id: `then_${upstreamId}_${mission.id}`, from: upstreamId, to: mission.id, kind: "then" });
     });
 
-    // Tool missions render as a single card, so there are no pipeline stages
-    // to wire — even a patch-emitting tool has no changes node to point at.
-    if (mission.kind === "tool") {
+    // Tool and research missions render as a single card, so there are no
+    // pipeline stages to wire behind them.
+    if (mission.kind === "tool" || mission.kind === "research") {
       return edges;
     }
 
@@ -464,6 +479,8 @@ export function roleLabel(workerName: string) {
   switch (workerName) {
     case "claude-engineer":
       return "Engineer";
+    case "claude-researcher":
+      return "Researcher";
     case "claude-manager":
       return "AI manager";
     case "mock":
