@@ -100,6 +100,18 @@ describe("workspaceViewFromMissionLoop", () => {
     expect(view.runtimeByMission.m1.status).toBe("verified");
   });
 
+  it("renders an edge from a verified research node to a task chained onto it", () => {
+    const view = workspaceViewFromMissionLoop(
+      state({
+        missions: [
+          mission({ id: "r1", kind: "research", text: "how does the plan engine work?", status: "verified" }),
+          mission({ id: "m2", depends_on: ["r1"] }),
+        ],
+      }),
+    );
+    expect(view.graphEdges).toContainEqual({ id: "then_r1_m2", from: "r1", to: "m2", kind: "then" });
+  });
+
   it("chains dependent tasks and connects only chain heads to the repo", () => {
     const view = workspaceViewFromMissionLoop(
       state({ missions: [mission({}), mission({ id: "m2", depends_on: ["m1"] })] }),
