@@ -24,6 +24,30 @@
   box-sizing: border-box;
 }
 
+/* Scrollbars: thin and quiet everywhere — a hairline thumb that only asks for
+   attention under the cursor, never a chrome-heavy track. */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 body {
   min-width: 1180px;
   margin: 0;
@@ -802,6 +826,9 @@ h3 {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Long mono lines (paths, commands) must wrap, never grow a horizontal
+     scrollbar under the conversation. */
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1266,6 +1293,8 @@ button.mini-text {
   border-radius: 6px;
   font-size: 13px;
   line-height: 1.45;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .transcript-glyph {
