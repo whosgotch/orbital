@@ -72,6 +72,38 @@ func TestUpstreamContextTruncatesLongDiffs(t *testing.T) {
 	}
 }
 
+// A task depending on a verified research mission gets the research
+// document's findings in its context instead of a diff — research missions
+// never land patches.
+func TestUpstreamContextIncludesResearchFindings(t *testing.T) {
+	state := &store.State{
+		Repositories: []domain.Repository{{ID: "repo_1", Path: "/tmp/repo", Name: "demo"}},
+		Missions: []domain.Mission{
+			{
+				ID:           "r1",
+				RepositoryID: "repo_1",
+				Kind:         domain.MissionKindResearch,
+				Text:         "how does the plan engine work?",
+				Status:       domain.MissionStatusVerified,
+				Document:     "# Findings\nThe plan engine reads state and calls claude.",
+			},
+			{ID: "t1", RepositoryID: "repo_1", Text: "wire the planner", Status: domain.MissionStatusDraft, DependsOn: []string{"r1"}},
+		},
+	}
+
+	contextBlock, titles := upstreamContextFor(state, state.Missions[1])
+
+	if len(titles) != 1 || titles[0] != "how does the plan engine work?" {
+		t.Fatalf("titles = %v, want [how does the plan engine work?]", titles)
+	}
+	if !strings.Contains(contextBlock, "Findings:\n# Findings\nThe plan engine reads state and calls claude.") {
+		t.Fatalf("context missing findings block:\n%s", contextBlock)
+	}
+	if strings.Contains(contextBlock, "```diff") {
+		t.Fatalf("research upstream should not carry a diff block:\n%s", contextBlock)
+	}
+}
+
 func TestStartAgentRunRecordsUpstreamHandoff(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
 	svc := NewService(jsonStore)

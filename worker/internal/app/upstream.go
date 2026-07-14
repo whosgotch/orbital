@@ -12,8 +12,9 @@ import (
 // downstream agents only need enough to understand what landed — they can read
 // the real files in the repository.
 const (
-	upstreamDiffLimit    = 6000
-	upstreamSummaryLimit = 1200
+	upstreamDiffLimit     = 6000
+	upstreamSummaryLimit  = 1200
+	upstreamFindingsLimit = 6000
 )
 
 // upstreamContextFor composes what flows along task→task edges: for every
@@ -39,7 +40,12 @@ func upstreamContextFor(state *store.State, mission domain.Mission) (string, []s
 		if summary := lastAssistantMessage(state, upstreamID); summary != "" {
 			section += "\nOutcome: " + truncateContext(summary, upstreamSummaryLimit)
 		}
-		if diff := latestMissionDiff(state, upstreamID); diff != "" {
+		// Research produces a findings document, not a patch — hand that down
+		// instead of a diff. Research missions never emit patches, so the diff
+		// branch below naturally stays empty for them.
+		if upstream.IsResearch() && strings.TrimSpace(upstream.Document) != "" {
+			section += "\nFindings:\n" + truncateContext(upstream.Document, upstreamFindingsLimit)
+		} else if diff := latestMissionDiff(state, upstreamID); diff != "" {
 			section += "\nChanges it landed:\n```diff\n" + truncateContext(diff, upstreamDiffLimit) + "\n```"
 		}
 		sections = append(sections, section)
