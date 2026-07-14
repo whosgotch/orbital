@@ -53,6 +53,10 @@ type RunEvent struct {
 	// SessionID is the claude session this run captured, so the service can
 	// persist it onto the run and resume the same conversation next turn.
 	SessionID string `json:"session_id,omitempty"`
+	// Findings is the full, current findings document a researcher delivered
+	// this turn; the service stores it on the mission. Not streamed — it lands
+	// with the final state snapshot.
+	Findings string `json:"findings,omitempty"`
 }
 
 type Worker interface {

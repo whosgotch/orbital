@@ -16,11 +16,12 @@ import (
 // engineers (whose deliverable is a diff) from researchers (whose deliverable
 // is the written reply itself).
 type claudeAgentWorker struct {
-	name          string
-	role          string
-	startLabel    string
-	capturesPatch bool
-	buildPrompt   func(task string) string
+	name             string
+	role             string
+	startLabel       string
+	capturesPatch    bool
+	deliversFindings bool
+	buildPrompt      func(task string) string
 }
 
 func NewClaudeEngineerWorker() *claudeAgentWorker {
@@ -40,15 +41,16 @@ Make the necessary code changes directly by editing files. Keep the change focus
 }
 
 // NewClaudeResearcherWorker answers questions about the repository instead of
-// changing it. Its whole deliverable is the findings document it replies with;
-// each follow-up turn re-issues the full updated document, so the mission's
-// latest assistant message is always the current findings.
+// changing it. Each reply carries two parts: a short chat note and the full
+// findings document, which the service stores on the mission — so the Document
+// panel always shows the current version while the chat stays a conversation.
 func NewClaudeResearcherWorker() *claudeAgentWorker {
 	return &claudeAgentWorker{
-		name:          "claude-researcher",
-		role:          "Researcher",
-		startLabel:    "Claude Researcher started.",
-		capturesPatch: false,
+		name:             "claude-researcher",
+		role:             "Researcher",
+		startLabel:       "Claude Researcher started.",
+		capturesPatch:    false,
+		deliversFindings: true,
 		buildPrompt: func(task string) string {
 			return fmt.Sprintf(`You are a researcher exploring the repository in the current directory. Read the code, trace how things actually work, and answer with evidence — file paths and specifics, never guesses.
 
@@ -56,9 +58,43 @@ Question: %s
 
 Work strictly read-only: do NOT create, modify, or delete any files.
 
-Reply with a findings document in Markdown: a one-paragraph answer first, then the supporting detail (structure, key files, gaps, options). The document is your whole deliverable — on every follow-up turn, reply with the full updated document, not a delta.`, task)
+Reply in EXACTLY this shape, with both tags and nothing outside them:
+<note>One or two sentences for the chat: the headline of what you found or what changed.</note>
+<findings>The findings document in well-structured Markdown: a one-paragraph answer first, then the supporting detail (structure, key files, gaps, options).</findings>
+
+The <findings> document is your whole deliverable. On every follow-up turn in this conversation, reply in the same shape and re-issue the FULL updated document — never a delta or a bare answer.`, task)
 		},
 	}
+}
+
+// splitResearchReply separates a researcher's reply into the short chat note
+// and the findings document. A reply without the expected tags becomes the
+// document itself, with a stock note — the deliverable survives a model that
+// forgot the shape.
+func splitResearchReply(reply string) (note, findings string) {
+	note = strings.TrimSpace(extractTag(reply, "note"))
+	findings = strings.TrimSpace(extractTag(reply, "findings"))
+	if findings == "" {
+		findings = strings.TrimSpace(reply)
+	}
+	if note == "" {
+		note = "Findings updated — open the Document tab."
+	}
+	return note, findings
+}
+
+func extractTag(s, tag string) string {
+	open, close := "<"+tag+">", "</"+tag+">"
+	start := strings.Index(s, open)
+	if start == -1 {
+		return ""
+	}
+	rest := s[start+len(open):]
+	end := strings.Index(rest, close)
+	if end == -1 {
+		return rest
+	}
+	return rest[:end]
 }
 
 func (w *claudeAgentWorker) Name() string { return w.name }
@@ -152,10 +188,17 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 		}
 
 		if strings.TrimSpace(summary) != "" {
-			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "⏺ "+truncate(summary, 200), "", "claude") {
+			// A researcher's reply splits in two: a short note stays in the chat,
+			// the full findings document goes to the mission via its own event.
+			chatText := strings.TrimSpace(summary)
+			findings := ""
+			if w.deliversFindings {
+				chatText, findings = splitResearchReply(summary)
+			}
+
+			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "⏺ "+truncate(chatText, 200), "", "claude") {
 				return
 			}
-			// Record the summary as the agent's chat reply for this turn.
 			now := time.Now().UTC()
 			select {
 			case <-ctx.Done():
@@ -166,9 +209,18 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 				MissionID: request.MissionID,
 				RunID:     request.RunID,
 				Role:      domain.ChatRoleAssistant,
-				Text:      strings.TrimSpace(summary),
+				Text:      chatText,
 				CreatedAt: now,
 			}}:
+			}
+
+			if findings != "" {
+				select {
+				case <-ctx.Done():
+					sendCancelledEvent(events, request.RunID)
+					return
+				case events <- RunEvent{Findings: findings}:
+				}
 			}
 		}
 

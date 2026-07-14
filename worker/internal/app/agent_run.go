@@ -276,6 +276,13 @@ func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
 			state.ChatMessages = append(state.ChatMessages, *event.ChatMessage)
 		}
 
+		// A researcher's findings replace the mission's document wholesale — the
+		// agent re-issues the full updated version every turn.
+		if event.Findings != "" {
+			state.Missions[missionIndex].Document = event.Findings
+			state.Missions[missionIndex].UpdatedAt = time.Now().UTC()
+		}
+
 		return nil
 	})
 	if err != nil {

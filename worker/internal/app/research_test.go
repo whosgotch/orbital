@@ -73,9 +73,12 @@ func TestStartAgentRunResearchUsesResearcherAndLandsVerified(t *testing.T) {
 	if len(state.PatchProposals) != 0 {
 		t.Fatalf("research produced %d patches, want 0", len(state.PatchProposals))
 	}
-	// The findings document is the assistant's reply, recorded in chat.
+	// The chat keeps the short note; the findings land on the mission itself.
 	if len(state.ChatMessages) == 0 {
-		t.Fatal("expected the findings reply in chat messages")
+		t.Fatal("expected the researcher's note in chat messages")
+	}
+	if state.Missions[0].Document == "" {
+		t.Fatal("expected the findings document stored on the mission")
 	}
 }
 

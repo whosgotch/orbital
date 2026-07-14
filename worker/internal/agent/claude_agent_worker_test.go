@@ -63,3 +63,30 @@ func runGit(t *testing.T, dir string, args ...string) string {
 	}
 	return string(out)
 }
+
+func TestSplitResearchReply(t *testing.T) {
+	note, findings := splitResearchReply("<note>Found it.</note>\n<findings># Doc\n\nBody.</findings>")
+	if note != "Found it." {
+		t.Fatalf("note = %q", note)
+	}
+	if findings != "# Doc\n\nBody." {
+		t.Fatalf("findings = %q", findings)
+	}
+}
+
+func TestSplitResearchReplyWithoutTagsKeepsDocument(t *testing.T) {
+	note, findings := splitResearchReply("just a plain answer")
+	if findings != "just a plain answer" {
+		t.Fatalf("findings = %q", findings)
+	}
+	if note == "" {
+		t.Fatal("expected a stock note")
+	}
+}
+
+func TestSplitResearchReplyUnclosedFindingsTag(t *testing.T) {
+	_, findings := splitResearchReply("<note>n</note><findings># Doc without closing tag")
+	if findings != "# Doc without closing tag" {
+		t.Fatalf("findings = %q", findings)
+	}
+}

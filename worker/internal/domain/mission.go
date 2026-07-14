@@ -50,6 +50,9 @@ type Mission struct {
 	// ToolCommand is the shell command a kind=tool mission runs (sh -c in the
 	// repo); success lands the mission as verified, failure marks it failed.
 	ToolCommand string `json:"tool_command,omitempty"`
+	// Document is a research mission's findings — the full, current version of
+	// the document the researcher delivers and rewrites across chat turns.
+	Document string `json:"document,omitempty"`
 }
 
 func (m Mission) IsTool() bool {

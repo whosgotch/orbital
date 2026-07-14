@@ -160,7 +160,7 @@ func (w *recordingChatWorker) StartRun(ctx context.Context, request agent.RunReq
 	w.seen = append(w.seen, request)
 	w.mu.Unlock()
 
-	events := make(chan agent.RunEvent, 2)
+	events := make(chan agent.RunEvent, 3)
 	now := time.Now().UTC()
 	events <- agent.RunEvent{SessionID: w.sessionID}
 	events <- agent.RunEvent{ChatMessage: &domain.ChatMessage{
@@ -171,6 +171,10 @@ func (w *recordingChatWorker) StartRun(ctx context.Context, request agent.RunReq
 		Text:      "done: " + request.MissionText,
 		CreatedAt: now,
 	}}
+	// A researcher stand-in also delivers a findings document, like the real one.
+	if w.Name() == "claude-researcher" {
+		events <- agent.RunEvent{Findings: "## Findings\n\n" + request.MissionText}
+	}
 	close(events)
 	return events, nil
 }
