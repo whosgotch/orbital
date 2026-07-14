@@ -17,8 +17,8 @@ import (
 // assert the run executed inside an isolated worktree rather than the repo root.
 type recordingWorker struct{ seen *string }
 
-func (w recordingWorker) Name() string                  { return "recording" }
-func (w recordingWorker) Profile() agent.WorkerProfile  { return agent.WorkerProfile{Name: w.Name()} }
+func (w recordingWorker) Name() string                 { return "recording" }
+func (w recordingWorker) Profile() agent.WorkerProfile { return agent.WorkerProfile{Name: w.Name()} }
 func (w recordingWorker) CheckAvailable(ctx context.Context) (*agent.WorkerInfo, error) {
 	return &agent.WorkerInfo{Name: w.Name(), Available: true}, nil
 }
