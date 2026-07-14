@@ -485,6 +485,20 @@ export function compactLabel(title: string) {
   return words.length > 6 ? `${label}…` : label;
 }
 
+// A selected node is a valid follow-up target only when it's a mission that
+// can hand off a summary/diff/findings at run time — a task or a research
+// card. Repo, plan, and pipeline-stage nodes (agent/changes/verify/tool/
+// campaign) never qualify.
+export function followUpTargetFor(
+  node: WorkspaceGraphNode | undefined,
+  missions: WorkspaceMission[],
+): { id: string; title: string } | undefined {
+  if (!node || (node.kind !== "task" && node.kind !== "research")) return undefined;
+  const mission = missions.find((item) => item.id === node.mission_id);
+  if (!mission) return undefined;
+  return { id: mission.id, title: compactLabel(mission.title) };
+}
+
 export function roleLabel(workerName: string) {
   switch (workerName) {
     case "claude-engineer":

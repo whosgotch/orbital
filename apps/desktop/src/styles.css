@@ -276,6 +276,12 @@ h3 {
   color: var(--text);
 }
 
+/* The prompt bar's chain-to-selected-node chip — same shape as an attachment
+   chip, distinguished by its corner-arrow icon rather than color. */
+.follow-up-chip .attachment-chip-name {
+  max-width: 260px;
+}
+
 .prompt-bar-input:focus {
   outline: none;
   border: none;

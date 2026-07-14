@@ -5,7 +5,7 @@
 // While a plan is in flight the bar shows the AI's streamed thinking. Pasted
 // screenshots ride along as attachments.
 import { useRef, useState } from "react";
-import { CornerDownLeft, Loader, Search, Sparkles } from "lucide-react";
+import { CornerDownLeft, CornerDownRight, Loader, Search, Sparkles, X } from "lucide-react";
 import { PlanLiveFeed } from "./PlanLiveFeed";
 import { AttachmentChips } from "./AttachmentChips";
 import { usePastedImages } from "../attachments";
@@ -17,12 +17,26 @@ type PromptBarProps = {
   repoPath?: string;
   planning: boolean;
   planFeed: PlanFeedItem[];
+  // The selected mission node Create/Research will chain the new mission
+  // after, if any — cleared by the × on the chip or by selecting elsewhere.
+  followUp?: { id: string; title: string };
+  onDismissFollowUp: () => void;
   onCreate: (text: string, attachments: string[]) => void;
   onPlan: (text: string, attachments: string[]) => void;
   onResearch: (text: string, attachments: string[]) => void;
 };
 
-export function PromptBar({ repoName, repoPath, planning, planFeed, onCreate, onPlan, onResearch }: PromptBarProps) {
+export function PromptBar({
+  repoName,
+  repoPath,
+  planning,
+  planFeed,
+  followUp,
+  onDismissFollowUp,
+  onCreate,
+  onPlan,
+  onResearch,
+}: PromptBarProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const attachments = usePastedImages(repoPath);
@@ -40,6 +54,17 @@ export function PromptBar({ repoName, repoPath, planning, planFeed, onCreate, on
   return (
     <div className="prompt-bar" aria-label="New work">
       {planning ? <PlanLiveFeed feed={planFeed} /> : null}
+      {followUp ? (
+        <div className="attachment-chips">
+          <span className="attachment-chip follow-up-chip">
+            <CornerDownRight size={12} aria-hidden="true" />
+            <span className="attachment-chip-name">follow-up of: {followUp.title}</span>
+            <button type="button" onClick={onDismissFollowUp} aria-label="Remove follow-up link">
+              <X size={11} aria-hidden="true" />
+            </button>
+          </span>
+        </div>
+      ) : null}
       <AttachmentChips paths={attachments.paths} onRemove={attachments.remove} />
       <textarea
         ref={inputRef}

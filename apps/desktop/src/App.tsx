@@ -52,6 +52,7 @@ import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, PlanFeedIt
 import { CURATED_MODELS, modelName } from "./models";
 import {
   compactLabel,
+  followUpTargetFor,
   workspaceViewFromMissionLoop,
   type WorkspaceRuntimeMap,
 } from "./workspaceAdapter";
@@ -104,6 +105,9 @@ export function App() {
   const [missionLoopError, setMissionLoopError] = useState("");
   const [activeRepoPath, setActiveRepoPath] = useState(demoRepoPath);
   const [selectedNodeId, setSelectedNodeId] = useState("");
+  // The node id the follow-up chip was dismissed for — dismissal is
+  // per-selection, so picking a different mission brings the chip back.
+  const [followUpDismissedFor, setFollowUpDismissedFor] = useState("");
   const [planningRepoId, setPlanningRepoId] = useState("");
   // The AI's streamed steps while a plan is in flight — shown live on the
   // surface that started the plan (draft card or repo panel), then discarded.
@@ -207,6 +211,10 @@ export function App() {
   // title is only the short node label.
   const selectedMissionRecord = missionLoopState.missions.find((mission) => mission.id === selectedMission?.id);
   const selectedRepository = selectedMission ? repositoryFor(selectedMission, missionLoopState.repositories) : undefined;
+  // The prompt bar chip: a task/research node selected and not dismissed for
+  // this particular selection becomes the new mission's follow-up target.
+  const followUpTarget =
+    followUpDismissedFor === selectedNodeId ? undefined : followUpTargetFor(selectedGraphNode, workspaceMissions);
   // A selected plan node shows its written document; a selected repo node offers
   // the planning intake. Both are node-scoped surfaces, like the task panel.
   const selectedPlan =
@@ -547,6 +555,18 @@ export function App() {
     void planRepo(draftRepository, text, "md", model);
   };
 
+  // Chain a freshly queued mission after the prompt bar's active follow-up
+  // target, if any. The mission is already queued by the time this runs, so a
+  // link failure is reported but never undoes the creation.
+  const linkFollowUp = async (repoPath: string, newMissionId: string) => {
+    if (!followUpTarget) return;
+    try {
+      applyRepoState(await linkMissionsLoopState(repoPath, followUpTarget.id, newMissionId));
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to link follow-up."));
+    }
+  };
+
   // Research typed into the prompt bar: the whole text is one question. It
   // dispatches immediately — a read-only run is always safe to start.
   const researchFromPrompt = async (text: string, attachments: string[]) => {
@@ -562,7 +582,10 @@ export function App() {
       );
       const missionId = nextMissionLoopState.missions.at(-1)?.id;
       applyRepoState(nextMissionLoopState);
-      if (missionId) void dispatchMission(missionId, { repoPath: draftRepository.path });
+      if (missionId) {
+        await linkFollowUp(draftRepository.path, missionId);
+        void dispatchMission(missionId, { repoPath: draftRepository.path });
+      }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to start research."));
     }
@@ -582,6 +605,7 @@ export function App() {
         applyRepoState(nextMissionLoopState);
         if (missionId) {
           setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
+          await linkFollowUp(draftRepository.path, missionId);
         }
       }
     } catch (error) {
@@ -1308,6 +1332,8 @@ export function App() {
           repoPath={draftRepository?.path}
           planning={planningRepoId !== ""}
           planFeed={planFeed}
+          followUp={followUpTarget}
+          onDismissFollowUp={() => setFollowUpDismissedFor(selectedNodeId)}
           onCreate={(text, attachments) => void createFromPrompt(text, attachments)}
           onPlan={(text, attachments) => planGoalOnCanvas(text + attachmentLines(attachments))}
           onResearch={(text, attachments) => void researchFromPrompt(text, attachments)}

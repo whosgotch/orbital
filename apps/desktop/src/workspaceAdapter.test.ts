@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentRun, Mission, MissionLoopState, PatchProposal, VerificationRun } from "./domain";
-import { compactLabel, roleLabel, workspaceViewFromMissionLoop } from "./workspaceAdapter";
+import type { WorkspaceGraphNode, WorkspaceMission } from "./graph";
+import { compactLabel, followUpTargetFor, roleLabel, workspaceViewFromMissionLoop } from "./workspaceAdapter";
 
 const emptyState: MissionLoopState = {
   repositories: [],
@@ -175,5 +176,58 @@ describe("labels", () => {
   it("roleLabel names known workers and passes unknown ones through", () => {
     expect(roleLabel("claude-engineer")).toBe("Engineer");
     expect(roleLabel("custom-worker")).toBe("custom-worker");
+  });
+});
+
+describe("followUpTargetFor", () => {
+  const workspaceMission = (overrides: Partial<WorkspaceMission>): WorkspaceMission => ({
+    id: "m1",
+    repository_id: "r1",
+    title: "add a version command to the cli",
+    status: "draft",
+    worker: "claude-engineer",
+    command: "",
+    files: [],
+    step: 0,
+    patch_status: "pending",
+    verified: false,
+    map_position: "center",
+    ...overrides,
+  });
+
+  const graphNode = (overrides: Partial<WorkspaceGraphNode>): WorkspaceGraphNode => ({
+    id: "n1",
+    kind: "task",
+    label: "add a version",
+    detail: "task",
+    mission_id: "m1",
+    ...overrides,
+  });
+
+  it("returns the cleaned title for a selected task node", () => {
+    const missions = [workspaceMission({})];
+    expect(followUpTargetFor(graphNode({}), missions)).toEqual({
+      id: "m1",
+      title: "add a version command to the…",
+    });
+  });
+
+  it("returns a target for a selected research node", () => {
+    const missions = [workspaceMission({ id: "m2", title: "fix the login bug" })];
+    expect(followUpTargetFor(graphNode({ kind: "research", mission_id: "m2" }), missions)).toEqual({
+      id: "m2",
+      title: "fix the login bug",
+    });
+  });
+
+  it("returns undefined for non-mission nodes and no selection", () => {
+    const missions = [workspaceMission({})];
+    expect(followUpTargetFor(graphNode({ kind: "tool" }), missions)).toBeUndefined();
+    expect(followUpTargetFor(graphNode({ kind: "repo", mission_id: undefined }), missions)).toBeUndefined();
+    expect(followUpTargetFor(undefined, missions)).toBeUndefined();
+  });
+
+  it("returns undefined when the node's mission is missing", () => {
+    expect(followUpTargetFor(graphNode({}), [])).toBeUndefined();
   });
 });
