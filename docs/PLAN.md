@@ -24,7 +24,7 @@ disappears, and new work links to the old work it builds on.
 | 1 | Layout + persistent canvas: prompt bar, top bar, right-docked node panel, landed nodes stay | **done 2026-07-14** |
 | 2 | Research node: read-only run → markdown findings document, rendered + chattable; image attachments | **done 2026-07-14** |
 | 3 | Plan sees the graph: existing nodes as planner input, new nodes linked to old, findings flow down edges, follow-up task from a node's chat | **done 2026-07-14** |
-| 4 | Intent routing (question → research, task → task) + polish from the friction log | in progress |
+| 4 | Intent routing (question → research, task → task) + polish from the friction log | — |
 
 Each block ends in a state that is usable daily.
 
