@@ -1,3 +1,4 @@
+import { attachmentCount, stripAttachmentLines } from "./attachments";
 import type { Mission, MissionLoopState, PatchStatus as WorkerPatchStatus, VerificationRun, WorkflowEvent } from "./domain";
 import type {
   MissionNodeStatus,
@@ -92,7 +93,8 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
   return {
     id: mission.id,
     repository_id: mission.repository_id,
-    title: mission.text,
+    // Attachment paths are agent plumbing — everything the UI shows strips them.
+    title: stripAttachmentLines(mission.text),
     status: missionStatus(mission, patch?.status, verification),
     worker: topLevelRun?.worker_name ?? "unassigned",
     command:
@@ -122,7 +124,12 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
   // (talk to them) → Changes (gate them) → Verify (prove them). Agent and gate
   // nodes appear once their step is real; the Task node always exists — it's
   // the starting point.
+  // Pasted-image counts come from the raw mission text; the titles the nodes
+  // wear have the attachment lines stripped already.
+  const attachmentsByMission = new Map(state.missions.map((mission) => [mission.id, attachmentCount(mission.text)]));
+
   const missionNodes = missions.flatMap((mission) => {
+    const attachments = attachmentsByMission.get(mission.id) || undefined;
     const topLevelRun = state.agent_runs.filter((run) => run.mission_id === mission.id && !run.parent_run_id).at(-1);
     const childRuns = topLevelRun
       ? state.agent_runs.filter((run) => run.parent_run_id === topLevelRun.id)
@@ -140,7 +147,7 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
           kind: "tool" as const,
           label: compactLabel(mission.title),
           detail: mission.command,
-          meta: { prompt: mission.title, command: mission.command },
+          meta: { prompt: mission.title, command: mission.command, attachments },
           ...base,
         },
       ];
@@ -155,7 +162,7 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
           kind: "research" as const,
           label: compactLabel(mission.title),
           detail: "research",
-          meta: { prompt: mission.title },
+          meta: { prompt: mission.title, attachments },
           ...base,
         },
       ];
@@ -167,7 +174,7 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
         kind: "task",
         label: compactLabel(mission.title),
         detail: mission.status === "blocked" ? "blocked" : "task",
-        meta: { prompt: mission.title },
+        meta: { prompt: mission.title, attachments },
         ...base,
       },
     ];
@@ -470,9 +477,12 @@ function stationActivityFromEvents(events: WorkflowEvent[]) {
   });
 }
 
-// compactLabel shortens a mission's text to the few words its node card shows.
+// compactLabel shortens a mission's text to the node card's title line —
+// enough words to read as a sentence head, an ellipsis when it was cut.
 export function compactLabel(title: string) {
-  return title.split(/\s+/).filter(Boolean).slice(0, 3).join(" ");
+  const words = title.split(/\s+/).filter(Boolean);
+  const label = words.slice(0, 6).join(" ");
+  return words.length > 6 ? `${label}…` : label;
 }
 
 export function roleLabel(workerName: string) {

@@ -593,6 +593,11 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         <p className="node-card-prompt">{meta?.prompt ?? node.detail}</p>
         {meta?.waitingFor ? <span className="node-tag wait">after: {meta.waitingFor}</span> : null}
         {meta?.worker ? <span className="node-tag">{meta.worker}</span> : null}
+        {meta?.attachments ? (
+          <span className="node-tag">
+            {meta.attachments} image{meta.attachments === 1 ? "" : "s"}
+          </span>
+        ) : null}
       </div>
     );
   }
@@ -602,7 +607,12 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
       <div className="node-card-body">
         <p className="node-card-prompt">{meta?.prompt ?? node.detail}</p>
         {meta?.waitingFor ? <span className="node-tag wait">after: {meta.waitingFor}</span> : null}
-        {node.status === "verified" ? <p className="node-card-prompt">Open to read the findings.</p> : null}
+        {meta?.attachments ? (
+          <span className="node-tag">
+            {meta.attachments} image{meta.attachments === 1 ? "" : "s"}
+          </span>
+        ) : null}
+        {node.status === "verified" ? <span className="node-tag ok">findings ready</span> : null}
       </div>
     );
   }

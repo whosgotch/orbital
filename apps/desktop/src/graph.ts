@@ -46,6 +46,7 @@ export type GraphNodeMeta = {
   planId?: string; // plan: id of the plan this node renders
   planFormat?: "md" | "html" | "text"; // plan: how the document is authored
   taskCount?: number; // plan: how many task nodes it fanned out to
+  attachments?: number; // task/research: pasted images riding in the prompt
 };
 
 export type WorkspaceGraphNode = {

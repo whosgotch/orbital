@@ -154,8 +154,9 @@ describe("workspaceViewFromMissionLoop", () => {
 });
 
 describe("labels", () => {
-  it("compactLabel keeps the first three words", () => {
-    expect(compactLabel("add a version command to the cli")).toBe("add a version");
+  it("compactLabel keeps a readable sentence head and marks the cut", () => {
+    expect(compactLabel("add a version command to the cli")).toBe("add a version command to the…");
+    expect(compactLabel("fix the login bug")).toBe("fix the login bug");
     expect(compactLabel("  spaced   out  ")).toBe("spaced out");
   });
 

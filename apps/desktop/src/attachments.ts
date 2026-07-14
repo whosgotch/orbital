@@ -9,10 +9,26 @@ export async function saveAttachment(repoPath: string, file: Blob, extension: st
   return invoke<string>("save_attachment", { repoPath, extension, data: await toBase64(file) });
 }
 
+const ATTACHMENT_LINE_PREFIX = "Attached image — open and view it: ";
+
 // The lines appended to a prompt so the agent knows to open the images.
 export function attachmentLines(paths: string[]): string {
   if (paths.length === 0) return "";
-  return "\n\n" + paths.map((path) => `Attached image — open and view it: ${path}`).join("\n");
+  return "\n\n" + paths.map((path) => `${ATTACHMENT_LINE_PREFIX}${path}`).join("\n");
+}
+
+// Display text for a mission: the prompt without its attachment lines — the
+// paths are agent plumbing, not something a node card should wear.
+export function stripAttachmentLines(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => !line.trim().startsWith(ATTACHMENT_LINE_PREFIX))
+    .join("\n")
+    .trim();
+}
+
+export function attachmentCount(text: string): number {
+  return text.split("\n").filter((line) => line.trim().startsWith(ATTACHMENT_LINE_PREFIX)).length;
 }
 
 export function attachmentName(path: string): string {

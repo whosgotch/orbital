@@ -2277,6 +2277,8 @@ dd {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* Unbreakable tokens (paths, urls) wrap instead of escaping the card. */
+  overflow-wrap: anywhere;
 }
 
 .node-card-now {
