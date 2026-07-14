@@ -230,10 +230,11 @@ func firstLine(text string) string {
 // for text embedded mid-line (unlike truncateContext, which appends a
 // "[truncated]" block for prose sections).
 func truncateInline(s string, limit int) string {
-	if len(s) <= limit {
+	runes := []rune(s)
+	if len(runes) <= limit {
 		return s
 	}
-	return s[:limit] + "…"
+	return string(runes[:limit]) + "…"
 }
 
 func normalizePlanFormat(format domain.PlanFormat) domain.PlanFormat {
