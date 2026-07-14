@@ -23,6 +23,7 @@ import { ReviseBox } from "./components/ReviseBox";
 import { PromptBar } from "./components/PromptBar";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { Markdown } from "./components/Markdown";
+import { attachmentLines } from "./attachments";
 import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
 import { buildAgentTranscript, groupChatByMission } from "./agentTranscript";
 import {
@@ -546,11 +547,17 @@ export function App() {
 
   // Research typed into the prompt bar: the whole text is one question. It
   // dispatches immediately — a read-only run is always safe to start.
-  const researchFromPrompt = async (text: string) => {
+  const researchFromPrompt = async (text: string, attachments: string[]) => {
     if (!draftRepository) return;
     setMissionLoopError("");
     try {
-      const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, text, undefined, undefined, true);
+      const nextMissionLoopState = await queueMissionLoopState(
+        draftRepository.path,
+        text + attachmentLines(attachments),
+        undefined,
+        undefined,
+        true,
+      );
       const missionId = nextMissionLoopState.missions.at(-1)?.id;
       applyRepoState(nextMissionLoopState);
       if (missionId) void dispatchMission(missionId, { repoPath: draftRepository.path });
@@ -560,14 +567,15 @@ export function App() {
   };
 
   // Create task(s) typed into the prompt bar: one mission per non-empty line,
-  // landing in the repo that owns canvas drafts.
-  const createFromPrompt = async (text: string) => {
+  // landing in the repo that owns canvas drafts. Pasted screenshots ride along
+  // with every task of the batch.
+  const createFromPrompt = async (text: string, attachments: string[]) => {
     if (!draftRepository) return;
     setMissionLoopError("");
     const titles = text.split("\n").map((line) => line.trim()).filter(Boolean);
     try {
       for (const title of titles) {
-        const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, title);
+        const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, title + attachmentLines(attachments));
         const missionId = nextMissionLoopState.missions.at(-1)?.id;
         applyRepoState(nextMissionLoopState);
         if (missionId) {
@@ -1295,11 +1303,12 @@ export function App() {
 
         <PromptBar
           repoName={draftRepository?.name}
+          repoPath={draftRepository?.path}
           planning={planningRepoId !== ""}
           planFeed={planFeed}
-          onCreate={(text) => void createFromPrompt(text)}
-          onPlan={(text) => planGoalOnCanvas(text)}
-          onResearch={(text) => void researchFromPrompt(text)}
+          onCreate={(text, attachments) => void createFromPrompt(text, attachments)}
+          onPlan={(text, attachments) => planGoalOnCanvas(text + attachmentLines(attachments))}
+          onResearch={(text, attachments) => void researchFromPrompt(text, attachments)}
         />
 
         {workspaceMissions.length === 0 ? (
@@ -1498,6 +1507,7 @@ export function App() {
                   sending={selectedChatSending}
                   onSend={(text) => void sendAgentChat(selectedMission.id, text)}
                   readOnly={selectedMission.kind === "tool"}
+                  repoPath={selectedRepository?.path}
                 />
               ) : (
                 <div className="task-changes">

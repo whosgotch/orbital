@@ -1,39 +1,46 @@
 // The universal intake: a chat-style prompt bar floating at the bottom of the
 // canvas. Enter creates a task instantly (one per line — a whole backlog at
-// once); Plan hands the goal to the AI, which reads the repo and drops a plan
-// node plus the tasks it fans out to. While a plan is in flight the bar shows
-// the AI's streamed thinking.
+// once); Research asks a read-only question; Plan hands the goal to the AI,
+// which reads the repo and drops a plan node plus the tasks it fans out to.
+// While a plan is in flight the bar shows the AI's streamed thinking. Pasted
+// screenshots ride along as attachments.
 import { useRef, useState } from "react";
 import { CornerDownLeft, Loader, Search, Sparkles } from "lucide-react";
 import { PlanLiveFeed } from "./PlanLiveFeed";
+import { AttachmentChips } from "./AttachmentChips";
+import { usePastedImages } from "../attachments";
 import type { PlanFeedItem } from "../domain";
 
 type PromptBarProps = {
-  // Name of the repository new work lands in; undefined disables the bar.
+  // The repository new work lands in; undefined disables the bar.
   repoName?: string;
+  repoPath?: string;
   planning: boolean;
   planFeed: PlanFeedItem[];
-  onCreate: (text: string) => void;
-  onPlan: (text: string) => void;
-  onResearch: (text: string) => void;
+  onCreate: (text: string, attachments: string[]) => void;
+  onPlan: (text: string, attachments: string[]) => void;
+  onResearch: (text: string, attachments: string[]) => void;
 };
 
-export function PromptBar({ repoName, planning, planFeed, onCreate, onPlan, onResearch }: PromptBarProps) {
+export function PromptBar({ repoName, repoPath, planning, planFeed, onCreate, onPlan, onResearch }: PromptBarProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const attachments = usePastedImages(repoPath);
   const trimmed = text.trim();
   const ready = Boolean(trimmed) && Boolean(repoName) && !planning;
 
-  const submit = (action: (value: string) => void) => {
+  const submit = (action: (value: string, attachments: string[]) => void) => {
     if (!ready) return;
-    action(trimmed);
+    action(trimmed, attachments.paths);
     setText("");
+    attachments.clear();
     inputRef.current?.focus();
   };
 
   return (
     <div className="prompt-bar" aria-label="New work">
       {planning ? <PlanLiveFeed feed={planFeed} /> : null}
+      <AttachmentChips paths={attachments.paths} onRemove={attachments.remove} />
       <textarea
         ref={inputRef}
         className="prompt-bar-input"
@@ -43,6 +50,7 @@ export function PromptBar({ repoName, planning, planFeed, onCreate, onPlan, onRe
         rows={Math.min(6, Math.max(1, text.split("\n").length))}
         disabled={!repoName || planning}
         onChange={(event) => setText(event.target.value)}
+        onPaste={attachments.onPaste}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();

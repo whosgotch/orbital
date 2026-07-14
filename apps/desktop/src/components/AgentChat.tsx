@@ -5,6 +5,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FileMinus, FilePen, FilePlus, Loader, SendHorizontal } from "lucide-react";
 import { AgentStatus } from "./AgentStatus";
+import { AttachmentChips } from "./AttachmentChips";
+import { attachmentLines, usePastedImages } from "../attachments";
 import { Markdown } from "./Markdown";
 import type { TranscriptEntry } from "./AgentTranscript";
 import type { AgentStatusModel, FileChange, TouchedFile } from "../agentStatus";
@@ -67,6 +69,7 @@ export function AgentChat({
   onSend,
   sending,
   readOnly = false,
+  repoPath,
 }: {
   messages: ChatMessage[];
   statusModel: AgentStatusModel;
@@ -78,8 +81,11 @@ export function AgentChat({
   // A tool step is a deterministic command, not a conversation — its panel
   // shows the run log but offers no composer to chat with.
   readOnly?: boolean;
+  // Where pasted screenshots are saved; without it, pasting stays text-only.
+  repoPath?: string;
 }) {
   const [draft, setDraft] = useState("");
+  const attachments = usePastedImages(repoPath);
   const logRef = useRef<HTMLDivElement>(null);
 
   // Follow the newest turn as the conversation and the agent's work grow —
@@ -95,8 +101,9 @@ export function AgentChat({
   const submit = () => {
     const text = draft.trim();
     if (!text || sending) return;
-    onSend(text);
+    onSend(text + attachmentLines(attachments.paths));
     setDraft("");
+    attachments.clear();
   };
 
   return (
@@ -130,6 +137,8 @@ export function AgentChat({
       </div>
 
       {readOnly ? null : (
+      <>
+      <AttachmentChips paths={attachments.paths} onRemove={attachments.remove} />
       <div className="chat-composer">
         <textarea
           className="chat-input"
@@ -138,6 +147,7 @@ export function AgentChat({
           value={draft}
           rows={2}
           onChange={(event) => setDraft(event.target.value)}
+          onPaste={attachments.onPaste}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
@@ -156,6 +166,7 @@ export function AgentChat({
           {sending ? <Loader size={16} className="spin" aria-hidden="true" /> : <SendHorizontal size={16} aria-hidden="true" />}
         </button>
       </div>
+      </>
       )}
     </div>
   );

@@ -136,6 +136,38 @@ fn queue_mission(
     run_worker(&args)
 }
 
+// Persist a pasted image under <repo>/.orbital/attachments and return its
+// absolute path. The path travels inside the mission/chat text; the agent
+// opens the file from disk to look at it.
+#[tauri::command]
+fn save_attachment(repo_path: String, extension: String, data: String) -> Result<String, String> {
+    use base64::Engine as _;
+
+    let ext = extension.trim().trim_start_matches('.').to_ascii_lowercase();
+    let safe_ext = if !ext.is_empty() && ext.len() <= 5 && ext.chars().all(|c| c.is_ascii_alphanumeric()) {
+        ext
+    } else {
+        "png".to_string()
+    };
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data.trim())
+        .map_err(|e| format!("attachment decode failed: {e}"))?;
+
+    let dir = std::path::Path::new(repo_path.trim())
+        .join(".orbital")
+        .join("attachments");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let path = dir.join(format!("attachment_{stamp}.{safe_ext}"));
+    std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 async fn start_agent_run(
     app: tauri::AppHandle,
@@ -512,6 +544,7 @@ pub fn run() {
             refresh_demo_worker_loop,
             open_repository,
             queue_mission,
+            save_attachment,
             update_mission_text,
             start_agent_run,
             send_agent_message,
