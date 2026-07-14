@@ -34,6 +34,9 @@ export type Mission = {
   // Absent kind reads as "task"; a tool mission runs tool_command instead of
   // an AI agent and lands as verified/failed on the command's exit code.
   kind?: MissionKind;
+  // A research mission's findings — the full current document, rewritten by
+  // the researcher on every chat turn.
+  document?: string;
   tool_command?: string;
 };
 

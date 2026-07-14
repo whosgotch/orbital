@@ -18,11 +18,10 @@ import {
 import { GraphMap } from "./components/GraphMap";
 import { DiffView } from "./components/DiffView";
 import { AgentChat, ChangesCard } from "./components/AgentChat";
-import { PlanPanel, PlanIntake } from "./components/PlanPanel";
+import { PlanPanel, PlanIntake, DocumentView } from "./components/PlanPanel";
 import { ReviseBox } from "./components/ReviseBox";
 import { PromptBar } from "./components/PromptBar";
 import { HistoryPanel } from "./components/HistoryPanel";
-import { Markdown } from "./components/Markdown";
 import { attachmentLines } from "./attachments";
 import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
 import { buildAgentTranscript, groupChatByMission } from "./agentTranscript";
@@ -265,11 +264,14 @@ export function App() {
     setTaskView(selectedMission?.kind === "research" ? "doc" : "chat");
   }
 
-  // The research node's document: the researcher re-issues the full updated
-  // findings every turn, so the latest assistant reply IS the current document.
+  // The research node's document, stored on the mission and rewritten in full
+  // by the researcher every turn. Missions from before the document field
+  // existed fall back to the latest assistant reply.
   const researchDoc =
     selectedMission?.kind === "research"
-      ? [...selectedChatMessages].reverse().find((message) => message.role === "assistant")?.text ?? ""
+      ? selectedMissionRecord?.document ??
+        [...selectedChatMessages].reverse().find((message) => message.role === "assistant")?.text ??
+        ""
       : "";
 
   // Enrich each pipeline card with the live data its step operates on: the
@@ -1485,7 +1487,7 @@ export function App() {
               {taskView === "doc" ? (
                 <div className="plan-doc research-doc">
                   {researchDoc ? (
-                    <Markdown text={researchDoc} />
+                    <DocumentView content={researchDoc} />
                   ) : (
                     <div className="diff-empty">
                       {selectedRuntime.status === "running"

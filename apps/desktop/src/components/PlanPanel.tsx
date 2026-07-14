@@ -24,6 +24,16 @@ function sanitizeHtml(html: string): string {
     .replace(/javascript:/gi, "");
 }
 
+// DocumentView renders an AI-authored document: sanitized HTML when it clearly
+// is one, Markdown otherwise. Shared by plans and the research Document tab.
+export function DocumentView({ content }: { content: string }) {
+  const trimmed = content.trim();
+  if (/^<(!doctype|[a-z])/i.test(trimmed)) {
+    return <div className="plan-html" dangerouslySetInnerHTML={{ __html: sanitizeHtml(trimmed) }} />;
+  }
+  return <Markdown text={content} />;
+}
+
 export function PlanPanel({ plan, taskCount }: { plan: Plan; taskCount: number }) {
   return (
     <aside className="inspector task-window" aria-label="Plan">
