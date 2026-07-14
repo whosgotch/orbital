@@ -308,13 +308,16 @@ Produce:
 
 Keep tasks few and real — only the work the goal actually needs, never busywork. Never propose a testing/verifying/reviewing task: verification is a lifecycle stage every task already has.
 
-Output ONLY this JSON, no prose or fences around it:
+Output ONLY this JSON, no prose or fences around it. Your reply must start with { and end with }:
 {"plan": "<the plan document as a string, in the requested format>", "subtasks": [{"title": "...", "text": "...", "dependsOn": [], "basedOn": []}]}`
 }
 
 // parsePlanResult reads the planner's JSON, tolerating stray prose or fences.
 // An {"atomic": true} answer yields an empty result: the work is one coherent
-// change, no plan or split needed.
+// change, no plan or split needed. A model that ignores the JSON contract and
+// answers in prose usually still wrote a plan — that prose becomes the plan
+// document (with the fallback single task), rather than throwing the whole
+// exploration away.
 func parsePlanResult(raw string) (PlanResult, error) {
 	clean := extractJSONObject(raw)
 	var parsed struct {
@@ -323,6 +326,9 @@ func parsePlanResult(raw string) (PlanResult, error) {
 		Subtasks []ProposedSubtask `json:"subtasks"`
 	}
 	if err := json.Unmarshal([]byte(clean), &parsed); err != nil {
+		if prose := strings.TrimSpace(raw); prose != "" {
+			return PlanResult{Content: prose}, nil
+		}
 		return PlanResult{}, fmt.Errorf("plan: model output was not valid JSON: %w", err)
 	}
 	if parsed.Atomic {

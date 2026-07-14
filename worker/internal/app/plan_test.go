@@ -323,3 +323,18 @@ func TestParsePlanResultToleratesFences(t *testing.T) {
 		t.Fatalf("atomic parse = %+v, want empty result", atomic)
 	}
 }
+
+func TestParsePlanResultSalvagesProse(t *testing.T) {
+	prose := "Based on the research, the plan is:\n1. Do the thing."
+	result, err := parsePlanResult(prose)
+	if err != nil {
+		t.Fatalf("parsePlanResult(prose) error = %v", err)
+	}
+	if result.Content != prose || len(result.Subtasks) != 0 {
+		t.Fatalf("prose salvage = %+v, want the prose as content with no subtasks", result)
+	}
+
+	if _, err := parsePlanResult("   "); err == nil {
+		t.Fatal("parsePlanResult(blank) should still fail")
+	}
+}
