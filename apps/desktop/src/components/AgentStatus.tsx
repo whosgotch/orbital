@@ -21,14 +21,10 @@ function ChangeGlyph({ change }: { change: FileChange }) {
 }
 
 export function AgentStatus({ model, transcript }: { model: AgentStatusModel; transcript: TranscriptEntry[] }) {
-  // Reasoning opens itself while the agent is live — a long run should be
-  // followable without hunting for a disclosure — and stays togglable by hand.
-  const [showReasoning, setShowReasoning] = useState(model.isLive);
-  const [prevLive, setPrevLive] = useState(model.isLive);
-  if (prevLive !== model.isLive) {
-    setPrevLive(model.isLive);
-    if (model.isLive) setShowReasoning(true);
-  }
+  // Reasoning stays folded until asked for: while an agent is live, the phase
+  // spine + now line carry the story, and the conversation stays readable
+  // instead of being flooded by the raw transcript.
+  const [showReasoning, setShowReasoning] = useState(false);
 
   if (!model.hasActivity) {
     return (
