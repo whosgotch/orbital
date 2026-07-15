@@ -21,9 +21,10 @@ type Service struct {
 	// corrupt the NDJSON event stream or race `git worktree add`.
 	streamMu   sync.Mutex
 	worktreeMu sync.Mutex
-	// plan produces a repo-level plan; nil uses the claude-backed default.
-	// Overridable so PlanRepo is testable without the CLI.
-	plan planFunc
+	// extract turns a research document into proposed tasks; nil uses the
+	// claude-backed default. Overridable so ExtractTasks is testable without
+	// the CLI.
+	extract extractFunc
 }
 
 func NewService(store *store.JSONStore) *Service {
@@ -52,8 +53,8 @@ func (s *Service) RegisterWorker(w agent.Worker) {
 	s.workerRegistry.Register(w)
 }
 
-// SetPlanner overrides how a repo is planned (tests inject a deterministic one
-// instead of the claude CLI).
-func (s *Service) SetPlanner(fn planFunc) {
-	s.plan = fn
+// SetExtractor overrides how a research document is turned into tasks (tests
+// inject a deterministic one instead of the claude CLI).
+func (s *Service) SetExtractor(fn extractFunc) {
+	s.extract = fn
 }

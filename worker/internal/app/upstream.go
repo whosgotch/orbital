@@ -18,24 +18,13 @@ const (
 )
 
 // upstreamContextFor composes what flows into a mission's run prompt besides
-// its own task text: the plan document it was generated from (if any), and for
-// every upstream it depends on, that upstream's task text, the agent's final
-// summary, and the diff that landed. Returns the prompt block and the upstream
-// titles (for the hand-off event); the block is empty when there is neither a
-// plan nor any upstreams.
+// its own task text: for every upstream it depends on, that upstream's task
+// text, the agent's final summary, and the diff that landed (or, for
+// research, its findings document). Returns the prompt block and the upstream
+// titles (for the hand-off event); the block is empty when there are no
+// upstreams.
 func upstreamContextFor(state *store.State, mission domain.Mission) (string, []string) {
 	var blocks []string
-
-	// The plan carried the detail; the task text was written to be concise and
-	// point back at it, so the engineer needs the document to act on it fully.
-	if mission.PlanID != "" {
-		if planIndex := findPlanIndex(state.Plans, mission.PlanID); planIndex != -1 {
-			if content := strings.TrimSpace(state.Plans[planIndex].Content); content != "" {
-				blocks = append(blocks, "# Plan\nThis task was generated from the plan below — read it for the detail behind this task's prompt.\n\n"+truncateContext(content, upstreamFindingsLimit))
-			}
-		}
-	}
-
 	var titles []string
 	if len(mission.DependsOn) > 0 {
 		var sections []string

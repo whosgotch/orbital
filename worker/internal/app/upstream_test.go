@@ -104,48 +104,6 @@ func TestUpstreamContextIncludesResearchFindings(t *testing.T) {
 	}
 }
 
-// A mission generated from a plan gets that plan's document prepended to its
-// context, so the concise task text is backed by the detail the planner wrote.
-func TestUpstreamContextIncludesPlanDocument(t *testing.T) {
-	state := &store.State{
-		Repositories: []domain.Repository{{ID: "repo_1", Path: "/tmp/repo", Name: "demo"}},
-		Plans: []domain.Plan{
-			{ID: "plan_1", RepositoryID: "repo_1", Content: "# Plan\nDetailed reasoning about the parser rewrite."},
-		},
-		Missions: []domain.Mission{
-			{ID: "t1", RepositoryID: "repo_1", Text: "add the parser", PlanID: "plan_1", Status: domain.MissionStatusDraft},
-		},
-	}
-
-	contextBlock, titles := upstreamContextFor(state, state.Missions[0])
-
-	if titles != nil {
-		t.Fatalf("titles = %v, want nil (no upstream deps)", titles)
-	}
-	if !strings.Contains(contextBlock, "# Plan") || !strings.Contains(contextBlock, "Detailed reasoning about the parser rewrite.") {
-		t.Fatalf("context missing plan document:\n%s", contextBlock)
-	}
-}
-
-// A mission with both a plan and an upstream dependency gets both blocks.
-func TestUpstreamContextCombinesPlanAndUpstream(t *testing.T) {
-	state := chainedState("/tmp/repo")
-	state.Plans = []domain.Plan{{ID: "plan_1", RepositoryID: "repo_1", Content: "# Plan\nBuild the parser then wire it in."}}
-	state.Missions[1].PlanID = "plan_1"
-
-	contextBlock, titles := upstreamContextFor(state, state.Missions[1])
-
-	if len(titles) != 1 || titles[0] != "add a parser" {
-		t.Fatalf("titles = %v, want [add a parser]", titles)
-	}
-	if !strings.Contains(contextBlock, "Build the parser then wire it in.") {
-		t.Fatalf("context missing plan document:\n%s", contextBlock)
-	}
-	if !strings.Contains(contextBlock, "## Upstream task: add a parser") {
-		t.Fatalf("context missing upstream section:\n%s", contextBlock)
-	}
-}
-
 func TestStartAgentRunRecordsUpstreamHandoff(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
 	svc := NewService(jsonStore)
