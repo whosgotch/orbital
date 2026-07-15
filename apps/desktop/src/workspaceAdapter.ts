@@ -103,11 +103,14 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
   const verification = latestVerification(state, mission.id);
   const events = state.workflow_events.filter((event) => event.mission_id === mission.id || event.run_id === latestRun?.id);
 
+  // Attachment paths are agent plumbing — everything the UI shows strips them.
+  const prompt = stripAttachmentLines(mission.text);
   return {
     id: mission.id,
     repository_id: mission.repository_id,
-    // Attachment paths are agent plumbing — everything the UI shows strips them.
-    title: stripAttachmentLines(mission.text),
+    // An extracted task's own short title, else the full prompt as today.
+    title: mission.title?.trim() || prompt,
+    prompt,
     status: missionStatus(mission, patch?.status, verification),
     worker: topLevelRun?.worker_name ?? "unassigned",
     command:
@@ -160,7 +163,7 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
           kind: "tool" as const,
           label: compactLabel(mission.title),
           detail: mission.command,
-          meta: { prompt: mission.title, command: mission.command, attachments },
+          meta: { prompt: mission.prompt, command: mission.command, attachments },
           ...base,
         },
       ];
@@ -175,7 +178,7 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
           kind: "research" as const,
           label: compactLabel(mission.title),
           detail: "research",
-          meta: { prompt: mission.title, attachments },
+          meta: { prompt: mission.prompt, attachments },
           ...base,
         },
       ];
@@ -187,7 +190,7 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
         kind: "task",
         label: compactLabel(mission.title),
         detail: mission.status === "blocked" ? "blocked" : "task",
-        meta: { prompt: mission.title, attachments },
+        meta: { prompt: mission.prompt, attachments },
         ...base,
       },
     ];

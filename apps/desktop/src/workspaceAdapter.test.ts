@@ -65,6 +65,20 @@ describe("workspaceViewFromMissionLoop", () => {
     expect(view.runtimeByMission.m1.status).toBe("draft");
   });
 
+  it("shows an extracted task's own short title, keeping the full text as prompt", () => {
+    const view = workspaceViewFromMissionLoop(
+      state({ missions: [mission({ title: "Rotate keys", text: "add key rotation for the JWT signer" })] }),
+    );
+    expect(view.missions[0].title).toBe("Rotate keys");
+    expect(view.missions[0].prompt).toBe("add key rotation for the JWT signer");
+  });
+
+  it("falls back to the prompt text as the title when a mission has no title", () => {
+    const view = workspaceViewFromMissionLoop(state({ missions: [mission({})] }));
+    expect(view.missions[0].title).toBe("add a version command to the cli");
+    expect(view.missions[0].prompt).toBe("add a version command to the cli");
+  });
+
   it("grows agent, changes and verify stages once a run proposes a patch", () => {
     const view = workspaceViewFromMissionLoop(
       state({ missions: [mission({ status: "waiting_approval" })], agent_runs: [run], patch_proposals: [pendingPatch] }),
@@ -173,6 +187,7 @@ describe("followUpTargetFor", () => {
     id: "m1",
     repository_id: "r1",
     title: "add a version command to the cli",
+    prompt: "add a version command to the cli",
     status: "draft",
     worker: "claude-engineer",
     command: "",

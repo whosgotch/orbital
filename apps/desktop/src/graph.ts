@@ -7,7 +7,11 @@ export type MissionNodeStatus = "draft" | "queued" | "running" | "review" | "app
 export type WorkspaceMission = {
   id: string;
   repository_id: string;
+  // Short human-scannable display name — the subtask's own title when the
+  // task was AI-extracted, else prompt (below) as a fallback.
   title: string;
+  // The full instruction text the agent runs on (attachment lines stripped).
+  prompt: string;
   status: MissionNodeStatus;
   worker: string;
   command: string;

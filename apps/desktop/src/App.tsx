@@ -120,8 +120,8 @@ export function App() {
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId);
   const selectedMissionId = selectedGraphNode?.mission_id;
   const selectedMission = workspaceMissions.find((mission) => mission.id === selectedMissionId);
-  // The raw mission record carries the full prompt text — the WorkspaceMission's
-  // title is only the short node label.
+  // The raw mission record carries the untouched text (attachments included);
+  // the WorkspaceMission's title/prompt are the cleaned display versions.
   const selectedMissionRecord = missionLoopState.missions.find((mission) => mission.id === selectedMission?.id);
   const selectedRepository = selectedMission ? repositoryFor(selectedMission, missionLoopState.repositories) : undefined;
   // The prompt bar chip: a task/research node selected and not dismissed for
@@ -241,7 +241,7 @@ export function App() {
   const selectedExtractingTasks = extractingByMission[selectedMission?.id ?? ""] ?? false;
 
   const beginEditPrompt = () => {
-    setPromptDraft(selectedMissionRecord?.text ?? selectedMission?.title ?? "");
+    setPromptDraft(selectedMissionRecord?.text ?? selectedMission?.prompt ?? "");
     setEditingPrompt(true);
   };
 

@@ -22,6 +22,9 @@ export type MissionKind = "task" | "tool" | "research";
 export type Mission = {
   id: string;
   repository_id: string;
+  // Short, human-scannable display name (set by AI task extraction); absent
+  // for hand-typed missions, where the frontend derives a label from text.
+  title?: string;
   text: string;
   status: MissionStatus;
   created_at: string;

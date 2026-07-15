@@ -139,7 +139,7 @@ export function TaskPanel({
 
         {promptExpanded && !editingPrompt ? (
           <div className="prompt-full" onClick={() => setExpandedPromptFor("")} title="Collapse prompt">
-            {mission.title}
+            {mission.prompt}
           </div>
         ) : null}
 
