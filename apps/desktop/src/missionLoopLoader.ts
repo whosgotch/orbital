@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MissionLoopState, PlanFormat, RepoCommit } from "./domain";
+import type { MissionLoopState, RepoCommit } from "./domain";
 
 // Every worker command replies with the full mission-loop state as a JSON
 // string.
@@ -46,26 +46,8 @@ export function unlinkMissionsLoopState(repoPath: string, fromMissionId: string,
   return invokeState("unlink_missions", { repoPath, fromMissionId, toMissionId });
 }
 
-// Plan work on a repo: the AI reads the code, writes a plan in `format`, and
-// fans out draft task nodes. While it thinks, its steps stream as Tauri events
-// on `plan_event:<requestId>`; the promise resolves with the refreshed state.
-export function planRepoLoopState(repoPath: string, goal: string, format: PlanFormat = "md", model = "", requestId = "") {
-  return invokeState("plan_repo", { repoPath, goal, format, model, requestId });
-}
-
 export function approvePatchMissionLoopState(repoPath: string, missionId: string) {
   return invokeState("approve_patch", { repoPath, missionId });
-}
-
-// Approve a reviewed plan: its proposed tasks materialize as draft missions
-// linked back to it.
-export function approvePlanLoopState(repoPath: string, planId: string) {
-  return invokeState("approve_plan", { repoPath, planId });
-}
-
-// Dismiss an unapproved plan — its document and proposed tasks are discarded.
-export function deletePlanLoopState(repoPath: string, planId: string) {
-  return invokeState("delete_plan", { repoPath, planId });
 }
 
 export function rejectPatchMissionLoopState(repoPath: string, missionId: string) {

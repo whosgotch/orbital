@@ -1,8 +1,8 @@
 // Every mutation a mission can go through: creation (canvas draft, prompt bar,
-// backlog intake, planning), dispatch and chat, and the approve/reject/verify/
-// delete gates. Reads the workspace maps it needs and writes back through the
+// backlog intake), dispatch and chat, and the approve/reject/verify/delete
+// gates. Reads the workspace maps it needs and writes back through the
 // setters useWorkspaceState hands out — it owns no mission-loop state itself,
-// only the intake/plan-in-flight state scoped to authoring a new mission.
+// only the intake state scoped to authoring a new mission.
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { attachmentLines } from "./attachments";
@@ -14,17 +14,14 @@ import {
   type WorkerMode,
 } from "./missionUi";
 import { mergeChatMessage, mergeWorkflowEvent, upsertAgentRun, upsertPatchProposal } from "./repoStates";
-import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, Plan, PlanFeedItem, PlanFormat, Repository, WorkflowEvent } from "./domain";
+import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
 import type { WorkspaceMission } from "./graph";
 import type { WorkspaceRuntimeMap } from "./workspaceAdapter";
 import {
   approvePatchMissionLoopState,
-  approvePlanLoopState,
   deleteMissionLoopState,
-  deletePlanLoopState,
   extractTasksLoopState,
   linkMissionsLoopState,
-  planRepoLoopState,
   queueMissionLoopState,
   rejectPatchMissionLoopState,
   sendAgentMessageLoopState,
@@ -84,10 +81,6 @@ export function useMissionActions({
   // dispatch promise rejects when the agent process dies — we swallow that
   // instead of flashing it as an error.
   const cancelledMissionsRef = useRef<Set<string>>(new Set());
-  const [planningRepoId, setPlanningRepoId] = useState("");
-  // The AI's streamed steps while a plan is in flight — shown live on the
-  // surface that started the plan (draft card or repo panel), then discarded.
-  const [planFeed, setPlanFeed] = useState<PlanFeedItem[]>([]);
   const [missionDraft, setMissionDraft] = useState("");
   // Research missions with an extraction pass in flight — disables the
   // "Create tasks" button and shows its busy label.
@@ -100,10 +93,6 @@ export function useMissionActions({
   // Per-mission model overrides, chosen on the intake card. Missions without
   // an entry follow the global pick.
   const [modelByMission, setModelByMission] = useState<Record<string, string>>({});
-  // A plan's model override, remembered from planning time and applied to its
-  // tasks only once they materialize on approval (planning itself creates no
-  // missions to stamp yet).
-  const [modelByPlan, setModelByPlan] = useState<Record<string, string>>({});
 
   // Turn the canvas draft into a real mission: queue it in the owning repo and
   // optionally launch it right away. The fresh state hasn't landed in React
@@ -158,53 +147,6 @@ export function useMissionActions({
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to unlink tasks."));
     }
-  };
-
-  // Plan work on a repo: the AI reads the code and drops a plan node plus the
-  // draft task nodes it fans out to. Nothing runs — the tasks are yours to steer.
-  const planRepo = async (repo: Repository, goal: string, format: PlanFormat, model?: string) => {
-    if (planningRepoId) return;
-    setMissionLoopError("");
-    setPlanningRepoId(repo.id);
-    setPlanFeed([]);
-    const runModel = model || claudeModel;
-    const requestId = crypto.randomUUID();
-    // The planner's steps stream on this request's own channel so parallel
-    // surfaces (and future concurrent plans) never see each other's thinking.
-    const unlisten = await listen<WorkflowEvent>(`plan_event:${requestId}`, (event) => {
-      const step = event.payload;
-      setPlanFeed((current) => [
-        ...current,
-        { kind: step.type === "agent_thought" ? "thought" : "action", text: step.message },
-      ]);
-    });
-    try {
-      const nextState = await planRepoLoopState(repo.path, goal, format, runModel, requestId);
-      applyRepoState(nextState);
-      setDraftingTask(false);
-      // A plan's tasks don't exist yet — they materialize on approval — so its
-      // model override is remembered by plan id and applied then (see
-      // approvePlan), rather than stamped onto missions here.
-      if (model) {
-        const plan = nextState.plans?.at(-1);
-        if (plan) {
-          setModelByPlan((current) => ({ ...current, [plan.id]: model }));
-        }
-      }
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to plan the repo."));
-    } finally {
-      unlisten();
-      setPlanningRepoId("");
-      setPlanFeed([]);
-    }
-  };
-
-  // Plan a goal typed into the draft card: the big-task path. The card stays
-  // open showing the AI's thinking, then the plan node + its tasks replace it.
-  const planGoalOnCanvas = (text: string, model?: string) => {
-    if (!draftRepository) return;
-    void planRepo(draftRepository, text, "md", model);
   };
 
   // Chain a freshly queued mission after the prompt bar's active follow-up
@@ -516,44 +458,6 @@ export function useMissionActions({
     });
   };
 
-  // Approve a reviewed plan: its proposed tasks materialize as draft missions
-  // on the canvas, linked back to it.
-  const approvePlan = async (plan: Plan) => {
-    setMissionLoopError("");
-    const repoPath = repositories.find((repo) => repo.id === plan.repository_id)?.path;
-    if (!repoPath) return;
-
-    try {
-      const nextState = await approvePlanLoopState(repoPath, plan.id);
-      applyRepoState(nextState);
-      // The tasks just materialized inherit the model chosen at planning time,
-      // if any (see planRepo), so a plan drawn up by Opus runs its tasks on Opus.
-      const model = modelByPlan[plan.id];
-      if (model) {
-        const spawned = nextState.missions.filter((mission) => mission.plan_id === plan.id);
-        setModelByMission((current) => ({
-          ...current,
-          ...Object.fromEntries(spawned.map((mission) => [mission.id, model])),
-        }));
-      }
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to approve plan."));
-    }
-  };
-
-  // Dismiss an unapproved plan — its document and proposed tasks are discarded.
-  const deletePlan = async (plan: Plan) => {
-    setMissionLoopError("");
-    const repoPath = repositories.find((repo) => repo.id === plan.repository_id)?.path;
-    if (!repoPath) return;
-
-    try {
-      applyRepoState(await deletePlanLoopState(repoPath, plan.id));
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to dismiss plan."));
-    }
-  };
-
   const rejectMission = async (missionId: string) => {
     setMissionLoopError("");
 
@@ -638,8 +542,6 @@ export function useMissionActions({
   };
 
   return {
-    planningRepoId,
-    planFeed,
     missionDraft,
     setMissionDraft,
     campaignRepoIds,
@@ -651,8 +553,6 @@ export function useMissionActions({
     createTaskOnCanvas,
     linkTasks,
     unlinkTasks,
-    planRepo,
-    planGoalOnCanvas,
     researchFromPrompt,
     createFromPrompt,
     missionIsLaunchable,
@@ -664,8 +564,6 @@ export function useMissionActions({
     campaignTargetRepos,
     toggleCampaignRepo,
     approveMission,
-    approvePlan,
-    deletePlan,
     rejectMission,
     deleteMission,
     saveMissionPrompt,

@@ -616,69 +616,8 @@ h3 {
   font-size: 11px;
 }
 
-/* Plan surface: the intake for kicking off a repo plan, and the rendered plan
-   document. Both live in the docked panel like the task inspector. */
-.plan-intro,
-.plan-foot {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.plan-goal {
-  width: 100%;
-  resize: vertical;
-  padding: 9px 11px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.plan-goal:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-
-.plan-format-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.plan-format-label {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.plan-format-options {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.plan-format-option {
-  padding: 5px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--soft);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.plan-format-option.active {
-  border-color: var(--accent);
-  color: var(--text);
-}
-
-.plan-submit {
-  align-self: flex-start;
-}
-
+/* The rendered document surface: a research mission's findings (see
+   DocumentView). Lives in the docked panel like the task inspector. */
 .plan-doc {
   flex: 1 1 auto;
   min-height: 0;
@@ -697,15 +636,6 @@ h3 {
   margin-bottom: 10px;
 }
 
-.plan-text {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--soft);
-}
-
 .plan-html {
   font-size: 13px;
   line-height: 1.55;
@@ -716,26 +646,6 @@ h3 {
 .plan-html a { color: var(--accent); }
 .plan-html table { border-collapse: collapse; }
 .plan-html th, .plan-html td { border: 1px solid var(--line); padding: 4px 8px; }
-
-/* Plan panels stack their controls/document with breathing room; the base
-   .task-panel already lays out as a flex column. */
-.plan-panel {
-  gap: 12px;
-}
-
-/* The review gate under an unapproved plan's document: the tasks it proposes,
-   plain and unstyled beyond the list, and the approve/dismiss row. */
-.plan-review {
-  flex: 0 0 auto;
-}
-
-.plan-proposed-tasks {
-  margin: 6px 0 0;
-  padding-left: 18px;
-  color: var(--soft);
-  font-size: 12.5px;
-  line-height: 1.6;
-}
 
 /* Talk-to-revise: a one-line composer that sits under the diff so the change
    set stays part of the conversation. Compact so it never competes with the
@@ -2388,35 +2298,6 @@ dd {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
-}
-
-/* Live planning feed: the AI's streamed steps while it reads the repo and
-   plans. The only motion is text updating — terminal-like, never animated. */
-.plan-live {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 8px 10px;
-  border-top: 1px solid var(--line);
-  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-  font-size: 11px;
-  color: var(--soft);
-  min-width: 0;
-}
-
-.plan-live-now {
-  color: var(--text);
-}
-
-.plan-live-line {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.plan-live-line.thought {
-  color: var(--muted);
 }
 
 .node-btn {

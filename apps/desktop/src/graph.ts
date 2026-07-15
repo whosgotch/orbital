@@ -26,7 +26,7 @@ export type WorkspaceMission = {
 // Every node is a step you operate, not a picture of state: a task you run, an
 // agent you talk to, a change set you gate, a verification you fire, a
 // research whose findings you read and question.
-export type GraphNodeKind = "repo" | "task" | "agent" | "changes" | "verify" | "campaign" | "tool" | "plan" | "research";
+export type GraphNodeKind = "repo" | "task" | "agent" | "changes" | "verify" | "campaign" | "tool" | "research";
 
 // Per-kind payload that makes a node card operable and glanceable.
 export type GraphNodeMeta = {
@@ -43,9 +43,6 @@ export type GraphNodeMeta = {
   command?: string; // verify: the verification command
   verifyState?: "idle" | "ready" | "passed" | "failed";
   waitingFor?: string; // task: label of the upstream task it waits on
-  planId?: string; // plan: id of the plan this node renders
-  planFormat?: "md" | "html" | "text"; // plan: how the document is authored
-  taskCount?: number; // plan: how many task nodes it fanned out to
   attachments?: number; // task/research: pasted images riding in the prompt
 };
 

@@ -17,11 +17,9 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, Loader, Play, ShieldCheck, Sparkles, X } from "lucide-react";
+import { Check, Loader, Play, ShieldCheck, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
-import type { PlanFeedItem } from "../domain";
-import { PlanLiveFeed } from "./PlanLiveFeed";
 import { useModels } from "../useModels";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
@@ -45,9 +43,6 @@ export type NodeActions = {
   // upstream patch to land; deleting the edge dissolves the dependency.
   onLinkTasks: (fromMissionId: string, toMissionId: string) => void;
   onUnlinkTasks: (fromMissionId: string, toMissionId: string) => void;
-  // Plan a typed goal instead of queueing it: the AI reads the repo and fans
-  // the goal out into a plan node plus its tasks. The big-task path.
-  onPlanGoal: (text: string, model?: string) => void;
 };
 
 type OrbitalNodeData = {
@@ -58,12 +53,7 @@ type OrbitalNodeData = {
   missionId?: string;
   meta?: GraphNodeMeta;
   actions: NodeActions;
-  // Set on the draft card while a plan is in flight: the card stays open and
-  // shows the AI's streamed thinking instead of its action buttons.
-  planning?: boolean;
-  planFeed?: PlanFeedItem[];
 };
-
 
 type GraphMapProps = {
   nodes: GraphNode[];
@@ -71,8 +61,6 @@ type GraphMapProps = {
   selectedNodeId: string;
   selectedMissionId: string;
   runningMissionIds: Set<string>;
-  planningActive: boolean;
-  planFeed: PlanFeedItem[];
   onSelectNode: (nodeId: string) => void;
   actions: NodeActions;
 };
@@ -97,7 +85,7 @@ function edgeDash(kind: string) {
 
 const nodeTypes = { orbital: OrbitalNode };
 
-export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, planningActive, planFeed, onSelectNode, actions }: GraphMapProps) {
+export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // Only nodes the user explicitly dragged are pinned here. Everything else is
@@ -120,7 +108,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       onCancelDraft: () => actionsRef.current.onCancelDraft(),
       onLinkTasks: (from, to) => actionsRef.current.onLinkTasks(from, to),
       onUnlinkTasks: (from, to) => actionsRef.current.onUnlinkTasks(from, to),
-      onPlanGoal: (text, model) => actionsRef.current.onPlanGoal(text, model),
     }),
     [],
   );
@@ -182,11 +169,8 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       missionId: node.mission_id,
       meta: node.meta,
       actions: stableActions,
-      // Only the draft card carries the live plan feed; other nodes stay lean.
-      planning: node.meta?.draft ? planningActive : undefined,
-      planFeed: node.meta?.draft && planningActive ? planFeed : undefined,
     }),
-    [stableActions, planningActive, planFeed],
+    [stableActions],
   );
 
   // Re-layout only when the graph's structure changes (nodes or edges added /
@@ -234,7 +218,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     );
     setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, planningActive, planFeed]);
+  }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds]);
 
   const onNodeDragStop = useCallback((_event: unknown, node: Node) => {
     manualPositionsRef.current[node.id] = node.position;
@@ -355,7 +339,6 @@ const KIND_LABEL: Record<GraphNodeKind, string> = {
   verify: "Verify",
   campaign: "Campaign",
   tool: "Tool",
-  plan: "Plan",
   research: "Research",
 };
 
@@ -402,7 +385,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
   const [text, setText] = useState("");
   const [kind, setKind] = useState<"task" | "tool">("task");
   const [worker, setWorker] = useState<DraftWorker>("claude-engineer");
-  // Model for this one task/plan; empty follows the global pick.
+  // Model for this one task; empty follows the global pick.
   const [model, setModel] = useState("");
   const models = useModels();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -472,7 +455,6 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
         className={`node-draft-input nodrag nowheel ${kind === "tool" ? "mono" : ""}`}
         placeholder={kind === "tool" ? "Command to run (sh -c in the repo)" : "What should get done?"}
         value={text}
-        disabled={node.planning}
         onChange={(event) => setText(event.target.value)}
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
@@ -484,7 +466,6 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
           }
         }}
       />
-      {node.planning ? <PlanLiveFeed feed={node.planFeed ?? []} /> : null}
       <div className="node-card-body">
         {kind === "task" ? (
           <div className="node-draft-selects">
@@ -493,7 +474,6 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
               aria-label="Agent that runs this task"
               title="Agent that runs this task"
               value={worker}
-              disabled={node.planning}
               onMouseDown={(event) => event.stopPropagation()}
               onChange={(event) => setWorker(event.target.value as DraftWorker)}
             >
@@ -505,7 +485,6 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
               aria-label="Model for this task"
               title="Model for this task (default follows the sidebar pick)"
               value={model}
-              disabled={node.planning}
               onMouseDown={(event) => event.stopPropagation()}
               onChange={(event) => setModel(event.target.value)}
             >
@@ -519,30 +498,9 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
         ) : null}
       </div>
       <div className="node-card-actions">
-        {kind === "task" ? (
-          <button
-            type="button"
-            className="node-btn nodrag"
-            disabled={node.planning}
-            title="Big task? The AI reads the repo, plans it, and creates the tasks"
-            onClick={(event) => {
-              event.stopPropagation();
-              const trimmed = text.trim();
-              if (!trimmed) {
-                inputRef.current?.focus();
-                return;
-              }
-              node.actions.onPlanGoal(trimmed, model || undefined);
-            }}
-          >
-            {node.planning ? <Loader size={12} className="spin" aria-hidden="true" /> : <Sparkles size={12} aria-hidden="true" />}
-            {node.planning ? "Planning…" : "Plan"}
-          </button>
-        ) : null}
         <button
           type="button"
           className="node-btn nodrag"
-          disabled={node.planning}
           onClick={(event) => {
             event.stopPropagation();
             submit(false);
@@ -553,7 +511,6 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
         <button
           type="button"
           className="node-btn primary nodrag"
-          disabled={node.planning}
           title="Create and launch (⌘↵)"
           onClick={(event) => {
             event.stopPropagation();
@@ -571,21 +528,6 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
 
 function NodeBody({ node }: { node: OrbitalNodeData }) {
   const meta = node.meta;
-
-  if (node.kind === "plan") {
-    const tasks = meta?.taskCount ?? 0;
-    return (
-      <div className="node-card-body">
-        <div className="node-card-stats">
-          <span>
-            {tasks} task{tasks === 1 ? "" : "s"}
-          </span>
-          {meta?.planFormat ? <span className="node-tag">{meta.planFormat}</span> : null}
-        </div>
-        <p className="node-card-prompt">Open to read the plan.</p>
-      </div>
-    );
-  }
 
   if (node.kind === "task") {
     return (

@@ -45,10 +45,7 @@ const emptyWorkspaceView: WorkspaceView = {
 };
 
 export function workspaceViewFromMissionLoop(state: MissionLoopState): WorkspaceView {
-  // A freshly planned repo can have a plan node with zero materialized tasks
-  // (nothing fans out until the plan is approved) — only truly empty state
-  // short-circuits to the empty view.
-  if (state.missions.length === 0 && (state.plans ?? []).length === 0) {
+  if (state.missions.length === 0) {
     return emptyWorkspaceView;
   }
 
@@ -88,8 +85,8 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
 
   return {
     missions,
-    graphNodes: [...graphNodesFromState(state, missions), ...campaignNodes(campaigns), ...planNodes(state)],
-    graphEdges: [...graphEdgesFromState(missions, state), ...campaignEdges(campaigns), ...planEdges(state)],
+    graphNodes: [...graphNodesFromState(state, missions), ...campaignNodes(campaigns)],
+    graphEdges: [...graphEdgesFromState(missions, state), ...campaignEdges(campaigns)],
     runtimeByMission,
     patchDiffByMission,
     commitByMission,
@@ -319,35 +316,6 @@ function campaignGroups(state: MissionLoopState, missions: WorkspaceMission[]): 
   return Array.from(groups.values()).filter((group) => group.members.length > 1);
 }
 
-// A plan node holds the AI's written plan and anchors the task nodes it fanned
-// out to. Its id is the plan's id so the panel can look up the full document.
-function planNodes(state: MissionLoopState): WorkspaceGraphNode[] {
-  return (state.plans ?? []).map((plan) => {
-    const taskCount = state.missions.filter((mission) => mission.plan_id === plan.id).length;
-    return {
-      id: plan.id,
-      kind: "plan" as const,
-      label: plan.goal.trim() ? compactLabel(plan.goal) : "Plan",
-      detail: `${taskCount} task${taskCount === 1 ? "" : "s"}`,
-      repository_id: plan.repository_id,
-      meta: { planId: plan.id, planFormat: plan.format, taskCount },
-    };
-  });
-}
-
-function planEdges(state: MissionLoopState): WorkspaceGraphEdge[] {
-  return (state.plans ?? []).flatMap((plan) =>
-    state.missions
-      .filter((mission) => mission.plan_id === plan.id)
-      .map((mission) => ({
-        id: `plan_${plan.id}_${mission.id}`,
-        from: plan.id,
-        to: mission.id,
-        kind: "spawns" as const,
-      })),
-  );
-}
-
 function campaignNodes(campaigns: CampaignGroup[]): WorkspaceGraphNode[] {
   return campaigns.map((campaign) => {
     const landed = campaign.members.filter((m) => m.status === "verified" || m.status === "approved").length;
@@ -503,8 +471,8 @@ export function compactLabel(title: string) {
 
 // A selected node is a valid follow-up target only when it's a mission that
 // can hand off a summary/diff/findings at run time — a task or a research
-// card. Repo, plan, and pipeline-stage nodes (agent/changes/verify/tool/
-// campaign) never qualify.
+// card. Repo and pipeline-stage nodes (agent/changes/verify/tool/campaign)
+// never qualify.
 export function followUpTargetFor(
   node: WorkspaceGraphNode | undefined,
   missions: WorkspaceMission[],

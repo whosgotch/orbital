@@ -5,12 +5,10 @@ import { TopBar } from "./components/TopBar";
 import { TaskPanel } from "./components/TaskPanel";
 import { DiffModal } from "./components/DiffModal";
 import { DiffView } from "./components/DiffView";
-import { PlanPanel, PlanIntake } from "./components/PlanPanel";
 import { PromptBar } from "./components/PromptBar";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { QueueIntakePanel } from "./components/QueueIntakePanel";
 import { CanvasEmptyState } from "./components/CanvasEmptyState";
-import { attachmentLines } from "./attachments";
 import { buildAgentStatus } from "./agentStatus";
 import { buildAgentTranscript } from "./agentTranscript";
 import { missionStatusFor, queuedRuntime, repositoryFor } from "./missionUi";
@@ -130,19 +128,6 @@ export function App() {
   // this particular selection becomes the new mission's follow-up target.
   const followUpTarget =
     followUpDismissedFor === selectedNodeId ? undefined : followUpTargetFor(selectedGraphNode, workspaceMissions);
-  // A selected plan node shows its written document; a selected repo node offers
-  // the planning intake. Both are node-scoped surfaces, like the task panel.
-  const selectedPlan =
-    selectedGraphNode?.kind === "plan"
-      ? (missionLoopState.plans ?? []).find((plan) => plan.id === selectedGraphNode.id)
-      : undefined;
-  const selectedPlanTaskCount = selectedPlan
-    ? missionLoopState.missions.filter((mission) => mission.plan_id === selectedPlan.id).length
-    : 0;
-  const selectedRepoForPlan =
-    selectedGraphNode?.kind === "repo"
-      ? missionLoopState.repositories.find((repo) => repo.id === selectedGraphNode.id)
-      : undefined;
   const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? queuedRuntime;
   const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
   const selectedCommit = (selectedMission ? commitByMission[selectedMission.id] : undefined) ?? { hash: "", subject: "" };
@@ -227,8 +212,6 @@ export function App() {
     setEditingPrompt,
   });
   const {
-    planningRepoId,
-    planFeed,
     missionDraft,
     setMissionDraft,
     setCampaignRepoIds,
@@ -239,8 +222,6 @@ export function App() {
     createTaskOnCanvas,
     linkTasks,
     unlinkTasks,
-    planRepo,
-    planGoalOnCanvas,
     researchFromPrompt,
     createFromPrompt,
     launchAllMissions,
@@ -250,8 +231,6 @@ export function App() {
     campaignTargetRepos,
     toggleCampaignRepo,
     approveMission,
-    approvePlan,
-    deletePlan,
     rejectMission,
     deleteMission,
     saveMissionPrompt,
@@ -355,7 +334,7 @@ export function App() {
   }, [diffModalOpen, openPanel, modelPickerOpen, draftingTask, repoHistory]);
 
   return (
-    <main className={`canvas-shell${selectedMission || selectedPlan || selectedRepoForPlan ? " panel-open" : ""}`}>
+    <main className={`canvas-shell${selectedMission ? " panel-open" : ""}`}>
       <TopBar
         repositories={missionLoopState.repositories}
         activeRepoPath={activeRepoPath}
@@ -385,8 +364,6 @@ export function App() {
           selectedNodeId={selectedGraphNode?.id ?? ""}
           selectedMissionId={selectedMission?.id ?? ""}
           runningMissionIds={runningMissionIds}
-          planningActive={planningRepoId !== ""}
-          planFeed={planFeed}
           onSelectNode={handleSelectNode}
           actions={{
             onRunTask: (missionId) => void dispatchMission(missionId),
@@ -394,7 +371,6 @@ export function App() {
             onReject: (missionId) => void rejectMission(missionId),
             onVerify: (missionId) => void runVerificationFor(missionId),
             onCreateTask: (text, run, kind, worker, model) => void createTaskOnCanvas(text, run, kind, worker, model),
-            onPlanGoal: (text, model) => planGoalOnCanvas(text, model),
             onCancelDraft: () => setDraftingTask(false),
             onLinkTasks: (from, to) => void linkTasks(from, to),
             onUnlinkTasks: (from, to) => void unlinkTasks(from, to),
@@ -431,16 +407,13 @@ export function App() {
         <PromptBar
           repoName={draftRepository?.name}
           repoPath={draftRepository?.path}
-          planning={planningRepoId !== ""}
-          planFeed={planFeed}
           followUp={followUpTarget}
           onDismissFollowUp={() => setFollowUpDismissedFor(selectedNodeId)}
           onCreate={(text, attachments) => void createFromPrompt(text, attachments)}
-          onPlan={(text, attachments) => planGoalOnCanvas(text + attachmentLines(attachments))}
           onResearch={(text, attachments) => void researchFromPrompt(text, attachments)}
         />
 
-        {workspaceMissions.length === 0 && (missionLoopState.plans ?? []).length === 0 ? (
+        {workspaceMissions.length === 0 ? (
           <CanvasEmptyState
             hasRepositories={missionLoopState.repositories.length > 0}
             refreshing={refreshingMissionLoop}
@@ -449,24 +422,6 @@ export function App() {
           />
         ) : null}
       </div>
-
-      {selectedPlan ? (
-        <PlanPanel
-          plan={selectedPlan}
-          taskCount={selectedPlanTaskCount}
-          onApprove={() => void approvePlan(selectedPlan)}
-          onDismiss={() => void deletePlan(selectedPlan)}
-        />
-      ) : null}
-
-      {selectedRepoForPlan ? (
-        <PlanIntake
-          repoName={selectedRepoForPlan.name}
-          planning={planningRepoId === selectedRepoForPlan.id}
-          feed={planFeed}
-          onPlan={(goal, format) => void planRepo(selectedRepoForPlan, goal, format)}
-        />
-      ) : null}
 
       {selectedMission ? (
         <TaskPanel
