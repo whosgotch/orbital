@@ -18,12 +18,17 @@ export type WorkspaceRuntime = {
 
 export type WorkspaceRuntimeMap = Record<string, WorkspaceRuntime>;
 
+// The commit a mission's patch landed as; hash "" means nothing has landed yet
+// (draft, pending, or a re-apply that changed nothing).
+export type CommitInfo = { hash: string; subject: string };
+
 export type WorkspaceView = {
   missions: WorkspaceMission[];
   graphNodes: WorkspaceGraphNode[];
   graphEdges: WorkspaceGraphEdge[];
   runtimeByMission: WorkspaceRuntimeMap;
   patchDiffByMission: Record<string, string>;
+  commitByMission: Record<string, CommitInfo>;
   verificationOutputByMission: Record<string, string>;
   activityByMission: Record<string, string[]>;
 };
@@ -34,6 +39,7 @@ const emptyWorkspaceView: WorkspaceView = {
   graphEdges: [],
   runtimeByMission: {},
   patchDiffByMission: {},
+  commitByMission: {},
   verificationOutputByMission: {},
   activityByMission: {},
 };
@@ -58,6 +64,12 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
   const patchDiffByMission = Object.fromEntries(
     state.missions.map((mission) => [mission.id, latestPatchForMission(state, mission.id)?.diff ?? ""]),
   );
+  const commitByMission = Object.fromEntries(
+    state.missions.map((mission) => {
+      const patch = latestPatchForMission(state, mission.id);
+      return [mission.id, { hash: patch?.commit_hash ?? "", subject: patch?.commit_subject ?? "" }];
+    }),
+  );
   const verificationOutputByMission = Object.fromEntries(
     state.missions.map((mission) => [mission.id, latestVerification(state, mission.id)?.output ?? ""]),
   );
@@ -77,6 +89,7 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
     graphEdges: [...graphEdgesFromState(missions, state), ...campaignEdges(campaigns), ...planEdges(state)],
     runtimeByMission,
     patchDiffByMission,
+    commitByMission,
     verificationOutputByMission,
     activityByMission,
   };

@@ -30,6 +30,7 @@ export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<str
   const [workspaceGraphEdges, setWorkspaceGraphEdges] = useState(initialWorkspaceView.graphEdges);
   const [runtimeByMission, setRuntimeByMission] = useState<WorkspaceRuntimeMap>(initialWorkspaceView.runtimeByMission);
   const [patchDiffByMission, setPatchDiffByMission] = useState(initialWorkspaceView.patchDiffByMission);
+  const [commitByMission, setCommitByMission] = useState(initialWorkspaceView.commitByMission);
   const [verificationOutputByMission, setVerificationOutputByMission] = useState(initialWorkspaceView.verificationOutputByMission);
   const [activityByMission, setActivityByMission] = useState(initialWorkspaceView.activityByMission);
   const [verificationCommandByMission, setVerificationCommandByMission] = useState<Record<string, string>>(
@@ -54,6 +55,7 @@ export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<str
     setWorkspaceGraphEdges(nextWorkspaceView.graphEdges);
     setRuntimeByMission(nextWorkspaceView.runtimeByMission);
     setPatchDiffByMission(nextWorkspaceView.patchDiffByMission);
+    setCommitByMission(nextWorkspaceView.commitByMission);
     setVerificationOutputByMission(nextWorkspaceView.verificationOutputByMission);
     setActivityByMission(nextWorkspaceView.activityByMission);
     setChatByMission(groupChatByMission(nextMissionLoopState.chat_messages));
@@ -174,6 +176,7 @@ export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<str
     runtimeByMission,
     setRuntimeByMission,
     patchDiffByMission,
+    commitByMission,
     verificationOutputByMission,
     activityByMission,
     verificationCommandByMission,

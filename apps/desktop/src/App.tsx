@@ -40,6 +40,7 @@ export function App() {
     runtimeByMission,
     setRuntimeByMission,
     patchDiffByMission,
+    commitByMission,
     verificationOutputByMission,
     activityByMission,
     verificationCommandByMission,
@@ -144,6 +145,7 @@ export function App() {
       : undefined;
   const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? queuedRuntime;
   const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
+  const selectedCommit = (selectedMission ? commitByMission[selectedMission.id] : undefined) ?? { hash: "", subject: "" };
   const selectedVerificationOutput = (selectedMission ? verificationOutputByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
   const patchReady = (selectedPatchDiff ?? "") !== "";
@@ -472,6 +474,7 @@ export function App() {
           onChangeTaskView={setTaskView}
           agentStatus={agentStatus}
           patchReady={patchReady}
+          commit={selectedCommit}
           researchDoc={researchDoc}
           chatMessages={selectedChatMessages}
           chatSending={selectedChatSending}

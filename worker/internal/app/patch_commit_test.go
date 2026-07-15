@@ -66,11 +66,25 @@ func TestApplyPatchCommitsEachMissionSoTheNextOneLands(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	if _, err := svc.ApplyPatch("patch_1"); err != nil {
+	patchOne, err := svc.ApplyPatch("patch_1")
+	if err != nil {
 		t.Fatalf("ApplyPatch(patch_1) error = %v", err)
 	}
-	if _, err := svc.ApplyPatch("patch_2"); err != nil {
+	patchTwo, err := svc.ApplyPatch("patch_2")
+	if err != nil {
 		t.Fatalf("ApplyPatch(patch_2) error = %v", err)
+	}
+
+	// Each applied patch records the commit it landed as, for the UI's
+	// "changes landed" line.
+	if patchOne.CommitSubject != "mission one" || patchOne.CommitHash == "" {
+		t.Fatalf("patch one commit info = %+v, want subject %q and a non-empty hash", patchOne, "mission one")
+	}
+	if patchTwo.CommitSubject != "mission two" || patchTwo.CommitHash == "" {
+		t.Fatalf("patch two commit info = %+v, want subject %q and a non-empty hash", patchTwo, "mission two")
+	}
+	if patchOne.CommitHash == patchTwo.CommitHash {
+		t.Fatalf("patch one and patch two recorded the same commit hash %q", patchOne.CommitHash)
 	}
 
 	content, err := os.ReadFile(filePath)
@@ -89,5 +103,46 @@ func TestApplyPatchCommitsEachMissionSoTheNextOneLands(t *testing.T) {
 	}
 	if status := strings.TrimSpace(gitIn(t, repoDir, "status", "--porcelain")); status != "" {
 		t.Fatalf("working tree not clean after applies: %q", status)
+	}
+}
+
+// When the patch's change already matches HEAD (a re-apply of already-landed
+// work), commitApplied has nothing to commit — CommitHash/CommitSubject on the
+// patch proposal stay empty rather than reporting a commit that didn't happen.
+func TestApplyPatchLeavesCommitFieldsEmptyWhenNothingToCommit(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+	repoDir := t.TempDir()
+	filePath := filepath.Join(repoDir, "file.txt")
+
+	gitIn(t, repoDir, "init")
+	gitIn(t, repoDir, "config", "user.email", "t@t")
+	gitIn(t, repoDir, "config", "user.name", "t")
+
+	if err := os.WriteFile(filePath, []byte("before\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, repoDir, "add", "-A")
+	gitIn(t, repoDir, "commit", "-m", "base")
+
+	// The patch's target content is already committed, as if applied before —
+	// its diff has nothing left to land.
+	if err := os.WriteFile(filePath, []byte("after\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, repoDir, "add", "-A")
+	gitIn(t, repoDir, "commit", "-m", "already applied")
+
+	createdAt := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
+	if err := jsonStore.Save(patchApplyState(repoDir, domain.PatchStatusApproved, createdAt)); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	patch, err := svc.ApplyPatch("patch_1")
+	if err != nil {
+		t.Fatalf("ApplyPatch() error = %v", err)
+	}
+	if patch.CommitHash != "" || patch.CommitSubject != "" {
+		t.Fatalf("commit info = %+v, want both empty (nothing to commit)", patch)
 	}
 }

@@ -18,4 +18,9 @@ type PatchProposal struct {
 	Diff      string      `json:"diff"`
 	CreatedAt time.Time   `json:"created_at"`
 	UpdatedAt time.Time   `json:"updated_at"`
+	// CommitHash/CommitSubject are set once the patch lands as a real commit
+	// (see commitApplied), so the UI can show what landed. Both stay empty when
+	// applying found nothing to commit (e.g. a re-apply already matching HEAD).
+	CommitHash    string `json:"commit_hash,omitempty"`
+	CommitSubject string `json:"commit_subject,omitempty"`
 }

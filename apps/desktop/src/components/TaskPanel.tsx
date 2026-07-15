@@ -8,7 +8,7 @@ import { ReviseBox } from "./ReviseBox";
 import type { TranscriptEntry } from "./AgentTranscript";
 import type { AgentStatusModel } from "../agentStatus";
 import { verifyPillClass, verifyPillLabel, verificationOutput } from "../missionUi";
-import type { WorkspaceRuntime } from "../workspaceAdapter";
+import type { CommitInfo, WorkspaceRuntime } from "../workspaceAdapter";
 import type { WorkspaceMission } from "../graph";
 import type { ChatMessage, Repository } from "../domain";
 
@@ -29,6 +29,7 @@ type TaskPanelProps = {
   onChangeTaskView: (view: "chat" | "changes" | "doc") => void;
   agentStatus: AgentStatusModel;
   patchReady: boolean;
+  commit: CommitInfo;
   researchDoc: string;
   chatMessages: ChatMessage[];
   chatSending: boolean;
@@ -62,6 +63,7 @@ export function TaskPanel({
   onChangeTaskView,
   agentStatus,
   patchReady,
+  commit,
   researchDoc,
   chatMessages,
   chatSending,
@@ -242,6 +244,13 @@ export function TaskPanel({
                     onChange={(event) => onChangeVerificationCommand(event.target.value)}
                   />
                   <pre className="test-output">{verificationOutput(runtime, verificationOutputText)}</pre>
+                </div>
+              ) : null}
+
+              {commit.hash ? (
+                <div className="landed-commit">
+                  <code className="history-hash">{commit.hash}</code>
+                  <span>{commit.subject}</span>
                 </div>
               ) : null}
 

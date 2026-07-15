@@ -124,6 +124,8 @@ export type PatchProposal = {
   diff: string;
   created_at: string;
   updated_at: string;
+  commit_hash?: string;
+  commit_subject?: string;
 };
 
 export type VerificationStatus = "queued" | "running" | "passed" | "failed";

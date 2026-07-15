@@ -154,9 +154,12 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 			// drifts from the index and the next mission's apply dies with
 			// "does not match index" — and new run worktrees would branch from
 			// a stale HEAD that lacks the missions already landed.
-			if err := commitApplied(repoPath, patch.Diff, state.Missions[missionIndex].Text); err != nil {
+			commitHash, subject, err := commitApplied(repoPath, patch.Diff, state.Missions[missionIndex].Text)
+			if err != nil {
 				return err
 			}
+			state.PatchProposals[patchIndex].CommitHash = commitHash
+			state.PatchProposals[patchIndex].CommitSubject = subject
 		}
 
 		// The approved work has landed in the main tree, so this mission's isolated
@@ -295,13 +298,16 @@ func stagePatchPaths(repoPath string, diff string) {
 	_ = add.Run()
 }
 
-// commitApplied records an applied patch as a commit on the target repo.
-// Staging is limited to the patch's own files, so a user's unrelated
-// work-in-progress is never swept into a mission's commit. Skips silently for
-// non-git scratch dirs (the mock worker) and when the patch changed nothing.
-func commitApplied(repoPath, diff, missionText string) error {
+// commitApplied records an applied patch as a commit on the target repo, and
+// returns the new commit's short hash and subject line so the caller can show
+// what landed. Staging is limited to the patch's own files, so a user's
+// unrelated work-in-progress is never swept into a mission's commit. Returns
+// two empty strings for non-git scratch dirs (the mock worker) and when the
+// patch changed nothing (a re-apply already matching HEAD) — there is no new
+// commit to report.
+func commitApplied(repoPath, diff, missionText string) (hash, subject string, err error) {
 	if !isGitRepo(repoPath) {
-		return nil
+		return "", "", nil
 	}
 
 	paths := make([]string, 0)
@@ -309,32 +315,40 @@ func commitApplied(repoPath, diff, missionText string) error {
 		paths = append(paths, change.path)
 	}
 	if len(paths) == 0 {
-		return nil
+		return "", "", nil
 	}
 
 	add := exec.Command("git", append([]string{"add", "-A", "--"}, paths...)...)
 	add.Dir = repoPath
 	if output, err := add.CombinedOutput(); err != nil {
-		return fmt.Errorf("commit applied patch (add): %w: %s", err, strings.TrimSpace(string(output)))
+		return "", "", fmt.Errorf("commit applied patch (add): %w: %s", err, strings.TrimSpace(string(output)))
 	}
 
 	// Nothing to commit when the patch's files already match HEAD (re-apply).
 	unchanged := exec.Command("git", append([]string{"diff", "--quiet", "HEAD", "--"}, paths...)...)
 	unchanged.Dir = repoPath
 	if unchanged.Run() == nil {
-		return nil
+		return "", "", nil
 	}
 
+	subject = commitSubject(missionText)
 	// Committing by pathspec takes exactly these files' current content, so
 	// anything else the user staged stays staged and out of this commit.
 	commit := exec.Command("git", append([]string{
 		"-c", "user.email=orbital@local", "-c", "user.name=Orbital",
-		"commit", "-m", commitSubject(missionText), "--"}, paths...)...)
+		"commit", "-m", subject, "--"}, paths...)...)
 	commit.Dir = repoPath
 	if output, err := commit.CombinedOutput(); err != nil {
-		return fmt.Errorf("commit applied patch: %w: %s", err, strings.TrimSpace(string(output)))
+		return "", "", fmt.Errorf("commit applied patch: %w: %s", err, strings.TrimSpace(string(output)))
 	}
-	return nil
+
+	rev := exec.Command("git", "rev-parse", "--short", "HEAD")
+	rev.Dir = repoPath
+	out, err := rev.Output()
+	if err != nil {
+		return "", subject, nil // commit landed; hash lookup is best-effort
+	}
+	return strings.TrimSpace(string(out)), subject, nil
 }
 
 func isGitRepo(repoPath string) bool {

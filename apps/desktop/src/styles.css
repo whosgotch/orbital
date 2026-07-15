@@ -606,6 +606,16 @@ h3 {
   overflow-y: auto;
 }
 
+/* One restrained line naming the commit an approved patch landed as. */
+.landed-commit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 /* Plan surface: the intake for kicking off a repo plan, and the rendered plan
    document. Both live in the docked panel like the task inspector. */
 .plan-intro,

@@ -73,6 +73,20 @@ describe("workspaceViewFromMissionLoop", () => {
     expect(view.graphEdges.map((edge) => edge.kind)).toEqual(["owns", "runs", "proposes", "verifies"]);
     expect(view.runtimeByMission.m1.status).toBe("review");
     expect(view.patchDiffByMission.m1).toBe(pendingPatch.diff);
+    expect(view.commitByMission.m1).toEqual({ hash: "", subject: "" });
+  });
+
+  it("surfaces the landed commit once a patch's apply recorded one", () => {
+    const appliedPatch: PatchProposal = {
+      ...pendingPatch,
+      status: "applied",
+      commit_hash: "abc1234",
+      commit_subject: "add a version command to the cli",
+    };
+    const view = workspaceViewFromMissionLoop(
+      state({ missions: [mission({ status: "applied" })], agent_runs: [run], patch_proposals: [appliedPatch] }),
+    );
+    expect(view.commitByMission.m1).toEqual({ hash: "abc1234", subject: "add a version command to the cli" });
   });
 
   it("keeps a tool mission as one node with no pipeline stages", () => {
