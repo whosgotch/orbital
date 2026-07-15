@@ -17,46 +17,60 @@ const (
 	upstreamFindingsLimit = 6000
 )
 
-// upstreamContextFor composes what flows along task→task edges: for every
-// upstream the mission depends on, its task text, the agent's final summary,
-// and the diff that landed. Returns the prompt block and the upstream titles
-// (for the hand-off event); both empty when there are no upstreams.
+// upstreamContextFor composes what flows into a mission's run prompt besides
+// its own task text: the plan document it was generated from (if any), and for
+// every upstream it depends on, that upstream's task text, the agent's final
+// summary, and the diff that landed. Returns the prompt block and the upstream
+// titles (for the hand-off event); the block is empty when there is neither a
+// plan nor any upstreams.
 func upstreamContextFor(state *store.State, mission domain.Mission) (string, []string) {
-	if len(mission.DependsOn) == 0 {
-		return "", nil
+	var blocks []string
+
+	// The plan carried the detail; the task text was written to be concise and
+	// point back at it, so the engineer needs the document to act on it fully.
+	if mission.PlanID != "" {
+		if planIndex := findPlanIndex(state.Plans, mission.PlanID); planIndex != -1 {
+			if content := strings.TrimSpace(state.Plans[planIndex].Content); content != "" {
+				blocks = append(blocks, "# Plan\nThis task was generated from the plan below — read it for the detail behind this task's prompt.\n\n"+truncateContext(content, upstreamFindingsLimit))
+			}
+		}
 	}
 
-	var sections []string
 	var titles []string
-	for _, upstreamID := range mission.DependsOn {
-		index := findMissionIndex(state.Missions, upstreamID)
-		if index == -1 {
-			continue
-		}
-		upstream := state.Missions[index]
-		titles = append(titles, upstream.Text)
+	if len(mission.DependsOn) > 0 {
+		var sections []string
+		for _, upstreamID := range mission.DependsOn {
+			index := findMissionIndex(state.Missions, upstreamID)
+			if index == -1 {
+				continue
+			}
+			upstream := state.Missions[index]
+			titles = append(titles, upstream.Text)
 
-		section := fmt.Sprintf("## Upstream task: %s", upstream.Text)
-		if summary := lastAssistantMessage(state, upstreamID); summary != "" {
-			section += "\nOutcome: " + truncateContext(summary, upstreamSummaryLimit)
+			section := fmt.Sprintf("## Upstream task: %s", upstream.Text)
+			if summary := lastAssistantMessage(state, upstreamID); summary != "" {
+				section += "\nOutcome: " + truncateContext(summary, upstreamSummaryLimit)
+			}
+			// Research produces a findings document, not a patch — hand that down
+			// instead of a diff. Research missions never emit patches, so the diff
+			// branch below naturally stays empty for them.
+			if upstream.IsResearch() && strings.TrimSpace(upstream.Document) != "" {
+				section += "\nFindings:\n" + truncateContext(upstream.Document, upstreamFindingsLimit)
+			} else if diff := latestMissionDiff(state, upstreamID); diff != "" {
+				section += "\nChanges it landed:\n```diff\n" + truncateContext(diff, upstreamDiffLimit) + "\n```"
+			}
+			sections = append(sections, section)
 		}
-		// Research produces a findings document, not a patch — hand that down
-		// instead of a diff. Research missions never emit patches, so the diff
-		// branch below naturally stays empty for them.
-		if upstream.IsResearch() && strings.TrimSpace(upstream.Document) != "" {
-			section += "\nFindings:\n" + truncateContext(upstream.Document, upstreamFindingsLimit)
-		} else if diff := latestMissionDiff(state, upstreamID); diff != "" {
-			section += "\nChanges it landed:\n```diff\n" + truncateContext(diff, upstreamDiffLimit) + "\n```"
+		if len(sections) > 0 {
+			header := "# Context from upstream tasks\nThis task depends on tasks that already completed; their changes are in the repository. Build on them.\n"
+			blocks = append(blocks, header+"\n"+strings.Join(sections, "\n\n"))
 		}
-		sections = append(sections, section)
 	}
 
-	if len(sections) == 0 {
+	if len(blocks) == 0 {
 		return "", nil
 	}
-
-	header := "# Context from upstream tasks\nThis task depends on tasks that already completed; their changes are in the repository. Build on them.\n"
-	return header + "\n" + strings.Join(sections, "\n\n"), titles
+	return strings.Join(blocks, "\n\n"), titles
 }
 
 // lastAssistantMessage is the upstream agent's own closing summary of what it
