@@ -1,21 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import {
-  Check,
-  ChevronDown,
-  CircleDot,
-  Cpu,
-  History,
-  Pencil,
-  Plus,
-  Rocket,
-  Terminal,
-  Trash2,
-  FolderOpen,
-  X,
-} from "lucide-react";
+import { Check, ChevronDown, Pencil, Terminal, Trash2, FolderOpen, X } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
+import { TopBar } from "./components/TopBar";
 import { DiffView } from "./components/DiffView";
 import { AgentChat, ChangesCard } from "./components/AgentChat";
 import { PlanPanel, PlanIntake, DocumentView } from "./components/PlanPanel";
@@ -47,7 +35,6 @@ import {
   upsertPatchProposal,
 } from "./repoStates";
 import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, PlanFeedItem, PlanFormat, Repository, WorkflowEvent } from "./domain";
-import { CURATED_MODELS, modelName } from "./models";
 import {
   followUpTargetFor,
   workspaceViewFromMissionLoop,
@@ -970,120 +957,27 @@ export function App() {
 
   return (
     <main className={`canvas-shell${selectedMission || selectedPlan || selectedRepoForPlan ? " panel-open" : ""}`}>
-      <header className="topbar">
-        <div className="topbar-brand">
-          <CircleDot size={16} aria-hidden="true" />
-          <span>Orbital</span>
-        </div>
-
-        <div className="topbar-repos">
-          {missionLoopState.repositories.map((repo) => (
-            <span key={repo.id} className={`repo-tab ${repo.path === activeRepoPath ? "active" : ""}`}>
-              <button
-                className="repo-tab-name"
-                type="button"
-                onClick={() => {
-                  setActiveRepoPath(repo.path);
-                }}
-                title={repo.path}
-              >
-                {repo.name}
-              </button>
-              <button
-                className="repo-close"
-                type="button"
-                onClick={() => closeRepo(repo.id)}
-                title="Close repository"
-                aria-label={`Close ${repo.name}`}
-              >
-                <X size={12} aria-hidden="true" />
-              </button>
-            </span>
-          ))}
-          <button
-            className="ghost icon-button"
-            type="button"
-            onClick={chooseWorkspaceFolder}
-            disabled={refreshingMissionLoop}
-            title="Open a repository"
-            aria-label="Open a repository"
-          >
-            <FolderOpen size={14} aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="topbar-actions">
-          {launchableCount > 1 ? (
-            <button className="ghost mini-text" type="button" onClick={launchAllMissions} title="Launch every queued task in parallel">
-              Run all
-            </button>
-          ) : null}
-          <button
-            className="ghost icon-button"
-            type="button"
-            onClick={() => setDraftingTask(true)}
-            disabled={!draftRepository}
-            title={draftRepository ? "Draft a task card on the canvas" : "Open a repository first"}
-            aria-label="Draft a task card"
-          >
-            <Plus size={15} aria-hidden="true" />
-          </button>
-          <button
-            className={`ghost icon-button ${openPanel === "mission" ? "active" : ""}`}
-            type="button"
-            onClick={() => togglePanel("mission")}
-            title="Queue a backlog or multi-repo campaign"
-            aria-label="Queue a backlog or campaign"
-          >
-            <Rocket size={14} aria-hidden="true" />
-          </button>
-          <button
-            className={`ghost icon-button ${openPanel === "history" ? "active" : ""}`}
-            type="button"
-            onClick={() => togglePanel("history")}
-            title="Git history"
-            aria-label="Git history"
-          >
-            <History size={14} aria-hidden="true" />
-          </button>
-          <div className="topbar-model">
-            <button
-              type="button"
-              className={`chip model-trigger ${modelPickerOpen ? "active" : ""}`}
-              title="Model used by every AI run and chat turn"
-              aria-haspopup="listbox"
-              aria-expanded={modelPickerOpen}
-              onClick={() => setModelPickerOpen((open) => !open)}
-            >
-              <Cpu size={14} aria-hidden="true" />
-              <span>{modelName(claudeModel)}</span>
-            </button>
-            {modelPickerOpen ? (
-              <div className="popover model-popover" role="listbox" aria-label="Claude model">
-                {CURATED_MODELS.map((model) => (
-                  <button
-                    key={model.id}
-                    type="button"
-                    role="option"
-                    aria-selected={claudeModel === model.id}
-                    className={`model-option ${claudeModel === model.id ? "active" : ""}`}
-                    onClick={() => {
-                      pickClaudeModel(model.id);
-                      setModelPickerOpen(false);
-                    }}
-                  >
-                    <span className="model-option-name">
-                      {model.name}
-                      {claudeModel === model.id ? <Check size={12} aria-hidden="true" /> : null}
-                    </span>
-                    <span className="model-option-blurb">{model.blurb}</span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </header>
+      <TopBar
+        repositories={missionLoopState.repositories}
+        activeRepoPath={activeRepoPath}
+        onSelectRepo={setActiveRepoPath}
+        onCloseRepo={closeRepo}
+        onChooseFolder={chooseWorkspaceFolder}
+        refreshing={refreshingMissionLoop}
+        launchableCount={launchableCount}
+        onLaunchAll={launchAllMissions}
+        draftRepositoryAvailable={Boolean(draftRepository)}
+        onDraftTask={() => setDraftingTask(true)}
+        openPanel={openPanel}
+        onTogglePanel={togglePanel}
+        claudeModel={claudeModel}
+        onPickModel={(model) => {
+          pickClaudeModel(model);
+          setModelPickerOpen(false);
+        }}
+        modelPickerOpen={modelPickerOpen}
+        onToggleModelPicker={() => setModelPickerOpen((open) => !open)}
+      />
 
       <div className="canvas-area">
         <GraphMap
