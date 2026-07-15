@@ -1488,7 +1488,7 @@ button.mini-text {
   max-width: 320px;
   text-align: center;
   /* The hint layer swallows clicks; the card itself is interactive — it
-     carries the open/recent/demo affordances when nothing is open. */
+     carries the open/recent-repo affordances when nothing is open. */
   pointer-events: auto;
 }
 
