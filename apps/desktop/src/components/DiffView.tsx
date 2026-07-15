@@ -6,9 +6,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus } from "lucide-react";
 import { escapeHtml, highlightCode, languageForPath } from "../highlight";
 
-type DiffLineKind = "add" | "del" | "context" | "hunk";
+export type DiffLineKind = "add" | "del" | "context" | "hunk";
 
-type DiffLine = {
+export type DiffLine = {
   kind: DiffLineKind;
   text: string;
   oldNo?: number;
@@ -19,15 +19,23 @@ type DiffLine = {
   markEnd?: number;
 };
 
-type FileChange = "added" | "deleted" | "modified";
+export type FileChange = "added" | "deleted" | "modified";
 
-type DiffFile = {
+export type DiffFile = {
   path: string;
   change: FileChange;
   additions: number;
   deletions: number;
   lines: DiffLine[];
 };
+
+// The file picked in chat, on the canvas, or in the diff modal's rail — matched
+// by path suffix since event paths and diff paths can differ in their leading
+// segments (e.g. a repo-relative path vs. a bare filename).
+export function findFocusFile(files: DiffFile[], focusPath: string | undefined): DiffFile | undefined {
+  if (!focusPath) return undefined;
+  return files.find((file) => file.path === focusPath || file.path.endsWith(focusPath) || focusPath.endsWith(file.path));
+}
 
 function stripPrefix(path: string) {
   if (path === "/dev/null") return path;
@@ -167,7 +175,7 @@ function lineHtml(line: DiffLine, language: string | undefined): string {
   );
 }
 
-function ChangeBadge({ change }: { change: FileChange }) {
+export function ChangeBadge({ change }: { change: FileChange }) {
   if (change === "added") return <FilePlus size={13} className="diff-change added" aria-hidden="true" />;
   if (change === "deleted") return <FileMinus size={13} className="diff-change deleted" aria-hidden="true" />;
   return <FilePen size={13} className="diff-change modified" aria-hidden="true" />;
@@ -218,8 +226,24 @@ function FileSection({
   );
 }
 
-export function DiffView({ diff, emptyLabel, focusPath }: { diff: string; emptyLabel: string; focusPath?: string }) {
-  const files = useMemo(() => (diff.trim() ? parseUnifiedDiff(diff) : []), [diff]);
+export function DiffView({
+  diff,
+  emptyLabel,
+  focusPath,
+  onlyPath,
+}: {
+  diff: string;
+  emptyLabel: string;
+  focusPath?: string;
+  // When set, render just this one file instead of the whole change set —
+  // used by the diff modal's file rail.
+  onlyPath?: string;
+}) {
+  const allFiles = useMemo(() => (diff.trim() ? parseUnifiedDiff(diff) : []), [diff]);
+  const files = useMemo(
+    () => (onlyPath ? allFiles.filter((file) => file.path === onlyPath) : allFiles),
+    [allFiles, onlyPath],
+  );
   const signature = files.map((file) => file.path).join("|");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -232,11 +256,7 @@ export function DiffView({ diff, emptyLabel, focusPath }: { diff: string; emptyL
     setCollapsed({});
   }
 
-  // The file picked in chat or on the canvas, matched by path suffix since
-  // event paths and diff paths can differ in their leading segments.
-  const focusFile = focusPath
-    ? files.find((f) => f.path === focusPath || f.path.endsWith(focusPath) || focusPath.endsWith(f.path))
-    : undefined;
+  const focusFile = findFocusFile(files, focusPath);
 
   // Expand the focused file during render so it is already open when the
   // post-commit effect scrolls to it.

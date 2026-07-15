@@ -2984,10 +2984,123 @@ button.node-action.danger:hover:not(:disabled) {
   margin: 2px 0 0;
 }
 
+/* Rail (file list) + main pane (selected file's diff), side by side. */
+.diff-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+}
+
+.diff-modal-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .diff-modal .diff-view {
   flex: 1 1 auto;
   min-height: 0;
   font-size: 13px;
+}
+
+/* Left rail: every file in the patch, "All files" pinned above the list. */
+.diff-rail {
+  flex: 0 0 230px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #0b0b0d;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.diff-rail-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-rail-nav-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.diff-rail-nav-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.diff-rail-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.diff-rail-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--soft);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.diff-rail-item:hover {
+  background: #151b23;
+}
+
+.diff-rail-item.active {
+  background: var(--panel-2);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.diff-rail-all {
+  font-weight: 600;
+  color: var(--soft);
+}
+
+.diff-rail-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-rail-dir {
+  color: var(--muted);
+}
+
+.diff-rail-base {
+  color: var(--soft);
+}
+
+.diff-rail-item.active .diff-rail-base,
+.diff-rail-item.active.diff-rail-all {
+  color: var(--accent);
 }
 
 .diff-modal .actions {
