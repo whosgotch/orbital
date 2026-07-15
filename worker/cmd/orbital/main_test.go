@@ -13,51 +13,41 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
-func TestCreateDemoFixtureResetsFilesAndState(t *testing.T) {
-	repoDir := t.TempDir()
-	stateDir := filepath.Join(repoDir, ".orbital")
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
-		t.Fatalf("MkdirAll(.orbital) error = %v", err)
-	}
+// demoPackageJSON and demoCLI mirror the fixture files a test repo needs to
+// exercise the tool-mission flow (a package.json plus a src file to patch).
+const demoPackageJSON = `{
+  "name": "demo",
+  "type": "module",
+  "bin": {
+    "demo": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  }
+}
+`
 
-	if err := os.WriteFile(filepath.Join(stateDir, "state.json"), []byte("{}"), 0644); err != nil {
-		t.Fatalf("WriteFile(state.json) error = %v", err)
-	}
+const demoCLI = `import pkg from "../package.json";
 
-	if err := os.WriteFile(filepath.Join(repoDir, "package.json"), []byte(`{"version":"0.1.0"}`), 0644); err != nil {
+const command = process.argv[2];
+
+console.log("Usage: demo <command>");
+`
+
+// setupFixtureRepo writes the demo package.json/src/cli.ts fixture files into
+// repoDir so tests have a minimal repo to queue and run missions against.
+func setupFixtureRepo(t *testing.T, repoDir string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Join(repoDir, "src"), 0755); err != nil {
+		t.Fatalf("MkdirAll(src) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, "package.json"), []byte(demoPackageJSON), 0644); err != nil {
 		t.Fatalf("WriteFile(package.json) error = %v", err)
 	}
-
-	var output bytes.Buffer
-	err := run(context.Background(), []string{"orbital", "demo-fixture", repoDir}, &output)
-	if err != nil {
-		t.Fatalf("run() error = %v", err)
-	}
-
-	packageJSON, err := os.ReadFile(filepath.Join(repoDir, "package.json"))
-	if err != nil {
-		t.Fatalf("ReadFile(package.json) error = %v", err)
-	}
-
-	if string(packageJSON) != demoPackageJSON {
-		t.Fatalf("package.json = %q, want fixture content", string(packageJSON))
-	}
-
-	cli, err := os.ReadFile(filepath.Join(repoDir, "src", "cli.ts"))
-	if err != nil {
-		t.Fatalf("ReadFile(cli.ts) error = %v", err)
-	}
-
-	if string(cli) != demoCLI {
-		t.Fatalf("cli.ts = %q, want fixture content", string(cli))
-	}
-
-	if _, err := os.Stat(stateDir); !os.IsNotExist(err) {
-		t.Fatalf("expected .orbital to be removed, stat error = %v", err)
-	}
-
-	if output.String() == "" {
-		t.Fatal("expected fixture command output")
+	if err := os.WriteFile(filepath.Join(repoDir, "src", "cli.ts"), []byte(demoCLI), 0644); err != nil {
+		t.Fatalf("WriteFile(cli.ts) error = %v", err)
 	}
 }
 
@@ -154,9 +144,7 @@ func TestQueueToolMissionCreatesToolDraft(t *testing.T) {
 
 func TestStartRunCreatesWorkerRunAndPatch(t *testing.T) {
 	repoDir := t.TempDir()
-	if err := run(context.Background(), []string{"orbital", "demo-fixture", repoDir}, &bytes.Buffer{}); err != nil {
-		t.Fatalf("demo-fixture run() error = %v", err)
-	}
+	setupFixtureRepo(t, repoDir)
 
 	var queueOutput bytes.Buffer
 	if err := run(context.Background(), []string{"orbital", "queue", repoDir, "add a version command"}, &queueOutput); err != nil {
@@ -574,9 +562,7 @@ func prepareStartedDemoMission(t *testing.T) (string, string) {
 	t.Helper()
 
 	repoDir := t.TempDir()
-	if err := run(context.Background(), []string{"orbital", "demo-fixture", repoDir}, &bytes.Buffer{}); err != nil {
-		t.Fatalf("demo-fixture run() error = %v", err)
-	}
+	setupFixtureRepo(t, repoDir)
 
 	var queueOutput bytes.Buffer
 	if err := run(context.Background(), []string{"orbital", "queue", repoDir, "add a version command"}, &queueOutput); err != nil {
