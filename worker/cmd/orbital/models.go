@@ -77,7 +77,7 @@ func fetchProviderModels() []modelInfo {
 			LastID  string      `json:"last_id"`
 		}
 		decodeErr := json.NewDecoder(resp.Body).Decode(&page)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusOK || decodeErr != nil {
 			return nil
 		}

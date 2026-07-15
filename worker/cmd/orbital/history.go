@@ -29,7 +29,7 @@ func showHistory(args []string, stdout io.Writer) error {
 		return err
 	}
 	for _, commit := range commits {
-		fmt.Fprintf(stdout, "%s  %s  %s\n", commit.ShortHash, commit.Date, commit.Subject)
+		_, _ = fmt.Fprintf(stdout, "%s  %s  %s\n", commit.ShortHash, commit.Date, commit.Subject)
 	}
 	return nil
 }

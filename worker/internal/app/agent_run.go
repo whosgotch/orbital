@@ -444,7 +444,7 @@ func (s *Service) streamRunEvent(event agent.RunEvent) {
 	// NDJSON lines never interleave into corrupt JSON.
 	s.streamMu.Lock()
 	defer s.streamMu.Unlock()
-	fmt.Fprintf(s.eventOut, "%s%s\n", prefix, data)
+	_, _ = fmt.Fprintf(s.eventOut, "%s%s\n", prefix, data)
 }
 
 // streamAgentRun emits the run record itself (created, spawned as a child,
@@ -460,7 +460,7 @@ func (s *Service) streamAgentRun(run domain.AgentRun) {
 	}
 	s.streamMu.Lock()
 	defer s.streamMu.Unlock()
-	fmt.Fprintf(s.eventOut, "RUN:%s\n", data)
+	_, _ = fmt.Fprintf(s.eventOut, "RUN:%s\n", data)
 }
 
 func finalRunStatus(events []domain.WorkflowEvent, runID string) domain.AgentRunStatus {

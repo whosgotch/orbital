@@ -58,12 +58,12 @@ func (s *JSONStore) Update(mutate func(*State) error) (*State, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer lockFile.Close()
+	defer func() { _ = lockFile.Close() }()
 
 	if err := flock(lockFile); err != nil {
 		return nil, err
 	}
-	defer funlock(lockFile)
+	defer func() { _ = funlock(lockFile) }()
 
 	state, err := s.Load()
 	if err != nil {
@@ -98,10 +98,10 @@ func (s *JSONStore) Save(state *State) error {
 		return err
 	}
 	tempPath := tempFile.Name()
-	defer os.Remove(tempPath)
+	defer func() { _ = os.Remove(tempPath) }()
 
 	if _, err := tempFile.Write(data); err != nil {
-		tempFile.Close()
+		_ = tempFile.Close()
 		return err
 	}
 	if err := tempFile.Close(); err != nil {

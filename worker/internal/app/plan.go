@@ -276,7 +276,7 @@ func (s *Service) streamPlanEvent(kind, message string) {
 	}
 	s.streamMu.Lock()
 	defer s.streamMu.Unlock()
-	fmt.Fprintf(s.eventOut, "EVENT:%s\n", data)
+	_, _ = fmt.Fprintf(s.eventOut, "EVENT:%s\n", data)
 }
 
 func planPrompt(goal string, format domain.PlanFormat, graphContext string) string {

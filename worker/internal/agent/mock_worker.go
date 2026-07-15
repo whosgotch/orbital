@@ -242,7 +242,7 @@ func fileDiff(repoPath string, relativePath string, next []byte) (string, error)
 	if err != nil {
 		return "", err
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	tempPath := filepath.Join(tempDir, relativePath)
 	if err := os.MkdirAll(filepath.Dir(tempPath), 0755); err != nil {

@@ -29,7 +29,7 @@ func showStatus(args []string, stdout io.Writer) error {
 	}
 
 	for _, repository := range repositories {
-		fmt.Fprintf(stdout, "repository: %s (%s)\n", repository.ID, repository.Path)
+		_, _ = fmt.Fprintf(stdout, "repository: %s (%s)\n", repository.ID, repository.Path)
 
 		missions, err := service.ListMissionsByRepository(repository.ID)
 		if err != nil {
@@ -59,21 +59,21 @@ func showStatusJSON(repoPath string, stdout io.Writer) error {
 }
 
 func printMissionStatus(stdout io.Writer, service *app.Service, mission domain.Mission) error {
-	fmt.Fprintf(stdout, "mission: %s (%s)\n", mission.ID, mission.Status)
+	_, _ = fmt.Fprintf(stdout, "mission: %s (%s)\n", mission.ID, mission.Status)
 
 	runs, err := service.ListRunsByMission(mission.ID)
 	if err != nil {
 		return err
 	}
 	for _, run := range runs {
-		fmt.Fprintf(stdout, "  run: %s (%s)\n", run.ID, run.Status)
+		_, _ = fmt.Fprintf(stdout, "  run: %s (%s)\n", run.ID, run.Status)
 
 		patches, err := service.ListPatchesByRun(run.ID)
 		if err != nil {
 			return err
 		}
 		for _, patch := range patches {
-			fmt.Fprintf(stdout, "    patch: %s (%s)\n", patch.ID, patch.Status)
+			_, _ = fmt.Fprintf(stdout, "    patch: %s (%s)\n", patch.ID, patch.Status)
 		}
 	}
 
@@ -82,7 +82,7 @@ func printMissionStatus(stdout io.Writer, service *app.Service, mission domain.M
 		return err
 	}
 	for _, verification := range verifications {
-		fmt.Fprintf(stdout, "  verification: %s (%s)\n", verification.ID, verification.Status)
+		_, _ = fmt.Fprintf(stdout, "  verification: %s (%s)\n", verification.ID, verification.Status)
 	}
 
 	events, err := service.ListEventsByMission(mission.ID)

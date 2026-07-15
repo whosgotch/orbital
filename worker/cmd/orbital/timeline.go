@@ -12,8 +12,8 @@ func printTimeline(stdout io.Writer, events []domain.WorkflowEvent) {
 		return
 	}
 
-	fmt.Fprintln(stdout, "timeline:")
+	_, _ = fmt.Fprintln(stdout, "timeline:")
 	for _, event := range events {
-		fmt.Fprintf(stdout, "- %s: %s\n", event.Type, event.Message)
+		_, _ = fmt.Fprintf(stdout, "- %s: %s\n", event.Type, event.Message)
 	}
 }
