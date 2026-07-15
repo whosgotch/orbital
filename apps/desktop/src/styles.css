@@ -647,6 +647,27 @@ h3 {
 .plan-html table { border-collapse: collapse; }
 .plan-html th, .plan-html td { border: 1px solid var(--line); padding: 4px 8px; }
 
+/* Research documents read longer than a chat reply, so give the markdown a
+   touch more room to breathe than the chat-bubble form — still dense, not a
+   blog: modest heading scale, no oversized top-level type. */
+.plan-doc .markdown {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--soft);
+}
+
+.plan-doc .markdown > * + * {
+  margin-top: 10px;
+}
+
+.plan-doc .md-heading {
+  margin-top: 4px;
+}
+
+.plan-doc .md-heading.level-1 { font-size: 15px; }
+.plan-doc .md-heading.level-2 { font-size: 14px; }
+.plan-doc .md-heading.level-3 { font-size: 13.5px; }
+
 /* Talk-to-revise: a one-line composer that sits under the diff so the change
    set stays part of the conversation. Compact so it never competes with the
    diff or the approve gate. */
@@ -837,13 +858,39 @@ h3 {
   gap: 3px;
 }
 
+/* Nested lists sit inside an <li>, which is a flex column sibling of the
+   list's own gap — give it its own breathing room instead of collapsing
+   flush against the parent item's text. */
+.markdown li > ul,
+.markdown li > ol {
+  margin-top: 3px;
+}
+
+/* Task lists: the leading checkbox aligns with the item's first line rather
+   than floating baseline. */
+.markdown li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -20px;
+}
+
+.md-checkbox {
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+  accent-color: var(--muted);
+}
+
 .md-heading {
   font-weight: 600;
   color: var(--text);
+  margin: 0;
 }
 
 .md-heading.level-1 { font-size: 14px; }
 .md-heading.level-2 { font-size: 13.5px; }
+.md-heading.level-3 { font-size: 13px; }
+.md-heading.level-4,
+.md-heading.level-5,
+.md-heading.level-6 { font-size: 12.5px; color: var(--soft); }
 
 .md-code {
   padding: 1px 5px;
@@ -863,6 +910,59 @@ h3 {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.55;
+}
+
+.markdown blockquote {
+  margin: 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--muted);
+}
+
+.markdown hr {
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.md-link {
+  color: var(--soft);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.md-link:hover {
+  color: var(--text);
+}
+
+.md-img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+.md-table-wrap {
+  overflow-x: auto;
+}
+
+.md-table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+  min-width: 100%;
+}
+
+.md-table th,
+.md-table td {
+  border: 1px solid var(--line);
+  padding: 5px 9px;
+  text-align: left;
+}
+
+.md-table th {
+  color: var(--text);
+  font-weight: 600;
+  background: var(--panel-2);
 }
 
 /* The chat-side changes card: what the agent touched, one click from the diff. */
