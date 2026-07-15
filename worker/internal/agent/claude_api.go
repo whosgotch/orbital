@@ -108,60 +108,12 @@ func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, ses
 	return summary, sessionID
 }
 
-// QueryClaudeText asks Claude a single question and returns its plain-text
-// answer. Unlike callClaudeAgentic it grants no edit permissions and starts no
-// session — it's for read-only reasoning tasks (like breaking a task into
-// sub-tasks) where nothing should touch the repo. Errors if the CLI is absent.
-func QueryClaudeText(ctx context.Context, model, prompt string) (string, error) {
-	if !claudeCLIAvailable() {
-		return "", fmt.Errorf("claude CLI not found on PATH")
-	}
-
-	args := []string{"--print", "--output-format", "text"}
-	if model != "" {
-		args = append(args, "--model", model)
-	}
-	args = append(args, prompt)
-
-	cmd := exec.CommandContext(ctx, "claude", args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
-	}
-	return strings.TrimSpace(stdout.String()), nil
-}
-
-// QueryClaudeInRepo asks Claude a question it can answer by reading the repo,
-// returning its plain-text answer. It runs in plan permission mode — Claude may
-// read/search files but cannot edit them — so it's safe for repo-aware planning.
-func QueryClaudeInRepo(ctx context.Context, repoPath, model, prompt string) (string, error) {
-	if !claudeCLIAvailable() {
-		return "", fmt.Errorf("claude CLI not found on PATH")
-	}
-
-	args := []string{"--print", "--permission-mode", "plan", "--output-format", "text"}
-	if model != "" {
-		args = append(args, "--model", model)
-	}
-	args = append(args, prompt)
-
-	cmd := exec.CommandContext(ctx, "claude", args...)
-	cmd.Dir = repoPath
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
-	}
-	return strings.TrimSpace(stdout.String()), nil
-}
-
-// QueryClaudeInRepoStreaming is QueryClaudeInRepo with the steps made visible:
-// still plan permission mode (read-only), but stream-json output so the caller
-// can surface Claude's narration and tool calls live through onStep while the
-// answer is being produced. Returns the final result text.
+// QueryClaudeInRepoStreaming asks Claude a question it can answer by reading
+// the repo, returning its plain-text answer. It runs in plan permission mode —
+// Claude may read/search files but cannot edit them — so it's safe for
+// repo-aware planning. Its steps are made visible via stream-json output, so
+// the caller can surface Claude's narration and tool calls live through onStep
+// while the answer is being produced. Returns the final result text.
 func QueryClaudeInRepoStreaming(ctx context.Context, repoPath, model, prompt string, onStep func(kind, msg string)) (string, error) {
 	if !claudeCLIAvailable() {
 		return "", fmt.Errorf("claude CLI not found on PATH")
