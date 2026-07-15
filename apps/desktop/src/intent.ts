@@ -6,7 +6,7 @@
 const QUESTION_WORDS = new Set([
   // English
   "what", "why", "how", "where", "when", "which", "who", "whose", "whom",
-  "can", "could", "does", "do", "did", "is", "are", "was", "were",
+  "can", "could", "does", "did", "is", "are", "was", "were",
   "should", "would", "will",
   // Ukrainian
   "що", "чому", "як", "де", "коли", "який", "яка", "яке", "які", "якого",

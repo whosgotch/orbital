@@ -21,6 +21,7 @@ describe("detectIntent", () => {
 
   it("keeps ambiguous verbs like fix on create", () => {
     expect(detectIntent("fix the login bug")).toBe("create");
+    expect(detectIntent("do a cleanup pass of the docs")).toBe("create");
   });
 
   it("routes a multi-line backlog to create", () => {
