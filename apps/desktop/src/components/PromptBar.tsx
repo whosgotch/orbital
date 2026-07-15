@@ -2,13 +2,16 @@
 // canvas. Enter creates a task instantly (one per line — a whole backlog at
 // once); Research asks a read-only question; Plan hands the goal to the AI,
 // which reads the repo and drops a plan node plus the tasks it fans out to.
-// While a plan is in flight the bar shows the AI's streamed thinking. Pasted
+// Enter and the primary button route by detected intent (question → Research,
+// otherwise Create); the secondary button always offers the other one. While
+// a plan is in flight the bar shows the AI's streamed thinking. Pasted
 // screenshots ride along as attachments.
 import { useRef, useState } from "react";
 import { CornerDownLeft, CornerDownRight, Loader, Search, Sparkles, X } from "lucide-react";
 import { PlanLiveFeed } from "./PlanLiveFeed";
 import { AttachmentChips } from "./AttachmentChips";
 import { usePastedImages } from "../attachments";
+import { detectIntent } from "../intent";
 import type { PlanFeedItem } from "../domain";
 
 type PromptBarProps = {
@@ -42,6 +45,7 @@ export function PromptBar({
   const attachments = usePastedImages(repoPath);
   const trimmed = text.trim();
   const ready = Boolean(trimmed) && Boolean(repoName) && !planning;
+  const intent = detectIntent(trimmed);
 
   const submit = (action: (value: string, attachments: string[]) => void) => {
     if (!ready) return;
@@ -79,22 +83,35 @@ export function PromptBar({
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
-            submit(onCreate);
+            submit(intent === "research" ? onResearch : onCreate);
           }
         }}
       />
       <div className="prompt-bar-actions">
         {repoName ? <span className="prompt-bar-target">{repoName}</span> : null}
-        <button
-          type="button"
-          className="secondary"
-          disabled={!ready}
-          onClick={() => submit(onResearch)}
-          title="Ask about the repo — a read-only researcher answers with a findings document"
-        >
-          <Search size={13} aria-hidden="true" />
-          <span>Research</span>
-        </button>
+        {intent === "research" ? (
+          <button
+            type="button"
+            className="secondary"
+            disabled={!ready}
+            onClick={() => submit(onCreate)}
+            title="Create task — one per line"
+          >
+            <CornerDownLeft size={13} aria-hidden="true" />
+            <span>Create</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="secondary"
+            disabled={!ready}
+            onClick={() => submit(onResearch)}
+            title="Ask about the repo — a read-only researcher answers with a findings document"
+          >
+            <Search size={13} aria-hidden="true" />
+            <span>Research</span>
+          </button>
+        )}
         <button
           type="button"
           className="secondary"
@@ -105,16 +122,29 @@ export function PromptBar({
           {planning ? <Loader size={13} className="spin" aria-hidden="true" /> : <Sparkles size={13} aria-hidden="true" />}
           <span>Plan</span>
         </button>
-        <button
-          type="button"
-          className="primary"
-          disabled={!ready}
-          onClick={() => submit(onCreate)}
-          title="Create task — one per line"
-        >
-          <CornerDownLeft size={13} aria-hidden="true" />
-          <span>Create</span>
-        </button>
+        {intent === "research" ? (
+          <button
+            type="button"
+            className="primary"
+            disabled={!ready}
+            onClick={() => submit(onResearch)}
+            title="Ask about the repo — a read-only researcher answers with a findings document"
+          >
+            <Search size={13} aria-hidden="true" />
+            <span>Research</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="primary"
+            disabled={!ready}
+            onClick={() => submit(onCreate)}
+            title="Create task — one per line"
+          >
+            <CornerDownLeft size={13} aria-hidden="true" />
+            <span>Create</span>
+          </button>
+        )}
       </div>
     </div>
   );
