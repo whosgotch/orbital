@@ -97,7 +97,7 @@ export function TaskPanel({
               {repository?.name ?? "workspace"} · {mission.kind === "tool" ? "tool" : mission.kind === "research" ? "research" : "task"}
             </div>
             <h2
-              className={`work-order-title ${promptExpanded ? "expanded" : ""}`}
+              className="work-order-title"
               onClick={() => setExpandedPromptFor(promptExpanded ? "" : mission.id)}
               title={promptExpanded ? "Collapse prompt" : "Show full prompt"}
             >
@@ -136,6 +136,12 @@ export function TaskPanel({
             </button>
           </div>
         </div>
+
+        {promptExpanded && !editingPrompt ? (
+          <div className="prompt-full" onClick={() => setExpandedPromptFor("")} title="Collapse prompt">
+            {mission.title}
+          </div>
+        ) : null}
 
         {editingPrompt ? (
           <div className="node-prompt-editor">

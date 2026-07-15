@@ -2546,10 +2546,19 @@ dd {
   cursor: pointer;
 }
 
-.work-order-title.expanded {
-  -webkit-line-clamp: unset;
+/* The full prompt, expanded below the header by clicking the clamped title.
+   Reads as quiet body text, never competes with the header row. */
+.prompt-full {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--soft);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
   max-height: 40vh;
   overflow-y: auto;
+  padding: 8px 10px;
+  border-left: 2px solid var(--line-strong);
+  cursor: pointer;
 }
 
 .work-order-meta {
