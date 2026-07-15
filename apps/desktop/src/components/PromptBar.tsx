@@ -74,7 +74,7 @@ export function PromptBar({
         ref={inputRef}
         className="prompt-bar-input"
         aria-label="Describe a task"
-        placeholder={repoName ? "Describe a task — Enter creates, Plan lets the AI break it down" : "Open a repository to start"}
+        placeholder={repoName ? "Describe a task — question triggers Research, Enter creates, Plan lets the AI break it down" : "Open a repository to start"}
         value={text}
         rows={Math.min(6, Math.max(1, text.split("\n").length))}
         disabled={!repoName || planning}
