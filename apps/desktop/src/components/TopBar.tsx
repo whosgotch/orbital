@@ -2,7 +2,7 @@
 // controls that live in the top-right corner. Purely presentational — every
 // action is a callback prop, every open/closed flag comes in from App state.
 import { Check, CircleDot, Cpu, FolderOpen, History, Plus, Rocket, X } from "lucide-react";
-import { CURATED_MODELS, modelName } from "../models";
+import { useModels } from "../useModels";
 import type { Repository } from "../domain";
 
 type TopBarProps = {
@@ -42,6 +42,8 @@ export function TopBar({
   modelPickerOpen,
   onToggleModelPicker,
 }: TopBarProps) {
+  const models = useModels();
+  const currentModelName = models.find((model) => model.id === claudeModel)?.name ?? claudeModel;
   return (
     <header className="topbar">
       <div className="topbar-brand">
@@ -122,11 +124,11 @@ export function TopBar({
             onClick={onToggleModelPicker}
           >
             <Cpu size={14} aria-hidden="true" />
-            <span>{modelName(claudeModel)}</span>
+            <span>{currentModelName}</span>
           </button>
           {modelPickerOpen ? (
             <div className="popover model-popover" role="listbox" aria-label="Claude model">
-              {CURATED_MODELS.map((model) => (
+              {models.map((model) => (
                 <button
                   key={model.id}
                   type="button"

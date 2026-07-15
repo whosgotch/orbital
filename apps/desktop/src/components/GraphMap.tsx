@@ -22,7 +22,7 @@ import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
 import type { PlanFeedItem } from "../domain";
 import { PlanLiveFeed } from "./PlanLiveFeed";
-import { CURATED_MODELS } from "../models";
+import { useModels } from "../useModels";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 
@@ -404,6 +404,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
   const [worker, setWorker] = useState<DraftWorker>("claude-engineer");
   // Model for this one task/plan; empty follows the global pick.
   const [model, setModel] = useState("");
+  const models = useModels();
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -508,7 +509,7 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
               onMouseDown={(event) => event.stopPropagation()}
               onChange={(event) => setModel(event.target.value)}
             >
-              {CURATED_MODELS.map((option) => (
+              {models.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.id === "" ? "Default model" : option.name}
                 </option>

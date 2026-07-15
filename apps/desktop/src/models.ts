@@ -9,7 +9,3 @@ export const CURATED_MODELS: CuratedModel[] = [
   { id: "claude-sonnet-5", name: "Sonnet 5", blurb: "Balanced daily driver for most tasks" },
   { id: "claude-haiku-4-5", name: "Haiku 4.5", blurb: "Fast and cheap — small, well-defined changes" },
 ];
-
-export function modelName(id: string): string {
-  return CURATED_MODELS.find((model) => model.id === id)?.name ?? id;
-}

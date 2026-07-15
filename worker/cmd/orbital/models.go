@@ -96,6 +96,7 @@ func fetchProviderModels() []modelInfo {
 // exact aliases the claude CLI accepts via --model.
 func fallbackModels() []modelInfo {
 	return []modelInfo{
+		{ID: "claude-fable-5", DisplayName: "Claude Fable 5"},
 		{ID: "claude-opus-4-8", DisplayName: "Claude Opus 4.8"},
 		{ID: "claude-opus-4-7", DisplayName: "Claude Opus 4.7"},
 		{ID: "claude-opus-4-6", DisplayName: "Claude Opus 4.6"},
