@@ -407,6 +407,11 @@ fn verify_mission(
     ])
 }
 
+#[tauri::command]
+fn extract_tasks(repo_path: String, mission_id: String) -> Result<String, String> {
+    run_worker(&["extract-tasks", repo_path.trim(), mission_id.trim()])
+}
+
 fn run_worker_streaming(
     app: &tauri::AppHandle,
     runs: &RunningRuns,
@@ -583,6 +588,7 @@ pub fn run() {
             approve_patch,
             reject_patch,
             verify_mission,
+            extract_tasks,
             load_repo_history,
             load_commit_diff,
             list_models

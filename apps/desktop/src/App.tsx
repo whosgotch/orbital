@@ -256,7 +256,10 @@ export function App() {
     deleteMission,
     saveMissionPrompt,
     runVerificationFor,
+    extractingByMission,
+    extractTasks,
   } = missionActions;
+  const selectedExtractingTasks = extractingByMission[selectedMission?.id ?? ""] ?? false;
 
   const beginEditPrompt = () => {
     setPromptDraft(selectedMissionRecord?.text ?? selectedMission?.title ?? "");
@@ -485,6 +488,8 @@ export function App() {
           patchReady={patchReady}
           commit={selectedCommit}
           researchDoc={researchDoc}
+          extractingTasks={selectedExtractingTasks}
+          onExtractTasks={() => void extractTasks(selectedMission.id)}
           chatMessages={selectedChatMessages}
           chatSending={selectedChatSending}
           agentTranscript={agentTranscript}

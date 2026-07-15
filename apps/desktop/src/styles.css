@@ -689,6 +689,14 @@ h3 {
   padding: 14px 16px;
 }
 
+/* The "Create tasks" affordance sits above a research document, right-aligned
+   so it reads as an action on the findings rather than part of them. */
+.research-doc-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
 .plan-text {
   margin: 0;
   white-space: pre-wrap;

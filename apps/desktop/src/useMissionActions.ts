@@ -22,6 +22,7 @@ import {
   approvePlanLoopState,
   deleteMissionLoopState,
   deletePlanLoopState,
+  extractTasksLoopState,
   linkMissionsLoopState,
   planRepoLoopState,
   queueMissionLoopState,
@@ -88,6 +89,9 @@ export function useMissionActions({
   // surface that started the plan (draft card or repo panel), then discarded.
   const [planFeed, setPlanFeed] = useState<PlanFeedItem[]>([]);
   const [missionDraft, setMissionDraft] = useState("");
+  // Research missions with an extraction pass in flight — disables the
+  // "Create tasks" button and shows its busy label.
+  const [extractingByMission, setExtractingByMission] = useState<Record<string, boolean>>({});
   // Repos a queued intent fans out to. Picking >1 makes it a coordinated
   // campaign: the same intent is queued in each repo under a shared campaign id.
   const [campaignRepoIds, setCampaignRepoIds] = useState<string[]>([]);
@@ -601,6 +605,21 @@ export function useMissionActions({
     }
   };
 
+  // Turn a research mission's findings into draft tasks chained after it.
+  const extractTasks = async (missionId: string) => {
+    if (extractingByMission[missionId]) return;
+    setMissionLoopError("");
+    setExtractingByMission((current) => ({ ...current, [missionId]: true }));
+
+    try {
+      applyRepoState(await extractTasksLoopState(repoPathForMission(missionId), missionId));
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to create tasks from the research document."));
+    } finally {
+      setExtractingByMission((current) => ({ ...current, [missionId]: false }));
+    }
+  };
+
   const runVerificationFor = async (missionId: string) => {
     const mission = workspaceMissions.find((item) => item.id === missionId);
     const command = (verificationCommandByMission[missionId] ?? mission?.command ?? "").trim();
@@ -651,5 +670,7 @@ export function useMissionActions({
     deleteMission,
     saveMissionPrompt,
     runVerificationFor,
+    extractingByMission,
+    extractTasks,
   };
 }

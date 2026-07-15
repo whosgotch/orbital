@@ -1,9 +1,9 @@
 // The right-docked inspector for the selected mission: prompt header, the
 // chat/changes/doc tab switch, and (for changes) the verify bar and
 // approve/reject actions. Props in, callbacks out — App owns all the state.
-import { Check, ChevronDown, Pencil, Terminal, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ListTree, Loader, Pencil, Terminal, Trash2, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "./AgentChat";
-import { DocumentView } from "./PlanPanel";
+import { DocumentView } from "./DocumentView";
 import { ReviseBox } from "./ReviseBox";
 import type { TranscriptEntry } from "./AgentTranscript";
 import type { AgentStatusModel } from "../agentStatus";
@@ -31,6 +31,8 @@ type TaskPanelProps = {
   patchReady: boolean;
   commit: CommitInfo;
   researchDoc: string;
+  extractingTasks: boolean;
+  onExtractTasks: () => void;
   chatMessages: ChatMessage[];
   chatSending: boolean;
   agentTranscript: TranscriptEntry[];
@@ -65,6 +67,8 @@ export function TaskPanel({
   patchReady,
   commit,
   researchDoc,
+  extractingTasks,
+  onExtractTasks,
   chatMessages,
   chatSending,
   agentTranscript,
@@ -184,7 +188,21 @@ export function TaskPanel({
           {taskView === "doc" ? (
             <div className="plan-doc research-doc">
               {researchDoc ? (
-                <DocumentView content={researchDoc} />
+                <>
+                  <div className="research-doc-actions">
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={extractingTasks}
+                      onClick={onExtractTasks}
+                      title="Ask the AI to propose draft tasks from these findings"
+                    >
+                      {extractingTasks ? <Loader size={14} className="spin" aria-hidden="true" /> : <ListTree size={14} aria-hidden="true" />}
+                      <span>{extractingTasks ? "Extracting…" : "Create tasks"}</span>
+                    </button>
+                  </div>
+                  <DocumentView content={researchDoc} />
+                </>
               ) : (
                 <div className="diff-empty">
                   {runtime.status === "running"
