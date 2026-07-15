@@ -46,7 +46,9 @@ export type PlanFormat = "md" | "html" | "text";
 export type PlanFeedItem = { kind: "thought" | "action"; text: string };
 
 // A repo-level plan: the AI's written document (authored in `format`) plus the
-// task missions it fans out to (linked back by plan_id).
+// tasks it proposes. Unapproved plans carry `subtasks` — the human reviews the
+// document, then approving materializes them as missions (linked by plan_id).
+// approved_at is unset while still pending review.
 export type Plan = {
   id: string;
   repository_id: string;
@@ -54,6 +56,8 @@ export type Plan = {
   format: PlanFormat;
   content: string;
   created_at: string;
+  subtasks?: { title: string; text: string }[];
+  approved_at?: string;
 };
 
 export type AgentRunStatus = "queued" | "running" | "waiting_for_children" | "aggregating" | "completed" | "failed" | "cancelled";

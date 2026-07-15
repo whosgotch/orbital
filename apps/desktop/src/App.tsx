@@ -250,6 +250,8 @@ export function App() {
     campaignTargetRepos,
     toggleCampaignRepo,
     approveMission,
+    approvePlan,
+    deletePlan,
     rejectMission,
     deleteMission,
     saveMissionPrompt,
@@ -435,7 +437,7 @@ export function App() {
           onResearch={(text, attachments) => void researchFromPrompt(text, attachments)}
         />
 
-        {workspaceMissions.length === 0 ? (
+        {workspaceMissions.length === 0 && (missionLoopState.plans ?? []).length === 0 ? (
           <CanvasEmptyState
             hasRepositories={missionLoopState.repositories.length > 0}
             refreshing={refreshingMissionLoop}
@@ -445,7 +447,14 @@ export function App() {
         ) : null}
       </div>
 
-      {selectedPlan ? <PlanPanel plan={selectedPlan} taskCount={selectedPlanTaskCount} /> : null}
+      {selectedPlan ? (
+        <PlanPanel
+          plan={selectedPlan}
+          taskCount={selectedPlanTaskCount}
+          onApprove={() => void approvePlan(selectedPlan)}
+          onDismiss={() => void deletePlan(selectedPlan)}
+        />
+      ) : null}
 
       {selectedRepoForPlan ? (
         <PlanIntake

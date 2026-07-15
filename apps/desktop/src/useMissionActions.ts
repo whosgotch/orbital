@@ -14,12 +14,14 @@ import {
   type WorkerMode,
 } from "./missionUi";
 import { mergeChatMessage, mergeWorkflowEvent, upsertAgentRun, upsertPatchProposal } from "./repoStates";
-import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, PlanFeedItem, PlanFormat, Repository, WorkflowEvent } from "./domain";
+import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, Plan, PlanFeedItem, PlanFormat, Repository, WorkflowEvent } from "./domain";
 import type { WorkspaceMission } from "./graph";
 import type { WorkspaceRuntimeMap } from "./workspaceAdapter";
 import {
   approvePatchMissionLoopState,
+  approvePlanLoopState,
   deleteMissionLoopState,
+  deletePlanLoopState,
   linkMissionsLoopState,
   planRepoLoopState,
   queueMissionLoopState,
@@ -94,6 +96,10 @@ export function useMissionActions({
   // Per-mission model overrides, chosen on the intake card. Missions without
   // an entry follow the global pick.
   const [modelByMission, setModelByMission] = useState<Record<string, string>>({});
+  // A plan's model override, remembered from planning time and applied to its
+  // tasks only once they materialize on approval (planning itself creates no
+  // missions to stamp yet).
+  const [modelByPlan, setModelByPlan] = useState<Record<string, string>>({});
 
   // Turn the canvas draft into a real mission: queue it in the owning repo and
   // optionally launch it right away. The fresh state hasn't landed in React
@@ -172,16 +178,13 @@ export function useMissionActions({
       const nextState = await planRepoLoopState(repo.path, goal, format, runModel, requestId);
       applyRepoState(nextState);
       setDraftingTask(false);
-      // Tasks born from this plan inherit its model override, so a plan drawn
-      // up by Opus runs its tasks on Opus too.
+      // A plan's tasks don't exist yet — they materialize on approval — so its
+      // model override is remembered by plan id and applied then (see
+      // approvePlan), rather than stamped onto missions here.
       if (model) {
         const plan = nextState.plans?.at(-1);
         if (plan) {
-          const spawned = nextState.missions.filter((mission) => mission.plan_id === plan.id);
-          setModelByMission((current) => ({
-            ...current,
-            ...Object.fromEntries(spawned.map((mission) => [mission.id, model])),
-          }));
+          setModelByPlan((current) => ({ ...current, [plan.id]: model }));
         }
       }
     } catch (error) {
@@ -509,6 +512,44 @@ export function useMissionActions({
     });
   };
 
+  // Approve a reviewed plan: its proposed tasks materialize as draft missions
+  // on the canvas, linked back to it.
+  const approvePlan = async (plan: Plan) => {
+    setMissionLoopError("");
+    const repoPath = repositories.find((repo) => repo.id === plan.repository_id)?.path;
+    if (!repoPath) return;
+
+    try {
+      const nextState = await approvePlanLoopState(repoPath, plan.id);
+      applyRepoState(nextState);
+      // The tasks just materialized inherit the model chosen at planning time,
+      // if any (see planRepo), so a plan drawn up by Opus runs its tasks on Opus.
+      const model = modelByPlan[plan.id];
+      if (model) {
+        const spawned = nextState.missions.filter((mission) => mission.plan_id === plan.id);
+        setModelByMission((current) => ({
+          ...current,
+          ...Object.fromEntries(spawned.map((mission) => [mission.id, model])),
+        }));
+      }
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to approve plan."));
+    }
+  };
+
+  // Dismiss an unapproved plan — its document and proposed tasks are discarded.
+  const deletePlan = async (plan: Plan) => {
+    setMissionLoopError("");
+    const repoPath = repositories.find((repo) => repo.id === plan.repository_id)?.path;
+    if (!repoPath) return;
+
+    try {
+      applyRepoState(await deletePlanLoopState(repoPath, plan.id));
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to dismiss plan."));
+    }
+  };
+
   const rejectMission = async (missionId: string) => {
     setMissionLoopError("");
 
@@ -604,6 +645,8 @@ export function useMissionActions({
     campaignTargetRepos,
     toggleCampaignRepo,
     approveMission,
+    approvePlan,
+    deletePlan,
     rejectMission,
     deleteMission,
     saveMissionPrompt,

@@ -57,6 +57,17 @@ export function approvePatchMissionLoopState(repoPath: string, missionId: string
   return invokeState("approve_patch", { repoPath, missionId });
 }
 
+// Approve a reviewed plan: its proposed tasks materialize as draft missions
+// linked back to it.
+export function approvePlanLoopState(repoPath: string, planId: string) {
+  return invokeState("approve_plan", { repoPath, planId });
+}
+
+// Dismiss an unapproved plan — its document and proposed tasks are discarded.
+export function deletePlanLoopState(repoPath: string, planId: string) {
+  return invokeState("delete_plan", { repoPath, planId });
+}
+
 export function rejectPatchMissionLoopState(repoPath: string, missionId: string) {
   return invokeState("reject_patch", { repoPath, missionId });
 }

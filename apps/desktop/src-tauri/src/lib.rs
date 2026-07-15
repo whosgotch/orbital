@@ -379,6 +379,16 @@ fn approve_patch(repo_path: String, mission_id: String) -> Result<String, String
 }
 
 #[tauri::command]
+fn approve_plan(repo_path: String, plan_id: String) -> Result<String, String> {
+    run_worker(&["approve-plan", repo_path.trim(), plan_id.trim()])
+}
+
+#[tauri::command]
+fn delete_plan(repo_path: String, plan_id: String) -> Result<String, String> {
+    run_worker(&["delete-plan", repo_path.trim(), plan_id.trim()])
+}
+
+#[tauri::command]
 fn reject_patch(repo_path: String, mission_id: String) -> Result<String, String> {
     run_worker(&["reject", repo_path.trim(), mission_id.trim()])
 }
@@ -568,6 +578,8 @@ pub fn run() {
             link_missions,
             unlink_missions,
             plan_repo,
+            approve_plan,
+            delete_plan,
             approve_patch,
             reject_patch,
             verify_mission,

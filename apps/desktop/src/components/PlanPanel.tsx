@@ -1,9 +1,10 @@
 // Two halves of the repo-planning surface. PlanIntake is where you kick off a
 // plan on a repo — a goal and the format the AI should write it in. PlanPanel
-// renders a finished plan document faithfully to the format it was authored in,
-// alongside the tasks it fanned out to on the canvas.
+// renders a finished plan document faithfully to the format it was authored in.
+// An unapproved plan also lists the tasks it proposes, gated behind a review:
+// only approving materializes them as draft missions on the canvas.
 import { useState } from "react";
-import { Loader, Sparkles } from "lucide-react";
+import { Check, Loader, Sparkles, X } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { PlanLiveFeed } from "./PlanLiveFeed";
 import type { Plan, PlanFeedItem, PlanFormat } from "../domain";
@@ -34,7 +35,22 @@ export function DocumentView({ content }: { content: string }) {
   return <Markdown text={content} />;
 }
 
-export function PlanPanel({ plan, taskCount }: { plan: Plan; taskCount: number }) {
+export function PlanPanel({
+  plan,
+  taskCount,
+  onApprove,
+  onDismiss,
+}: {
+  plan: Plan;
+  taskCount: number;
+  onApprove: () => void;
+  onDismiss: () => void;
+}) {
+  // Pending review: unapproved and still holding the proposed tasks (older
+  // plans, from before this gate existed, fanned out immediately and carry no
+  // subtasks — they show no review actions).
+  const pending = !plan.approved_at && (plan.subtasks?.length ?? 0) > 0;
+
   return (
     <aside className="inspector task-window" aria-label="Plan">
       <section className="task-panel plan-panel" aria-label="Plan">
@@ -43,7 +59,7 @@ export function PlanPanel({ plan, taskCount }: { plan: Plan; taskCount: number }
             <div className="section-label">plan · {plan.format}</div>
             <h2 className="work-order-title">{plan.goal.trim() || "Repo plan"}</h2>
           </div>
-          <div className="mini-state">{taskCount} task{taskCount === 1 ? "" : "s"}</div>
+          {!pending ? <div className="mini-state">{taskCount} task{taskCount === 1 ? "" : "s"}</div> : null}
         </div>
 
         <div className="plan-doc">
@@ -56,7 +72,28 @@ export function PlanPanel({ plan, taskCount }: { plan: Plan; taskCount: number }
           )}
         </div>
 
-        <p className="plan-foot">The tasks this plan proposes are on the canvas — run, edit, or delete them.</p>
+        {pending ? (
+          <div className="plan-review">
+            <div className="section-label">proposed tasks</div>
+            <ul className="plan-proposed-tasks">
+              {plan.subtasks!.map((subtask, index) => (
+                <li key={index}>{subtask.title.trim() || subtask.text}</li>
+              ))}
+            </ul>
+            <div className="actions">
+              <button type="button" className="secondary" onClick={onDismiss}>
+                <X size={14} aria-hidden="true" />
+                <span>Dismiss</span>
+              </button>
+              <button type="button" className="primary" onClick={onApprove}>
+                <Check size={14} aria-hidden="true" />
+                <span>Create {plan.subtasks!.length} task{plan.subtasks!.length === 1 ? "" : "s"}</span>
+              </button>
+            </div>
+          </div>
+        ) : taskCount > 0 ? (
+          <p className="plan-foot">The tasks this plan proposed are on the canvas — run, edit, or delete them.</p>
+        ) : null}
       </section>
     </aside>
   );

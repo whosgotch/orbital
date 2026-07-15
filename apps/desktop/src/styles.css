@@ -715,6 +715,20 @@ h3 {
   gap: 12px;
 }
 
+/* The review gate under an unapproved plan's document: the tasks it proposes,
+   plain and unstyled beyond the list, and the approve/dismiss row. */
+.plan-review {
+  flex: 0 0 auto;
+}
+
+.plan-proposed-tasks {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--soft);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
 /* Talk-to-revise: a one-line composer that sits under the diff so the change
    set stays part of the conversation. Compact so it never competes with the
    diff or the approve gate. */

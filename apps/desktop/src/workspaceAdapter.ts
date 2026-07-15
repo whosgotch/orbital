@@ -45,7 +45,10 @@ const emptyWorkspaceView: WorkspaceView = {
 };
 
 export function workspaceViewFromMissionLoop(state: MissionLoopState): WorkspaceView {
-  if (state.missions.length === 0) {
+  // A freshly planned repo can have a plan node with zero materialized tasks
+  // (nothing fans out until the plan is approved) — only truly empty state
+  // short-circuits to the empty view.
+  if (state.missions.length === 0 && (state.plans ?? []).length === 0) {
     return emptyWorkspaceView;
   }
 
