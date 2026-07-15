@@ -27,7 +27,7 @@ import { CURATED_MODELS } from "../models";
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 
 // Which agent staffs a drafted task, picked on the draft card.
-export type DraftWorker = "claude-engineer" | "mock" | "local-command";
+export type DraftWorker = "claude-engineer" | "local-command";
 
 // Actions a node card can fire. All are mission-scoped: the card is the
 // operating surface, the callbacks land in App's existing mission plumbing.
@@ -497,7 +497,6 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
               onChange={(event) => setWorker(event.target.value as DraftWorker)}
             >
               <option value="claude-engineer">Claude</option>
-              <option value="mock">Demo agent</option>
               <option value="local-command">Local command</option>
             </select>
             <select

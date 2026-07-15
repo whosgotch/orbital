@@ -1271,7 +1271,6 @@ export function App() {
               onChange={(event) => setIntakeWorkerMode(event.target.value as WorkerMode)}
             >
               <option value="claude-engineer">Claude (AI)</option>
-              <option value="mock">Demo worker</option>
               <option value="local-command">Local command</option>
             </select>
           </label>
