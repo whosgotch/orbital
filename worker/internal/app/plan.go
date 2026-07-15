@@ -19,17 +19,9 @@ type PlanResult struct {
 	Subtasks []ProposedSubtask
 }
 
-// ProposedSubtask is one task the planner carved the goal into. DependsOn
-// holds indices of earlier sub-tasks that must land first, so the app can draw
-// the same waits/parallel structure a human would by hand. BasedOn holds
-// numbers of already-existing DONE nodes on the canvas (from the graph index
-// handed to the planner) that this task builds on, empty when it stands alone.
-type ProposedSubtask struct {
-	Title     string `json:"title"`
-	Text      string `json:"text"`
-	DependsOn []int  `json:"dependsOn"`
-	BasedOn   []int  `json:"basedOn"`
-}
+// ProposedSubtask lives in domain (Plan.Subtasks stores it directly); aliased
+// here so this package's long-standing call sites don't all need rewriting.
+type ProposedSubtask = domain.ProposedSubtask
 
 // planFunc explores a repo toward a goal and returns a plan, reporting each
 // step (thought/action) to onStep as it happens. graphContext is the compact
@@ -39,19 +31,19 @@ type planFunc func(ctx context.Context, model, repoPath, goal string, format dom
 
 // PlanRepo runs a repo-level planning pass: the AI reads the repo, writes a plan
 // for the goal in the chosen format, and proposes the tasks to get there. It
-// records a plan node (holding the document) and the task nodes it fans out to
-// (draft missions linked back by PlanID and chained by their dependencies).
-// Nothing runs — the tasks are drafts the human reviews and launches.
-func (s *Service) PlanRepo(ctx context.Context, repoID, goal string, format domain.PlanFormat) (*domain.Plan, []domain.Mission, error) {
+// records a plan node holding the document and the proposed tasks — nothing
+// materializes on the canvas yet. The human reviews the document and approves
+// (see ApprovePlan) before the tasks become draft missions.
+func (s *Service) PlanRepo(ctx context.Context, repoID, goal string, format domain.PlanFormat) (*domain.Plan, error) {
 	format = normalizePlanFormat(format)
 
 	state, err := s.store.Load()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	repoIndex := findRepositoryIndex(state.Repositories, repoID)
 	if repoIndex == -1 {
-		return nil, nil, fmt.Errorf("repository not found: %s", repoID)
+		return nil, fmt.Errorf("repository not found: %s", repoID)
 	}
 	repoPath := state.Repositories[repoIndex].Path
 	graphContext, linkableIDs := graphIndexFor(state, repoID)
@@ -62,17 +54,17 @@ func (s *Service) PlanRepo(ctx context.Context, repoID, goal string, format doma
 	}
 	result, err := planner(ctx, s.runModel, repoPath, strings.TrimSpace(goal), format, graphContext, s.streamPlanEvent)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if strings.TrimSpace(result.Content) == "" {
-		return nil, nil, fmt.Errorf("planner returned an empty plan")
+		return nil, fmt.Errorf("planner returned an empty plan")
 	}
 	// Planning never returns nothing to do: a plan with no proposed tasks falls
 	// back to one task carrying the goal itself.
 	if len(result.Subtasks) == 0 {
 		fallback := strings.TrimSpace(goal)
 		if fallback == "" {
-			return nil, nil, fmt.Errorf("planner proposed no tasks")
+			return nil, fmt.Errorf("planner proposed no tasks")
 		}
 		result.Subtasks = []ProposedSubtask{{Text: fallback}}
 	}
@@ -85,22 +77,81 @@ func (s *Service) PlanRepo(ctx context.Context, repoID, goal string, format doma
 		Format:       format,
 		Content:      result.Content,
 		CreatedAt:    now,
+		Subtasks:     result.Subtasks,
+		LinkableIDs:  linkableIDs,
 	}
-
-	created := buildSubtaskMissions(repoID, plan.ID, "", result.Subtasks, now, linkableIDs)
 
 	if _, err := s.store.Update(func(state *store.State) error {
 		if findRepositoryIndex(state.Repositories, repoID) == -1 {
 			return fmt.Errorf("repository not found: %s", repoID)
 		}
 		state.Plans = append(state.Plans, plan)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return &plan, nil
+}
+
+// ApprovePlan materializes a reviewed plan's proposed tasks into draft
+// missions on the canvas, linked back by PlanID and chained by their proposed
+// dependencies (including basedOn edges resolved against the plan's own
+// LinkableIDs snapshot). A plan can only be approved once and must have
+// proposed tasks to approve.
+func (s *Service) ApprovePlan(planID string) (*domain.Plan, []domain.Mission, error) {
+	var plan domain.Plan
+	var created []domain.Mission
+	if _, err := s.store.Update(func(state *store.State) error {
+		planIndex := findPlanIndex(state.Plans, planID)
+		if planIndex == -1 {
+			return fmt.Errorf("plan not found: %s", planID)
+		}
+		if state.Plans[planIndex].ApprovedAt != nil {
+			return fmt.Errorf("plan already approved: %s", planID)
+		}
+		if len(state.Plans[planIndex].Subtasks) == 0 {
+			return fmt.Errorf("plan has no proposed tasks: %s", planID)
+		}
+
+		now := time.Now().UTC()
+		created = buildSubtaskMissions(state.Plans[planIndex].RepositoryID, planID, "", state.Plans[planIndex].Subtasks, now, state.Plans[planIndex].LinkableIDs)
+		state.Plans[planIndex].ApprovedAt = &now
 		state.Missions = append(state.Missions, created...)
+		plan = state.Plans[planIndex]
 		return nil
 	}); err != nil {
 		return nil, nil, err
 	}
-
 	return &plan, created, nil
+}
+
+// DeletePlan removes an unapproved plan (its document and proposed tasks were
+// never acted on, so nothing else on the canvas references it). An approved
+// plan keeps its history — its tasks already exist as missions — and cannot
+// be deleted this way.
+func (s *Service) DeletePlan(planID string) error {
+	_, err := s.store.Update(func(state *store.State) error {
+		planIndex := findPlanIndex(state.Plans, planID)
+		if planIndex == -1 {
+			return fmt.Errorf("plan not found: %s", planID)
+		}
+		if state.Plans[planIndex].ApprovedAt != nil {
+			return fmt.Errorf("cannot delete an approved plan: %s", planID)
+		}
+		state.Plans = append(state.Plans[:planIndex], state.Plans[planIndex+1:]...)
+		return nil
+	})
+	return err
+}
+
+func findPlanIndex(plans []domain.Plan, planID string) int {
+	for i, plan := range plans {
+		if plan.ID == planID {
+			return i
+		}
+	}
+	return -1
 }
 
 // buildSubtaskMissions turns proposed subtasks into draft missions with
@@ -353,8 +404,10 @@ func planPrompt(goal string, format domain.PlanFormat, graphContext string) stri
 ` + goalLine + `
 ` + graphSection + `
 Produce:
-1. A written plan authored in ` + formatName + `, explaining what to do and why.
-2. The FEWEST concrete task nodes that carry the plan out — a single task is a perfectly good answer for a focused goal; only split when the work genuinely contains distinct pieces. Each task needs a short "title", a "text" prompt an engineer can act on directly, "dependsOn": indices of earlier tasks that must finish first (empty if it can run in parallel), and "basedOn": numbers of existing DONE nodes above that it builds on (empty when it stands alone).
+1. A written plan authored in ` + formatName + `, explaining what to do and why — this is where the detail lives.
+2. The FEWEST concrete task nodes that carry the plan out — a single task is a perfectly good answer for a focused goal; only split when the work genuinely contains distinct pieces. Each task needs a short "title", a "text" prompt (2-4 sentences, concise and actionable — just enough for an engineer to know what to do), "dependsOn": indices of earlier tasks that must finish first (empty if it can run in parallel), and "basedOn": numbers of existing DONE nodes above that it builds on (empty when it stands alone).
+
+The engineer running a task receives this plan document alongside its task text, so "text" must NOT restate or duplicate what the plan already explains — point at the relevant part of the plan instead of re-describing it.
 
 Keep tasks few and real — only the work the goal actually needs, never busywork. Never propose a testing/verifying/reviewing task: verification is a lifecycle stage every task already has.
 

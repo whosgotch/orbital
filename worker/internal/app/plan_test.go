@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
 	"github.com/whosgotch/orbital/worker/internal/store"
@@ -22,10 +23,10 @@ func planState(t *testing.T) *store.JSONStore {
 	return jsonStore
 }
 
-// A planning pass records a plan node (holding the written document in the
-// chosen format) and fans it out to draft task nodes that link back by PlanID
-// and carry the proposed dependency chain.
-func TestPlanRepoRecordsPlanAndFansOutTasks(t *testing.T) {
+// A planning pass records a plan node (holding the written document and the
+// proposed tasks) but does not materialize any missions — those wait for
+// ApprovePlan.
+func TestPlanRepoRecordsPlanWithoutMaterializingTasks(t *testing.T) {
 	jsonStore := planState(t)
 	svc := NewService(jsonStore)
 	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, graphContext string, onStep func(kind, text string)) (PlanResult, error) {
@@ -38,15 +39,18 @@ func TestPlanRepoRecordsPlanAndFansOutTasks(t *testing.T) {
 		}, nil
 	})
 
-	plan, tasks, err := svc.PlanRepo(context.Background(), "repo_1", "make the config loadable", domain.PlanFormatMarkdown)
+	plan, err := svc.PlanRepo(context.Background(), "repo_1", "make the config loadable", domain.PlanFormatMarkdown)
 	if err != nil {
 		t.Fatalf("PlanRepo() error = %v", err)
 	}
 	if plan.Content == "" || plan.Format != domain.PlanFormatMarkdown || plan.Goal != "make the config loadable" {
 		t.Fatalf("plan not recorded correctly: %+v", plan)
 	}
-	if len(tasks) != 2 {
-		t.Fatalf("fanned-out tasks = %d, want 2", len(tasks))
+	if len(plan.Subtasks) != 2 {
+		t.Fatalf("plan.Subtasks = %d, want 2", len(plan.Subtasks))
+	}
+	if plan.ApprovedAt != nil {
+		t.Fatalf("plan should be unapproved, got ApprovedAt = %v", plan.ApprovedAt)
 	}
 
 	state, err := jsonStore.Load()
@@ -56,32 +60,13 @@ func TestPlanRepoRecordsPlanAndFansOutTasks(t *testing.T) {
 	if len(state.Plans) != 1 || state.Plans[0].ID != plan.ID {
 		t.Fatalf("plan not persisted: %+v", state.Plans)
 	}
-
-	var parser, cli domain.Mission
-	for _, m := range state.Missions {
-		if m.PlanID != plan.ID {
-			t.Fatalf("task %s not linked to plan", m.ID)
-		}
-		if m.Status != domain.MissionStatusDraft {
-			t.Fatalf("task %s should be a draft, got %s", m.ID, m.Status)
-		}
-		switch m.Text {
-		case "add parse_config in config.py":
-			parser = m
-		case "use parse_config in cli.py":
-			cli = m
-		}
-	}
-	if parser.ID == "" || cli.ID == "" {
-		t.Fatal("expected both tasks present")
-	}
-	if len(cli.DependsOn) != 1 || cli.DependsOn[0] != parser.ID {
-		t.Fatalf("cli.DependsOn = %v, want [%s]", cli.DependsOn, parser.ID)
+	if len(state.Missions) != 0 {
+		t.Fatalf("expected no missions materialized yet, got %+v", state.Missions)
 	}
 }
 
 // A plan that proposes no tasks still yields one: the goal itself becomes the
-// single task, so planning never produces an empty fan-out.
+// single proposed task, so planning never produces an empty fan-out.
 func TestPlanRepoFallsBackToSingleTask(t *testing.T) {
 	jsonStore := planState(t)
 	svc := NewService(jsonStore)
@@ -89,15 +74,12 @@ func TestPlanRepoFallsBackToSingleTask(t *testing.T) {
 		return PlanResult{Content: "## Plan\nOne focused change."}, nil
 	})
 
-	plan, tasks, err := svc.PlanRepo(context.Background(), "repo_1", "fix the typo in README", domain.PlanFormatMarkdown)
+	plan, err := svc.PlanRepo(context.Background(), "repo_1", "fix the typo in README", domain.PlanFormatMarkdown)
 	if err != nil {
 		t.Fatalf("PlanRepo() error = %v", err)
 	}
-	if len(tasks) != 1 || tasks[0].Text != "fix the typo in README" {
-		t.Fatalf("tasks = %+v, want one task carrying the goal", tasks)
-	}
-	if tasks[0].PlanID != plan.ID {
-		t.Fatalf("fallback task not linked to plan")
+	if len(plan.Subtasks) != 1 || plan.Subtasks[0].Text != "fix the typo in README" {
+		t.Fatalf("plan.Subtasks = %+v, want one task carrying the goal", plan.Subtasks)
 	}
 }
 
@@ -114,7 +96,7 @@ func TestPlanRepoStreamsStepsWithoutPersistingThem(t *testing.T) {
 		return PlanResult{Content: "plan", Subtasks: []ProposedSubtask{{Text: "do it"}}}, nil
 	})
 
-	if _, _, err := svc.PlanRepo(context.Background(), "repo_1", "goal", domain.PlanFormatMarkdown); err != nil {
+	if _, err := svc.PlanRepo(context.Background(), "repo_1", "goal", domain.PlanFormatMarkdown); err != nil {
 		t.Fatalf("PlanRepo() error = %v", err)
 	}
 
@@ -147,7 +129,7 @@ func TestPlanRepoNormalizesUnknownFormat(t *testing.T) {
 		return PlanResult{Content: "plan", Subtasks: []ProposedSubtask{{Text: "tidy"}}}, nil
 	})
 
-	plan, _, err := svc.PlanRepo(context.Background(), "repo_1", "", domain.PlanFormat("bogus"))
+	plan, err := svc.PlanRepo(context.Background(), "repo_1", "", domain.PlanFormat("bogus"))
 	if err != nil {
 		t.Fatalf("PlanRepo() error = %v", err)
 	}
@@ -162,7 +144,7 @@ func TestPlanRepoRejectsUnknownRepo(t *testing.T) {
 	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, graphContext string, onStep func(kind, text string)) (PlanResult, error) {
 		return PlanResult{Content: "plan"}, nil
 	})
-	if _, _, err := svc.PlanRepo(context.Background(), "nope", "goal", domain.PlanFormatMarkdown); err == nil {
+	if _, err := svc.PlanRepo(context.Background(), "nope", "goal", domain.PlanFormatMarkdown); err == nil {
 		t.Fatal("PlanRepo() with unknown repo should error")
 	}
 }
@@ -291,12 +273,19 @@ func TestPlanRepoLinksBasedOnToExistingDoneMissions(t *testing.T) {
 		}, nil
 	})
 
-	_, tasks, err := svc.PlanRepo(context.Background(), "repo_1", "add an endpoint", domain.PlanFormatMarkdown)
+	plan, err := svc.PlanRepo(context.Background(), "repo_1", "add an endpoint", domain.PlanFormatMarkdown)
 	if err != nil {
 		t.Fatalf("PlanRepo() error = %v", err)
 	}
 	if !strings.Contains(gotGraphContext, "N1 [research · done] how does auth work?") {
 		t.Fatalf("planner did not receive the graph index: %q", gotGraphContext)
+	}
+
+	// The basedOn resolution snapshot (LinkableIDs) is captured at plan time so
+	// approval — which can happen later — still resolves it correctly.
+	_, tasks, err := svc.ApprovePlan(plan.ID)
+	if err != nil {
+		t.Fatalf("ApprovePlan() error = %v", err)
 	}
 	if len(tasks) != 1 {
 		t.Fatalf("tasks = %d, want 1", len(tasks))
@@ -420,5 +409,128 @@ func TestParsePlanResultSalvagesProse(t *testing.T) {
 
 	if _, err := parsePlanResult("   "); err == nil {
 		t.Fatal("parsePlanResult(blank) should still fail")
+	}
+}
+
+// Approving a plan materializes its proposed tasks as draft missions linked
+// back by PlanID and chained by their proposed dependencies, and stamps
+// ApprovedAt. A second approval errors — a plan materializes its tasks once.
+func TestApprovePlanCreatesLinkedMissionsAndRejectsSecondApproval(t *testing.T) {
+	jsonStore := planState(t)
+	svc := NewService(jsonStore)
+	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, graphContext string, onStep func(kind, text string)) (PlanResult, error) {
+		return PlanResult{
+			Content: "# Plan\n1. Add parser\n2. Wire CLI",
+			Subtasks: []ProposedSubtask{
+				{Title: "parser", Text: "add parse_config in config.py"},
+				{Title: "cli", Text: "use parse_config in cli.py", DependsOn: []int{0}},
+			},
+		}, nil
+	})
+
+	plan, err := svc.PlanRepo(context.Background(), "repo_1", "make the config loadable", domain.PlanFormatMarkdown)
+	if err != nil {
+		t.Fatalf("PlanRepo() error = %v", err)
+	}
+
+	approved, tasks, err := svc.ApprovePlan(plan.ID)
+	if err != nil {
+		t.Fatalf("ApprovePlan() error = %v", err)
+	}
+	if approved.ApprovedAt == nil {
+		t.Fatal("expected ApprovedAt to be set")
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("materialized tasks = %d, want 2", len(tasks))
+	}
+
+	state, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(state.Missions) != 2 {
+		t.Fatalf("expected 2 missions persisted, got %d", len(state.Missions))
+	}
+	var parser, cli domain.Mission
+	for _, m := range state.Missions {
+		if m.PlanID != plan.ID {
+			t.Fatalf("task %s not linked to plan", m.ID)
+		}
+		if m.Status != domain.MissionStatusDraft {
+			t.Fatalf("task %s should be a draft, got %s", m.ID, m.Status)
+		}
+		switch m.Text {
+		case "add parse_config in config.py":
+			parser = m
+		case "use parse_config in cli.py":
+			cli = m
+		}
+	}
+	if parser.ID == "" || cli.ID == "" {
+		t.Fatal("expected both tasks present")
+	}
+	if len(cli.DependsOn) != 1 || cli.DependsOn[0] != parser.ID {
+		t.Fatalf("cli.DependsOn = %v, want [%s]", cli.DependsOn, parser.ID)
+	}
+
+	if _, _, err := svc.ApprovePlan(plan.ID); err == nil {
+		t.Fatal("ApprovePlan() a second time should error")
+	}
+}
+
+func TestApprovePlanRejectsUnknownPlanAndEmptySubtasks(t *testing.T) {
+	jsonStore := planState(t)
+	svc := NewService(jsonStore)
+
+	if _, _, err := svc.ApprovePlan("nope"); err == nil {
+		t.Fatal("ApprovePlan() with unknown plan should error")
+	}
+
+	now := time.Now().UTC()
+	if _, err := jsonStore.Update(func(state *store.State) error {
+		state.Plans = append(state.Plans, domain.Plan{ID: "plan_empty", RepositoryID: "repo_1", CreatedAt: now})
+		return nil
+	}); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if _, _, err := svc.ApprovePlan("plan_empty"); err == nil {
+		t.Fatal("ApprovePlan() with no subtasks should error")
+	}
+}
+
+// Deleting an unapproved plan removes it; deleting an already-approved plan
+// errors — its tasks already exist as missions, so its history is kept.
+func TestDeletePlanRemovesUnapprovedAndRejectsApproved(t *testing.T) {
+	jsonStore := planState(t)
+	svc := NewService(jsonStore)
+	svc.SetPlanner(func(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, graphContext string, onStep func(kind, text string)) (PlanResult, error) {
+		return PlanResult{Content: "# Plan", Subtasks: []ProposedSubtask{{Text: "do it"}}}, nil
+	})
+
+	plan, err := svc.PlanRepo(context.Background(), "repo_1", "goal", domain.PlanFormatMarkdown)
+	if err != nil {
+		t.Fatalf("PlanRepo() error = %v", err)
+	}
+
+	if err := svc.DeletePlan(plan.ID); err != nil {
+		t.Fatalf("DeletePlan() error = %v", err)
+	}
+	state, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(state.Plans) != 0 {
+		t.Fatalf("expected plan removed, got %+v", state.Plans)
+	}
+
+	plan2, err := svc.PlanRepo(context.Background(), "repo_1", "goal", domain.PlanFormatMarkdown)
+	if err != nil {
+		t.Fatalf("PlanRepo() error = %v", err)
+	}
+	if _, _, err := svc.ApprovePlan(plan2.ID); err != nil {
+		t.Fatalf("ApprovePlan() error = %v", err)
+	}
+	if err := svc.DeletePlan(plan2.ID); err == nil {
+		t.Fatal("DeletePlan() on an approved plan should error")
 	}
 }
