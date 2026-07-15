@@ -364,8 +364,17 @@ fn verify_mission(
 }
 
 #[tauri::command]
-fn extract_tasks(repo_path: String, mission_id: String) -> Result<String, String> {
-    run_worker(&["extract-tasks", repo_path.trim(), mission_id.trim()])
+fn extract_tasks(
+    repo_path: String,
+    mission_id: String,
+    model: Option<String>,
+) -> Result<String, String> {
+    let mut args = vec!["extract-tasks", repo_path.trim(), mission_id.trim()];
+    let model = model.as_deref().map(str::trim).filter(|m| !m.is_empty());
+    if let Some(model) = model {
+        args.extend(["--model", model]);
+    }
+    run_worker(&args)
 }
 
 fn run_worker_streaming(

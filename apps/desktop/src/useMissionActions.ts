@@ -516,7 +516,7 @@ export function useMissionActions({
     setExtractingByMission((current) => ({ ...current, [missionId]: true }));
 
     try {
-      applyRepoState(await extractTasksLoopState(repoPathForMission(missionId), missionId));
+      applyRepoState(await extractTasksLoopState(repoPathForMission(missionId), missionId, modelByMission[missionId] ?? claudeModel));
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to create tasks from the research document."));
     } finally {

@@ -61,8 +61,8 @@ export function verifyMissionLoopState(repoPath: string, missionId: string, comm
 // Turn a research mission's findings document into draft tasks chained after
 // it, so their prompts stay concise and the findings still flow down via the
 // ordinary upstream hand-off.
-export function extractTasksLoopState(repoPath: string, missionId: string) {
-  return invokeState("extract_tasks", { repoPath, missionId });
+export function extractTasksLoopState(repoPath: string, missionId: string, model = "") {
+  return invokeState("extract_tasks", { repoPath, missionId, model });
 }
 
 export async function loadRepoHistory(repoPath: string): Promise<RepoCommit[]> {
