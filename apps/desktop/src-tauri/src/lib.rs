@@ -105,10 +105,18 @@ fn queue_mission(
     research: Option<bool>,
 ) -> Result<String, String> {
     let mut args = vec!["queue", repo_path.trim(), mission_text.trim()];
-    if let Some(id) = campaign_id.as_deref().map(str::trim).filter(|id| !id.is_empty()) {
+    if let Some(id) = campaign_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    {
         args.extend(["--campaign", id]);
     }
-    if let Some(cmd) = tool_command.as_deref().map(str::trim).filter(|cmd| !cmd.is_empty()) {
+    if let Some(cmd) = tool_command
+        .as_deref()
+        .map(str::trim)
+        .filter(|cmd| !cmd.is_empty())
+    {
         args.extend(["--tool", cmd]);
     }
     if research.unwrap_or(false) {
@@ -124,12 +132,16 @@ fn queue_mission(
 fn save_attachment(repo_path: String, extension: String, data: String) -> Result<String, String> {
     use base64::Engine as _;
 
-    let ext = extension.trim().trim_start_matches('.').to_ascii_lowercase();
-    let safe_ext = if !ext.is_empty() && ext.len() <= 5 && ext.chars().all(|c| c.is_ascii_alphanumeric()) {
-        ext
-    } else {
-        "png".to_string()
-    };
+    let ext = extension
+        .trim()
+        .trim_start_matches('.')
+        .to_ascii_lowercase();
+    let safe_ext =
+        if !ext.is_empty() && ext.len() <= 5 && ext.chars().all(|c| c.is_ascii_alphanumeric()) {
+            ext
+        } else {
+            "png".to_string()
+        };
 
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(data.trim())
@@ -234,7 +246,12 @@ fn update_mission_text(
     mission_id: String,
     text: String,
 ) -> Result<String, String> {
-    run_worker(&["edit-mission", repo_path.trim(), mission_id.trim(), text.trim()])
+    run_worker(&[
+        "edit-mission",
+        repo_path.trim(),
+        mission_id.trim(),
+        text.trim(),
+    ])
 }
 
 #[tauri::command]
@@ -248,7 +265,11 @@ fn delete_mission(
     // Shut the live agent down first so it can't keep writing to the worktree
     // we're about to remove. The streaming task's RunGuard clears the registry
     // entry once the killed process is reaped.
-    let pgid = runs.0.lock().ok().and_then(|map| map.get(mission_id).copied());
+    let pgid = runs
+        .0
+        .lock()
+        .ok()
+        .and_then(|map| map.get(mission_id).copied());
     if let Some(pgid) = pgid {
         kill_process_group(pgid);
     }
@@ -261,9 +282,15 @@ fn delete_mission(
 /// the whole group, which is why agent runs are spawned as group leaders.
 #[cfg(unix)]
 fn kill_process_group(pgid: u32) {
-    let _ = Command::new("kill").arg("-TERM").arg(format!("-{pgid}")).status();
+    let _ = Command::new("kill")
+        .arg("-TERM")
+        .arg(format!("-{pgid}"))
+        .status();
     std::thread::sleep(std::time::Duration::from_millis(400));
-    let _ = Command::new("kill").arg("-KILL").arg(format!("-{pgid}")).status();
+    let _ = Command::new("kill")
+        .arg("-KILL")
+        .arg(format!("-{pgid}"))
+        .status();
 }
 
 #[cfg(not(unix))]
@@ -289,13 +316,31 @@ fn load_commit_diff(repo_path: String, hash: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn link_missions(repo_path: String, from_mission_id: String, to_mission_id: String) -> Result<String, String> {
-    run_worker(&["link", repo_path.trim(), from_mission_id.trim(), to_mission_id.trim()])
+fn link_missions(
+    repo_path: String,
+    from_mission_id: String,
+    to_mission_id: String,
+) -> Result<String, String> {
+    run_worker(&[
+        "link",
+        repo_path.trim(),
+        from_mission_id.trim(),
+        to_mission_id.trim(),
+    ])
 }
 
 #[tauri::command]
-fn unlink_missions(repo_path: String, from_mission_id: String, to_mission_id: String) -> Result<String, String> {
-    run_worker(&["unlink", repo_path.trim(), from_mission_id.trim(), to_mission_id.trim()])
+fn unlink_missions(
+    repo_path: String,
+    from_mission_id: String,
+    to_mission_id: String,
+) -> Result<String, String> {
+    run_worker(&[
+        "unlink",
+        repo_path.trim(),
+        from_mission_id.trim(),
+        to_mission_id.trim(),
+    ])
 }
 
 #[tauri::command]
@@ -438,7 +483,9 @@ fn run_worker_streaming(
         }
     }
 
-    let status = child.wait().map_err(|e| format!("failed to wait for worker: {e}"))?;
+    let status = child
+        .wait()
+        .map_err(|e| format!("failed to wait for worker: {e}"))?;
     let stderr_output = stderr_handle.join().unwrap_or_default();
 
     if !status.success() {
