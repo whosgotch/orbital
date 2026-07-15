@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { Check, FolderOpen, X } from "lucide-react";
+import { FolderOpen, X } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import { TopBar } from "./components/TopBar";
 import { TaskPanel } from "./components/TaskPanel";
+import { DiffModal } from "./components/DiffModal";
 import { DiffView } from "./components/DiffView";
 import { PlanPanel, PlanIntake } from "./components/PlanPanel";
-import { ReviseBox } from "./components/ReviseBox";
 import { PromptBar } from "./components/PromptBar";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { attachmentLines } from "./attachments";
@@ -1182,56 +1182,25 @@ export function App() {
       ) : null}
 
       {diffModalOpen && selectedMission ? (
-        <div className="diff-modal-backdrop" onClick={() => setDiffModalOpen(false)}>
-          <div className="diff-modal" role="dialog" aria-label="Diff" onClick={(event) => event.stopPropagation()}>
-            <div className="diff-modal-head">
-              <div>
-                <div className="section-label">{selectedRepository?.name ?? "workspace"} · review</div>
-                <h2>{selectedMission.title}</h2>
-              </div>
-              <button className="secondary icon-button" type="button" onClick={() => setDiffModalOpen(false)} aria-label="Close">
-                <X size={16} aria-hidden="true" />
-              </button>
-            </div>
-            <DiffView
-              diff={patchReady ? selectedPatchDiff : ""}
-              focusPath={focusedDiffFile}
-              emptyLabel="No changes yet — this mission hasn't reached review."
-            />
-            {patchReady && selectedMission.kind !== "tool" ? (
-              <ReviseBox
-                sending={selectedChatSending}
-                onSend={(text) => void sendAgentChat(selectedMission.id, text)}
-              />
-            ) : null}
-            <div className="actions">
-              <button
-                className="secondary"
-                type="button"
-                disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
-                onClick={() => {
-                  void rejectMission(selectedMission.id);
-                  setDiffModalOpen(false);
-                }}
-              >
-                <X size={16} aria-hidden="true" />
-                <span>Reject</span>
-              </button>
-              <button
-                className="primary"
-                type="button"
-                disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
-                onClick={() => {
-                  void approveMission(selectedMission.id);
-                  setDiffModalOpen(false);
-                }}
-              >
-                <Check size={16} aria-hidden="true" />
-                <span>Approve + apply</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <DiffModal
+          mission={selectedMission}
+          repository={selectedRepository}
+          runtime={selectedRuntime}
+          patchReady={patchReady}
+          patchDiff={selectedPatchDiff}
+          focusedDiffFile={focusedDiffFile}
+          chatSending={selectedChatSending}
+          onSendChat={(text) => void sendAgentChat(selectedMission.id, text)}
+          onClose={() => setDiffModalOpen(false)}
+          onReject={() => {
+            void rejectMission(selectedMission.id);
+            setDiffModalOpen(false);
+          }}
+          onApprove={() => {
+            void approveMission(selectedMission.id);
+            setDiffModalOpen(false);
+          }}
+        />
       ) : null}
 
       {repoHistory.openCommit ? (
