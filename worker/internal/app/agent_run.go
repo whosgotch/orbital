@@ -293,6 +293,9 @@ func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
 	return nil
 }
 
+// SpawnChildRun is intentionally parked for future visible-node decomposition:
+// it lets an AI manager fan work out to child agents, which the live
+// single-engineer path does not use today. See agent.RunSpawner.
 func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerName string, task string) (*domain.AgentRun, error) {
 	worker, err := s.workerRegistry.Lookup(workerName)
 	if err != nil {

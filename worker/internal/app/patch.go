@@ -12,6 +12,9 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
+// MergePatches is intentionally parked for future visible-node decomposition:
+// it combines patches from parallel child runs, which the live single-engineer
+// path does not use today. See agent.RunSpawner.
 func (s *Service) MergePatches(runIDs []string) (*domain.PatchProposal, error) {
 	if len(runIDs) == 0 {
 		return nil, fmt.Errorf("no runs to merge patches from")

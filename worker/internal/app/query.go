@@ -91,6 +91,9 @@ func (s *Service) ListPatchesByRun(runID string) ([]domain.PatchProposal, error)
 	return patches, nil
 }
 
+// ListChildRuns is intentionally parked for future visible-node decomposition:
+// it enumerates the child agents an AI manager spawned, which the live
+// single-engineer path does not use today. See agent.RunSpawner.
 func (s *Service) ListChildRuns(parentRunID string) ([]domain.AgentRun, error) {
 	state, err := s.store.Load()
 	if err != nil {

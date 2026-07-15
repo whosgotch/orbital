@@ -12,6 +12,9 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
+// This test covers the intentionally parked child-run / AI-manager machinery
+// (SpawnChildRun + MergePatches), kept for future visible-node decomposition.
+// See agent.RunSpawner.
 func TestSpawnChildRunsRecordsChildrenAndMergesPatches(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
 	registry := agent.NewWorkerRegistry()
