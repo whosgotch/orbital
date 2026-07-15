@@ -12,12 +12,6 @@ func NewWorkerRegistry() *WorkerRegistry {
 	}
 }
 
-func NewDefaultWorkerRegistry() *WorkerRegistry {
-	registry := NewWorkerRegistry()
-	registry.Register(NewMockWorker())
-	return registry
-}
-
 func (r *WorkerRegistry) Register(worker Worker) {
 	r.workers[worker.Name()] = worker
 }

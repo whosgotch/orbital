@@ -32,6 +32,9 @@ func startAgentRun(ctx context.Context, args []string, stdout io.Writer) error {
 
 	service.RegisterWorker(agent.NewClaudeEngineerWorker())
 	service.RegisterWorker(agent.NewClaudeResearcherWorker())
+	for _, worker := range testWorkers {
+		service.RegisterWorker(worker)
+	}
 
 	if _, err := service.StartAgentRun(ctx, missionID, options.workerName); err != nil {
 		return err
@@ -49,6 +52,11 @@ func startAgentRun(ctx context.Context, args []string, stdout io.Writer) error {
 	return err
 }
 
+// testWorkers lets tests register additional workers (e.g. a mock that
+// produces a deterministic patch) without shipping those doubles in the binary.
+// It is empty in production builds.
+var testWorkers []agent.Worker
+
 type startRunOptions struct {
 	workerName string
 	command    string
@@ -56,7 +64,7 @@ type startRunOptions struct {
 }
 
 func parseStartRunOptions(args []string) (startRunOptions, error) {
-	options := startRunOptions{workerName: "mock"}
+	options := startRunOptions{workerName: "claude-engineer"}
 	flags := flag.NewFlagSet("start-run", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&options.workerName, "worker", options.workerName, "worker name")
@@ -78,7 +86,7 @@ func serviceForStartRun(jsonStore *store.JSONStore, options startRunOptions) *ap
 		return app.NewService(jsonStore)
 	}
 
-	registry := agent.NewDefaultWorkerRegistry()
+	registry := agent.NewWorkerRegistry()
 	registry.Register(agent.NewLocalCommandWorker(options.command))
 	return app.NewServiceWithWorkerRegistry(jsonStore, registry)
 }

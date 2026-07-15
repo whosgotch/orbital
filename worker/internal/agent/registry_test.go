@@ -1,14 +1,40 @@
 package agent
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
+
+// stubWorker is a minimal Worker used to exercise the registry.
+type stubWorker struct{ name string }
+
+func (w stubWorker) Name() string { return w.name }
+
+func (w stubWorker) Profile() WorkerProfile { return WorkerProfile{Name: w.name} }
+
+func (w stubWorker) CheckAvailable(context.Context) (*WorkerInfo, error) {
+	return &WorkerInfo{Name: w.name, Available: true}, nil
+}
+
+func (w stubWorker) Supports(context.Context, RunRequest) SupportResult {
+	return SupportResult{Supported: true}
+}
+
+func (w stubWorker) StartRun(context.Context, RunRequest) (<-chan RunEvent, error) {
+	events := make(chan RunEvent)
+	close(events)
+	return events, nil
+}
+
+func (w stubWorker) CancelRun(context.Context, string) error { return nil }
 
 func TestWorkerRegistryLooksUpRegisteredWorker(t *testing.T) {
 	registry := NewWorkerRegistry()
-	worker := NewMockWorker()
+	worker := stubWorker{name: "stub"}
 
 	registry.Register(worker)
 
-	got, err := registry.Lookup("mock")
+	got, err := registry.Lookup("stub")
 	if err != nil {
 		t.Fatalf("Lookup() error = %v", err)
 	}
@@ -23,22 +49,5 @@ func TestWorkerRegistryRejectsUnknownWorker(t *testing.T) {
 
 	if _, err := registry.Lookup("missing"); err == nil {
 		t.Fatal("expected error for unknown worker, got nil")
-	}
-}
-
-func TestDefaultWorkerRegistryIncludesMockWorker(t *testing.T) {
-	registry := NewDefaultWorkerRegistry()
-
-	worker, err := registry.Lookup("mock")
-	if err != nil {
-		t.Fatalf("Lookup() error = %v", err)
-	}
-
-	if worker.Name() != "mock" {
-		t.Fatalf("worker name = %q, want %q", worker.Name(), "mock")
-	}
-
-	if worker.Profile().Mode != "demo" {
-		t.Fatalf("worker mode = %q, want %q", worker.Profile().Mode, "demo")
 	}
 }

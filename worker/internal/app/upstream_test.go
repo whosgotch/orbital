@@ -106,7 +106,7 @@ func TestUpstreamContextIncludesResearchFindings(t *testing.T) {
 
 func TestStartAgentRunRecordsUpstreamHandoff(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
-	svc := NewService(jsonStore)
+	svc := newMockWorkerService(jsonStore)
 	repoDir := t.TempDir()
 
 	if err := jsonStore.Save(chainedState(repoDir)); err != nil {

@@ -8,13 +8,23 @@ import (
 	"time"
 
 	"github.com/whosgotch/orbital/worker/internal/agent"
+	"github.com/whosgotch/orbital/worker/internal/agent/agenttest"
 	"github.com/whosgotch/orbital/worker/internal/domain"
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
+// newMockWorkerService builds a service whose only worker is the mock test
+// double, so tests can drive StartAgentRun without the demo worker living on
+// the live path.
+func newMockWorkerService(jsonStore *store.JSONStore) *Service {
+	registry := agent.NewWorkerRegistry()
+	registry.Register(agenttest.NewMockWorker())
+	return NewServiceWithWorkerRegistry(jsonStore, registry)
+}
+
 func TestStartAgentRunWithMockWorkerSavesRunEventsAndPatch(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
-	svc := NewService(jsonStore)
+	svc := newMockWorkerService(jsonStore)
 	repoDir := writeAgentRunRepo(t)
 
 	if err := jsonStore.Save(&store.State{
@@ -377,7 +387,7 @@ func TestStartAgentRunMarksRunFailedFromWorkerEvent(t *testing.T) {
 
 func TestStartAgentRunFailsUnsupportedMockRepoClearly(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
-	svc := NewService(jsonStore)
+	svc := newMockWorkerService(jsonStore)
 
 	if err := jsonStore.Save(&store.State{
 		Repositories: []domain.Repository{

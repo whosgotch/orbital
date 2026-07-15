@@ -157,7 +157,7 @@ func TestStartRunCreatesWorkerRunAndPatch(t *testing.T) {
 	}
 
 	var startOutput bytes.Buffer
-	err := run(context.Background(), []string{"orbital", "start-run", repoDir, queuedState.Missions[0].ID}, &startOutput)
+	err := run(context.Background(), []string{"orbital", "start-run", repoDir, queuedState.Missions[0].ID, "--worker", "mock"}, &startOutput)
 	if err != nil {
 		t.Fatalf("start-run run() error = %v", err)
 	}
@@ -385,7 +385,7 @@ func TestApproveMissionPatchTreatsAlreadyAppliedDiffAsApplied(t *testing.T) {
 	}
 	secondMissionID := queuedState.Missions[len(queuedState.Missions)-1].ID
 
-	if err := run(context.Background(), []string{"orbital", "start-run", repoDir, secondMissionID}, &bytes.Buffer{}); err != nil {
+	if err := run(context.Background(), []string{"orbital", "start-run", repoDir, secondMissionID, "--worker", "mock"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("second start-run run() error = %v", err)
 	}
 
@@ -574,7 +574,7 @@ func prepareStartedDemoMission(t *testing.T) (string, string) {
 		t.Fatalf("Unmarshal(queue JSON) error = %v", err)
 	}
 
-	if err := run(context.Background(), []string{"orbital", "start-run", repoDir, queuedState.Missions[0].ID}, &bytes.Buffer{}); err != nil {
+	if err := run(context.Background(), []string{"orbital", "start-run", repoDir, queuedState.Missions[0].ID, "--worker", "mock"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("start-run run() error = %v", err)
 	}
 

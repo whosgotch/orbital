@@ -30,7 +30,7 @@ type Service struct {
 func NewService(store *store.JSONStore) *Service {
 	return &Service{
 		store:          store,
-		workerRegistry: agent.NewDefaultWorkerRegistry(),
+		workerRegistry: agent.NewWorkerRegistry(),
 	}
 }
 
