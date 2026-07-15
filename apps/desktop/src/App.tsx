@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { Check, ChevronDown, Pencil, Terminal, Trash2, FolderOpen, X } from "lucide-react";
+import { Check, FolderOpen, X } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import { TopBar } from "./components/TopBar";
+import { TaskPanel } from "./components/TaskPanel";
 import { DiffView } from "./components/DiffView";
-import { AgentChat, ChangesCard } from "./components/AgentChat";
-import { PlanPanel, PlanIntake, DocumentView } from "./components/PlanPanel";
+import { PlanPanel, PlanIntake } from "./components/PlanPanel";
 import { ReviseBox } from "./components/ReviseBox";
 import { PromptBar } from "./components/PromptBar";
 import { HistoryPanel } from "./components/HistoryPanel";
@@ -19,9 +19,6 @@ import {
   missionStatusFor,
   queuedRuntime,
   repositoryFor,
-  verificationOutput,
-  verifyPillClass,
-  verifyPillLabel,
   workerModeFromName,
   type WorkerMode,
 } from "./missionUi";
@@ -1145,232 +1142,43 @@ export function App() {
       ) : null}
 
       {selectedMission ? (
-        <aside className="inspector task-window" aria-label="Task">
-          <section className="task-panel" aria-label="Task">
-            <div className="panel-head review-head">
-              <div>
-                <div className="section-label">
-                  {selectedRepository?.name ?? "workspace"} ·{" "}
-                  {selectedMission.kind === "tool" ? "tool" : selectedMission.kind === "research" ? "research" : "task"}
-                </div>
-                <h2 className="work-order-title">{selectedMission.title}</h2>
-              </div>
-              <div className="task-head-actions">
-                <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>
-                <button
-                  className={`node-action secondary icon-button ${editingPrompt ? "active" : ""}`}
-                  type="button"
-                  onClick={editingPrompt ? () => setEditingPrompt(false) : beginEditPrompt}
-                  disabled={selectedRuntime.status === "running"}
-                  title="Edit this task's prompt"
-                  aria-label="Edit prompt"
-                >
-                  <Pencil size={14} aria-hidden="true" />
-                </button>
-                <button
-                  className="node-action secondary danger icon-button"
-                  type="button"
-                  onClick={() => void deleteMission(selectedMission.id)}
-                  title="Remove this task"
-                  aria-label="Remove task"
-                >
-                  <Trash2 size={14} aria-hidden="true" />
-                </button>
-                <button
-                  className="node-action secondary icon-button"
-                  type="button"
-                  onClick={() => setSelectedNodeId("")}
-                  title="Close panel (Esc)"
-                  aria-label="Close panel"
-                >
-                  <X size={14} aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-
-            {editingPrompt ? (
-              <div className="node-prompt-editor">
-                <textarea
-                  className="node-prompt-input"
-                  aria-label="Task prompt"
-                  value={promptDraft}
-                  onChange={(event) => setPromptDraft(event.target.value)}
-                  rows={4}
-                  autoFocus
-                />
-                <div className="node-prompt-actions">
-                  <button className="node-action secondary" type="button" onClick={() => setEditingPrompt(false)}>
-                    Cancel
-                  </button>
-                  <button
-                    className="node-action primary"
-                    type="button"
-                    disabled={!promptDraft.trim()}
-                    onClick={() => void saveMissionPrompt(selectedMission.id, promptDraft)}
-                  >
-                    Save prompt
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="task-switch" role="tablist">
-              {selectedMission.kind === "research" ? (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={taskView === "doc"}
-                  className={`task-switch-btn ${taskView === "doc" ? "active" : ""}`}
-                  onClick={() => setTaskView("doc")}
-                >
-                  Document
-                </button>
-              ) : null}
-              <button
-                type="button"
-                role="tab"
-                aria-selected={taskView === "chat"}
-                className={`task-switch-btn ${taskView === "chat" ? "active" : ""}`}
-                onClick={() => setTaskView("chat")}
-              >
-                Chat
-              </button>
-              {selectedMission.kind !== "research" ? (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={taskView === "changes"}
-                  className={`task-switch-btn ${taskView === "changes" ? "active" : ""}`}
-                  onClick={() => setTaskView("changes")}
-                >
-                  Changes
-                  {agentStatus.files.length > 0 ? (
-                    <span className="tab-count">{agentStatus.files.length}</span>
-                  ) : null}
-                  {patchReady && taskView !== "changes" ? <span className="task-switch-dot" aria-hidden="true" /> : null}
-                </button>
-              ) : null}
-              <div className="task-switch-spacer" />
-            </div>
-
-            <div className="task-body">
-              {taskView === "doc" ? (
-                <div className="plan-doc research-doc">
-                  {researchDoc ? (
-                    <DocumentView content={researchDoc} />
-                  ) : (
-                    <div className="diff-empty">
-                      {selectedRuntime.status === "running"
-                        ? "The researcher is reading the repo — findings land here."
-                        : "No findings yet — run the research or ask it something in Chat."}
-                    </div>
-                  )}
-                </div>
-              ) : taskView === "chat" ? (
-                <AgentChat
-                  messages={selectedChatMessages}
-                  statusModel={agentStatus}
-                  transcript={agentTranscript}
-                  files={agentStatus.files}
-                  onOpenFile={(path) => {
-                    setFocusedDiffFile(path);
-                    setDiffModalOpen(true);
-                  }}
-                  sending={selectedChatSending}
-                  onSend={(text) => void sendAgentChat(selectedMission.id, text)}
-                  readOnly={selectedMission.kind === "tool"}
-                  repoPath={selectedRepository?.path}
-                />
-              ) : (
-                <div className="task-changes">
-                  {agentStatus.files.length > 0 ? (
-                    <ChangesCard
-                      files={agentStatus.files}
-                      onOpenFile={(path) => {
-                        setFocusedDiffFile(path);
-                        setDiffModalOpen(true);
-                      }}
-                    />
-                  ) : (
-                    <div className="diff-empty">
-                      {patchReady
-                        ? "No patch proposal captured for this task."
-                        : "No changes yet — chat with the agent to make some."}
-                    </div>
-                  )}
-
-                  {agentStatus.files.length > 0 && selectedMission.kind !== "tool" ? (
-                    <ReviseBox
-                      sending={selectedChatSending}
-                      onSend={(text) => void sendAgentChat(selectedMission.id, text)}
-                    />
-                  ) : null}
-
-                  <div className="verify-bar">
-                    <button
-                      type="button"
-                      className="verify-status-toggle"
-                      onClick={() => setVerifyOpen((open) => !open)}
-                      aria-expanded={verifyOpen}
-                    >
-                      <span className={`verify-pill ${verifyPillClass(selectedRuntime)}`}>
-                        {verifyPillLabel(selectedRuntime)}
-                      </span>
-                      <ChevronDown size={14} className={`verify-chevron ${verifyOpen ? "open" : ""}`} aria-hidden="true" />
-                    </button>
-                    <button
-                      className="secondary mini"
-                      type="button"
-                      disabled={selectedRuntime.patchStatus !== "approved" || selectedRuntime.verified || !selectedVerificationCommand.trim()}
-                      onClick={() => void runVerificationFor(selectedMission.id)}
-                      title="Run verification"
-                    >
-                      <Terminal size={14} aria-hidden="true" />
-                      <span>Verify</span>
-                    </button>
-                  </div>
-                  {verifyOpen ? (
-                    <div className="verify-detail">
-                      <input
-                        className="command-line"
-                        aria-label="Verification command"
-                        value={selectedVerificationCommand}
-                        onChange={(event) =>
-                          setVerificationCommandByMission((current) => ({
-                            ...current,
-                            [selectedMission.id]: event.target.value,
-                          }))
-                        }
-                      />
-                      <pre className="test-output">{verificationOutput(selectedRuntime, selectedVerificationOutput)}</pre>
-                    </div>
-                  ) : null}
-
-                  <div className="actions">
-                    <button
-                      className="secondary"
-                      type="button"
-                      disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
-                      onClick={() => void rejectMission(selectedMission.id)}
-                    >
-                      <X size={16} aria-hidden="true" />
-                      <span>Reject</span>
-                    </button>
-                    <button
-                      className="primary"
-                      type="button"
-                      disabled={!patchReady || selectedRuntime.patchStatus !== "pending"}
-                      onClick={() => void approveMission(selectedMission.id)}
-                    >
-                      <Check size={16} aria-hidden="true" />
-                      <span>Approve + apply</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-        </aside>
+        <TaskPanel
+          mission={selectedMission}
+          repository={selectedRepository}
+          missionStatus={missionStatus}
+          runtime={selectedRuntime}
+          editingPrompt={editingPrompt}
+          onBeginEditPrompt={beginEditPrompt}
+          onCancelEditPrompt={() => setEditingPrompt(false)}
+          promptDraft={promptDraft}
+          onChangePromptDraft={setPromptDraft}
+          onSavePrompt={() => void saveMissionPrompt(selectedMission.id, promptDraft)}
+          onDelete={() => void deleteMission(selectedMission.id)}
+          onClose={() => setSelectedNodeId("")}
+          taskView={taskView}
+          onChangeTaskView={setTaskView}
+          agentStatus={agentStatus}
+          patchReady={patchReady}
+          researchDoc={researchDoc}
+          chatMessages={selectedChatMessages}
+          chatSending={selectedChatSending}
+          agentTranscript={agentTranscript}
+          onOpenDiffFile={(path) => {
+            setFocusedDiffFile(path);
+            setDiffModalOpen(true);
+          }}
+          onSendChat={(text) => void sendAgentChat(selectedMission.id, text)}
+          verifyOpen={verifyOpen}
+          onToggleVerifyOpen={() => setVerifyOpen((open) => !open)}
+          verificationCommand={selectedVerificationCommand}
+          onChangeVerificationCommand={(command) =>
+            setVerificationCommandByMission((current) => ({ ...current, [selectedMission.id]: command }))
+          }
+          verificationOutputText={selectedVerificationOutput}
+          onRunVerification={() => void runVerificationFor(selectedMission.id)}
+          onReject={() => void rejectMission(selectedMission.id)}
+          onApprove={() => void approveMission(selectedMission.id)}
+        />
       ) : null}
 
       {diffModalOpen && selectedMission ? (
