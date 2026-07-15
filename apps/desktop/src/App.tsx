@@ -23,7 +23,7 @@ import { ReviseBox } from "./components/ReviseBox";
 import { PromptBar } from "./components/PromptBar";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { attachmentLines } from "./attachments";
-import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
+import { buildAgentStatus } from "./agentStatus";
 import { buildAgentTranscript, groupChatByMission } from "./agentTranscript";
 import {
   defaultLocalCommand,
@@ -31,12 +31,10 @@ import {
   missionStatusFor,
   queuedRuntime,
   repositoryFor,
-  statusFromRuntime,
   verificationOutput,
   verifyPillClass,
   verifyPillLabel,
   workerModeFromName,
-  workerModeLabel,
   type WorkerMode,
 } from "./missionUi";
 import {
@@ -51,11 +49,11 @@ import {
 import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, PlanFeedItem, PlanFormat, Repository, WorkflowEvent } from "./domain";
 import { CURATED_MODELS, modelName } from "./models";
 import {
-  compactLabel,
   followUpTargetFor,
   workspaceViewFromMissionLoop,
   type WorkspaceRuntimeMap,
 } from "./workspaceAdapter";
+import { buildCanvasEdges, buildCanvasNodes, enrichGraphNodes } from "./canvasView";
 import {
   approvePatchMissionLoopState,
   deleteMissionLoopState,
@@ -282,135 +280,29 @@ export function App() {
   // Enrich each pipeline card with the live data its step operates on: the
   // task's worker + launchability, the agent's "now" line, the change set's
   // stats and gate state, the verify command and result.
-  const graphNodes = useMemo(() => {
-    // An upstream has landed when its patch was approved or — for tool steps,
-    // which have no patch gate — when its command finished as verified.
-    const upstreamLanded = (id: string) => {
-      const upstream = runtimeByMission[id];
-      return upstream?.patchStatus === "approved" || upstream?.status === "approved" || upstream?.status === "verified";
-    };
-
-    return (
-      workspaceGraphNodes.map((node) => {
-        const missionId = node.mission_id;
-        const runtime = missionId ? runtimeByMission[missionId] : undefined;
-        const status = runtime ? statusFromRuntime(runtime) : undefined;
-        if (!missionId) return { ...node, status };
-
-        switch (node.kind) {
-          case "task": {
-            const mission = workspaceMissions.find((m) => m.id === missionId);
-            // A chained task waits until every upstream patch has landed; while
-            // waiting it can't be launched by hand either — the chain owns it.
-            const pendingUpstreams = (mission?.depends_on ?? []).filter((id) => !upstreamLanded(id));
-            const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
-            const launchable =
-              (!runtime || runtime.status === "queued" || runtime.status === "draft") && pendingUpstreams.length === 0;
-            return {
-              ...node,
-              status,
-              meta: {
-                ...node.meta,
-                worker: workerModeLabel(workerModeByMission[missionId] ?? workerModeFromName(mission?.worker)),
-                launchable,
-                waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
-              },
-            };
-          }
-          case "tool": {
-            const mission = workspaceMissions.find((m) => m.id === missionId);
-            const pendingUpstreams = (mission?.depends_on ?? []).filter((id) => !upstreamLanded(id));
-            const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
-            // "blocked" here means the command failed — offering Run again is
-            // the re-run affordance (tools have no reject path to collide with).
-            const launchable =
-              (!runtime || runtime.status === "queued" || runtime.status === "draft" || runtime.status === "blocked") &&
-              pendingUpstreams.length === 0;
-            return {
-              ...node,
-              status,
-              meta: {
-                ...node.meta,
-                launchable,
-                live: runtime?.status === "running",
-                waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
-                verifyState: status === "verified" ? ("passed" as const) : status === "blocked" ? ("failed" as const) : undefined,
-              },
-            };
-          }
-          case "research": {
-            const mission = workspaceMissions.find((m) => m.id === missionId);
-            const pendingUpstreams = (mission?.depends_on ?? []).filter((id) => !upstreamLanded(id));
-            const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
-            const launchable =
-              (!runtime || runtime.status === "queued" || runtime.status === "draft") && pendingUpstreams.length === 0;
-            return {
-              ...node,
-              status,
-              meta: {
-                ...node.meta,
-                launchable,
-                waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
-              },
-            };
-          }
-          case "agent": {
-            const live = runtime?.status === "running";
-            return {
-              ...node,
-              status,
-              meta: { ...node.meta, live, now: live ? activityByMission[missionId]?.at(-1) : undefined },
-            };
-          }
-          case "changes": {
-            const diff = patchDiffByMission[missionId] ?? "";
-            const files = parseDiffFiles(diff);
-            return {
-              ...node,
-              status,
-              meta: {
-                ...node.meta,
-                files: files.length,
-                additions: files.reduce((sum, file) => sum + file.added, 0),
-                deletions: files.reduce((sum, file) => sum + file.removed, 0),
-                patchState: diff ? runtime?.patchStatus ?? ("pending" as const) : ("none" as const),
-              },
-            };
-          }
-          case "verify": {
-            const output = verificationOutputByMission[missionId] ?? "";
-            const verifyState = runtime?.verified
-              ? ("passed" as const)
-              : output
-                ? ("failed" as const)
-                : runtime?.patchStatus === "approved"
-                  ? ("ready" as const)
-                  : ("idle" as const);
-            return {
-              ...node,
-              status,
-              meta: {
-                ...node.meta,
-                command: verificationCommandByMission[missionId] ?? node.meta?.command,
-                verifyState,
-              },
-            };
-          }
-          default:
-            return { ...node, status };
-        }
-      })
-    );
-  }, [
-    runtimeByMission,
-    workspaceGraphNodes,
-    workspaceMissions,
-    workerModeByMission,
-    activityByMission,
-    patchDiffByMission,
-    verificationOutputByMission,
-    verificationCommandByMission,
-  ]);
+  const graphNodes = useMemo(
+    () =>
+      enrichGraphNodes({
+        workspaceGraphNodes,
+        workspaceMissions,
+        runtimeByMission,
+        workerModeByMission,
+        activityByMission,
+        patchDiffByMission,
+        verificationOutputByMission,
+        verificationCommandByMission,
+      }),
+    [
+      runtimeByMission,
+      workspaceGraphNodes,
+      workspaceMissions,
+      workerModeByMission,
+      activityByMission,
+      patchDiffByMission,
+      verificationOutputByMission,
+      verificationCommandByMission,
+    ],
+  );
 
   const graphEdges = workspaceGraphEdges;
 
@@ -423,29 +315,15 @@ export function App() {
 
   // While "+ Task" is open, the canvas shows one extra draft card wired to its
   // repo, in its own lane — authored in place, committed via Queue/Run.
-  const canvasNodes = useMemo(() => {
-    if (!draftingTask) return graphNodes;
-    return [
-      ...graphNodes,
-      {
-        id: DRAFT_TASK_NODE_ID,
-        kind: "task" as const,
-        label: "New task",
-        detail: "task",
-        mission_id: DRAFT_TASK_NODE_ID,
-        repository_id: draftRepository?.id,
-        meta: { draft: true },
-      },
-    ];
-  }, [graphNodes, draftingTask, draftRepository?.id]);
+  const canvasNodes = useMemo(
+    () => buildCanvasNodes(graphNodes, draftingTask, DRAFT_TASK_NODE_ID, draftRepository?.id),
+    [graphNodes, draftingTask, draftRepository?.id],
+  );
 
-  const canvasEdges = useMemo(() => {
-    if (!draftingTask || !draftRepository) return graphEdges;
-    return [
-      ...graphEdges,
-      { id: "edge_task_draft", from: draftRepository.id, to: DRAFT_TASK_NODE_ID, kind: "owns" as const },
-    ];
-  }, [graphEdges, draftingTask, draftRepository]);
+  const canvasEdges = useMemo(
+    () => buildCanvasEdges(graphEdges, draftingTask, DRAFT_TASK_NODE_ID, draftRepository),
+    [graphEdges, draftingTask, draftRepository],
+  );
 
   // Turn the canvas draft into a real mission: queue it in the owning repo and
   // optionally launch it right away. The fresh state hasn't landed in React
