@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FolderOpen, X } from "lucide-react";
+import { X } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import { TopBar } from "./components/TopBar";
 import { TaskPanel } from "./components/TaskPanel";
@@ -8,16 +8,17 @@ import { DiffView } from "./components/DiffView";
 import { PlanPanel, PlanIntake } from "./components/PlanPanel";
 import { PromptBar } from "./components/PromptBar";
 import { HistoryPanel } from "./components/HistoryPanel";
+import { QueueIntakePanel } from "./components/QueueIntakePanel";
+import { CanvasEmptyState } from "./components/CanvasEmptyState";
 import { attachmentLines } from "./attachments";
 import { buildAgentStatus } from "./agentStatus";
 import { buildAgentTranscript } from "./agentTranscript";
-import { missionStatusFor, queuedRuntime, repositoryFor, type WorkerMode } from "./missionUi";
+import { missionStatusFor, queuedRuntime, repositoryFor } from "./missionUi";
 import { followUpTargetFor } from "./workspaceAdapter";
 import { buildCanvasEdges, buildCanvasNodes, enrichGraphNodes } from "./canvasView";
 import { useWorkspaceState } from "./useWorkspaceState";
 import { useMissionActions } from "./useMissionActions";
 import { useRepoHistory } from "./useRepoHistory";
-import { recentRepoPaths, repoNameFromPath } from "./recentRepos";
 
 // The single canvas draft-task card. It exists only in the rendered graph until
 // Queue/Run turns it into a real mission, so one well-known id is enough.
@@ -393,66 +394,21 @@ export function App() {
           }}
         />
 
-
-
       {openPanel === "mission" ? (
-        <section className="popover mission-popover" aria-label="Queue tasks">
-          <div className="section-label">Queue tasks</div>
-          <textarea
-            aria-label="Tasks to queue"
-            placeholder={"One task per line — queue a whole backlog at once.\nadd a healthcheck endpoint\nupgrade the logging library\n…"}
-            value={missionDraft}
-            onChange={(event) => setMissionDraft(event.target.value)}
-          />
-          {missionLoopState.repositories.length > 1 ? (
-            <div className="campaign-targets">
-              <div className="section-label">Target repos {campaignTargetRepos().length > 1 ? "· campaign" : ""}</div>
-              <ul className="campaign-repo-list">
-                {missionLoopState.repositories.map((repo) => {
-                  const checked = campaignTargetRepos().some((target) => target.id === repo.id);
-                  return (
-                    <li key={repo.id}>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleCampaignRepo(repo.id)}
-                        />
-                        <span>{repo.name}</span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ) : null}
-          <label className="intake-worker">
-            <span>Worker</span>
-            <select
-              aria-label="Worker mode"
-              value={intakeWorkerMode}
-              onChange={(event) => setIntakeWorkerMode(event.target.value as WorkerMode)}
-            >
-              <option value="claude-engineer">Claude (AI)</option>
-              <option value="local-command">Local command</option>
-            </select>
-          </label>
-          <button
-            className="primary command-button"
-            type="button"
-            onClick={() => {
-              void queueMission();
-              setOpenPanel(null);
-            }}
-            disabled={!missionDraft.trim()}
-          >
-            {campaignTargetRepos().length > 1
-              ? `Queue in ${campaignTargetRepos().length} repos`
-              : `Queue ${missionDraft.split("\n").filter((line) => line.trim()).length > 1 ? "backlog" : "task"}`}
-          </button>
-        </section>
+        <QueueIntakePanel
+          repositories={missionLoopState.repositories}
+          missionDraft={missionDraft}
+          onChangeMissionDraft={setMissionDraft}
+          campaignTargetRepos={campaignTargetRepos}
+          onToggleCampaignRepo={toggleCampaignRepo}
+          intakeWorkerMode={intakeWorkerMode}
+          onChangeIntakeWorkerMode={setIntakeWorkerMode}
+          onQueue={() => {
+            void queueMission();
+            setOpenPanel(null);
+          }}
+        />
       ) : null}
-
 
       {openPanel === "history" ? (
         <section className="popover history-popover" aria-label="Git history">
@@ -478,49 +434,12 @@ export function App() {
         />
 
         {workspaceMissions.length === 0 ? (
-          <div className="canvas-hint">
-            <div className="canvas-hint-card">
-              <span className="canvas-hint-title">
-                {missionLoopState.repositories.length === 0 ? "No repository open" : "No tasks yet"}
-              </span>
-              <p>
-                {missionLoopState.repositories.length === 0
-                  ? "Open a repository to put it on the canvas."
-                  : "Describe a task in the prompt bar below — an agent picks it up from there."}
-              </p>
-              {missionLoopState.repositories.length === 0 ? (
-                <>
-                  <button className="secondary" type="button" onClick={chooseWorkspaceFolder} disabled={refreshingMissionLoop}>
-                    <FolderOpen size={14} aria-hidden="true" />
-                    <span>Open repository</span>
-                  </button>
-                  {(() => {
-                    // Recently opened repos — one click reopens.
-                    const recent = recentRepoPaths();
-                    if (recent.length === 0) return null;
-                    return (
-                      <ul className="canvas-hint-recent">
-                        {recent.map((path) => (
-                          <li key={path}>
-                            <button
-                              className="recent-repo"
-                              type="button"
-                              onClick={() => void openRepoAtPath(path)}
-                              disabled={refreshingMissionLoop}
-                              title={path}
-                            >
-                              <FolderOpen size={14} aria-hidden="true" />
-                              <span className="workspace-repo-name">{repoNameFromPath(path)}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                  })()}
-                </>
-              ) : null}
-            </div>
-          </div>
+          <CanvasEmptyState
+            hasRepositories={missionLoopState.repositories.length > 0}
+            refreshing={refreshingMissionLoop}
+            onChooseFolder={chooseWorkspaceFolder}
+            onOpenRepoAtPath={(path) => void openRepoAtPath(path)}
+          />
         ) : null}
       </div>
 
