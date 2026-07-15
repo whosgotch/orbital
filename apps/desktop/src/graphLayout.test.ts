@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspaceGraphEdge, WorkspaceGraphNode } from "./graph";
-import { layoutGraph } from "./graphLayout";
+import { layoutGraph, NODE_HEIGHT, NODE_WIDTH, LANE_GAP } from "./graphLayout";
 
 function node(id: string, kind: WorkspaceGraphNode["kind"], missionId?: string, repositoryId = "r1"): WorkspaceGraphNode {
   return { id, kind, label: id, detail: "", mission_id: missionId, repository_id: repositoryId };
@@ -8,6 +8,11 @@ function node(id: string, kind: WorkspaceGraphNode["kind"], missionId?: string, 
 
 const edge = (from: string, to: string): WorkspaceGraphEdge => ({ id: `${from}_${to}`, from, to, kind: "owns" });
 const thenEdge = (from: string, to: string): WorkspaceGraphEdge => ({ id: `then_${from}_${to}`, from, to, kind: "then" });
+
+// Top-left rect intersection, using the layout's fixed node footprint.
+function rectsOverlap(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+  return a.x < b.x + NODE_WIDTH && b.x < a.x + NODE_WIDTH && a.y < b.y + NODE_HEIGHT && b.y < a.y + NODE_HEIGHT;
+}
 
 const pipeline: WorkspaceGraphNode[] = [
   node("r1", "repo"),
@@ -99,5 +104,72 @@ describe("dependency-aware lane order", () => {
     // (appears in the nodes array) before r1_child.
     expect(positions.r1_older.y).toBeLessThan(positions.r2_m.y);
     expect(positions.r1_child.y).toBeLessThan(positions.r2_m.y);
+  });
+});
+
+describe("no overlaps", () => {
+  it("never lets two node footprints intersect across several lanes and repos", () => {
+    const nodes = [
+      node("r1", "repo"),
+      node("r2", "repo"),
+      node("m1", "task", "m1"),
+      node("m1_agent", "agent", "m1"),
+      node("m1_patch", "changes", "m1"),
+      node("m1_verify", "verify", "m1"),
+      node("m2", "task", "m2"),
+      node("m3", "task", "m3"), // chained off m1
+      node("m4", "research", "m4"),
+      node("m5", "task", "m5", "r2"),
+    ];
+    const edges = [
+      edge("r1", "m1"),
+      edge("m1", "m1_agent"),
+      edge("m1_agent", "m1_patch"),
+      edge("m1_patch", "m1_verify"),
+      edge("r1", "m2"),
+      thenEdge("m1", "m3"),
+      edge("r1", "m4"),
+      edge("r2", "m5"),
+    ];
+    const positions = layoutGraph(nodes, edges);
+    const ids = Object.keys(positions);
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        expect(rectsOverlap(positions[ids[i]], positions[ids[j]])).toBe(false);
+      }
+    }
+  });
+});
+
+describe("pinned nodes", () => {
+  const nodes = [node("r1", "repo"), node("m1", "task", "m1"), node("m2", "task", "m2")];
+  const edges = [edge("r1", "m1"), edge("r1", "m2")];
+
+  it("keeps a new mission's lane clear of a node the user dragged into its natural slot", () => {
+    const basePositions = layoutGraph(nodes, edges);
+    // Pretend the user dragged m1 down into the spot m2 would naturally land.
+    const pinned = { m1: basePositions.m2 };
+    const positions = layoutGraph(nodes, edges, pinned);
+    expect(rectsOverlap(positions.m2, pinned.m1)).toBe(false);
+  });
+
+  it("leaves a lane holding a pinned node at its own stacked slot", () => {
+    const base = layoutGraph(nodes, edges);
+    const pinned = { m1: { x: 900, y: 900 } };
+    const positions = layoutGraph(nodes, edges, pinned);
+    expect(positions.m1).toEqual(base.m1);
+  });
+});
+
+describe("repo separation", () => {
+  it("keeps two repo nodes with close average lane ys at least NODE_HEIGHT + LANE_GAP apart", () => {
+    const nodes = [
+      node("r1", "repo"),
+      node("r2", "repo"), // no missions of its own yet: falls back to an index-based y
+      node("m1", "task", "m1", "r1"),
+    ];
+    const edges = [edge("r1", "m1")];
+    const positions = layoutGraph(nodes, edges);
+    expect(Math.abs(positions.r2.y - positions.r1.y)).toBeGreaterThanOrEqual(NODE_HEIGHT + LANE_GAP);
   });
 });

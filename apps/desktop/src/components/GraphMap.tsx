@@ -181,7 +181,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   );
 
   useEffect(() => {
-    const laidOut = layoutGraph(nodes, edges);
+    const laidOut = layoutGraph(nodes, edges, manualPositionsRef.current);
     let appearIndex = 0;
     nodes.forEach((node) => {
       if (!(node.id in settleDelaysRef.current)) {
