@@ -28,10 +28,6 @@ impl Drop for RunGuard {
     }
 }
 
-// Default verification command when a mission's verify call doesn't supply
-// its own.
-const DEMO_VERIFICATION_COMMAND: &str = "node -e \"console.log('verified')\"";
-
 /// Compiled worker binary, built once per app launch. Every command then execs
 /// the binary directly instead of paying `go run`'s compile-and-link check on
 /// each invocation — the difference between a snappy canvas and dead air.
@@ -391,9 +387,8 @@ fn reject_patch(repo_path: String, mission_id: String) -> Result<String, String>
 fn verify_mission(
     repo_path: String,
     mission_id: String,
-    command: Option<String>,
+    command: String,
 ) -> Result<String, String> {
-    let command = command.unwrap_or_else(|| DEMO_VERIFICATION_COMMAND.to_string());
     run_worker(&[
         "verify",
         repo_path.trim(),
