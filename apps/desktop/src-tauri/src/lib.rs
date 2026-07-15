@@ -363,18 +363,24 @@ fn verify_mission(
     ])
 }
 
+// Async + spawn_blocking: extraction is a full model call (tens of seconds),
+// and a synchronous command would freeze the UI thread for its whole duration.
 #[tauri::command]
-fn extract_tasks(
+async fn extract_tasks(
     repo_path: String,
     mission_id: String,
     model: Option<String>,
 ) -> Result<String, String> {
-    let mut args = vec!["extract-tasks", repo_path.trim(), mission_id.trim()];
-    let model = model.as_deref().map(str::trim).filter(|m| !m.is_empty());
-    if let Some(model) = model {
-        args.extend(["--model", model]);
-    }
-    run_worker(&args)
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut args = vec!["extract-tasks", repo_path.trim(), mission_id.trim()];
+        let model = model.as_deref().map(str::trim).filter(|m| !m.is_empty());
+        if let Some(model) = model {
+            args.extend(["--model", model]);
+        }
+        run_worker(&args)
+    })
+    .await
+    .map_err(|e| format!("worker task failed: {e}"))?
 }
 
 fn run_worker_streaming(

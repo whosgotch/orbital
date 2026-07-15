@@ -1,6 +1,7 @@
 // The right-docked inspector for the selected mission: prompt header, the
 // chat/changes/doc tab switch, and (for changes) the verify bar and
 // approve/reject actions. Props in, callbacks out — App owns all the state.
+import { useState } from "react";
 import { Check, ChevronDown, ListTree, Loader, Pencil, Terminal, Trash2, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "./AgentChat";
 import { DocumentView } from "./DocumentView";
@@ -83,6 +84,10 @@ export function TaskPanel({
   onReject,
   onApprove,
 }: TaskPanelProps) {
+  // Which mission's prompt is expanded past the two-line clamp — keyed by id
+  // so switching nodes collapses it again without any effect.
+  const [expandedPromptFor, setExpandedPromptFor] = useState("");
+  const promptExpanded = expandedPromptFor === mission.id;
   return (
     <aside className="inspector task-window" aria-label="Task">
       <section className="task-panel" aria-label="Task">
@@ -91,7 +96,13 @@ export function TaskPanel({
             <div className="section-label">
               {repository?.name ?? "workspace"} · {mission.kind === "tool" ? "tool" : mission.kind === "research" ? "research" : "task"}
             </div>
-            <h2 className="work-order-title">{mission.title}</h2>
+            <h2
+              className={`work-order-title ${promptExpanded ? "expanded" : ""}`}
+              onClick={() => setExpandedPromptFor(promptExpanded ? "" : mission.id)}
+              title={promptExpanded ? "Collapse prompt" : "Show full prompt"}
+            >
+              {mission.title}
+            </h2>
           </div>
           <div className="task-head-actions">
             <div className={`mini-state ${missionStatus.className}`}>{missionStatus.label}</div>

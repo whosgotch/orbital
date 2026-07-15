@@ -2543,6 +2543,13 @@ dd {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  cursor: pointer;
+}
+
+.work-order-title.expanded {
+  -webkit-line-clamp: unset;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 
 .work-order-meta {
