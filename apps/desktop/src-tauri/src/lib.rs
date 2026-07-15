@@ -28,9 +28,8 @@ impl Drop for RunGuard {
     }
 }
 
-// Shared verbatim with the frontend's demoRepoPath and the npm fixture
-// scripts; change all three together.
-const DEMO_REPO_PATH: &str = "/private/tmp/orbital-demo-repo";
+// Default verification command when a mission's verify call doesn't supply
+// its own.
 const DEMO_VERIFICATION_COMMAND: &str = "node -e \"console.log('verified')\"";
 
 /// Compiled worker binary, built once per app launch. Every command then execs
@@ -90,24 +89,6 @@ fn build_worker_from_source() -> Result<PathBuf, String> {
     }
 
     Ok(bin)
-}
-
-#[tauri::command]
-fn load_worker_state(repo_path: Option<String>) -> Result<String, String> {
-    let repo_path = repo_path.unwrap_or_else(|| DEMO_REPO_PATH.to_string());
-    run_worker_status(repo_path.trim())
-}
-
-#[tauri::command]
-fn refresh_demo_worker_loop() -> Result<String, String> {
-    run_worker(&["demo-fixture", DEMO_REPO_PATH])?;
-    run_worker(&[
-        "run",
-        DEMO_REPO_PATH,
-        "add a version command",
-        DEMO_VERIFICATION_COMMAND,
-    ])?;
-    run_worker_status(DEMO_REPO_PATH)
 }
 
 #[tauri::command]
@@ -477,10 +458,6 @@ fn run_worker_streaming(
     Ok(final_state)
 }
 
-fn run_worker_status(repo_path: &str) -> Result<String, String> {
-    run_worker(&["status", "--json", repo_path])
-}
-
 fn run_worker(args: &[&str]) -> Result<String, String> {
     let output = Command::new(worker_binary()?)
         .args(args)
@@ -540,8 +517,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(RunningRuns::default())
         .invoke_handler(tauri::generate_handler![
-            load_worker_state,
-            refresh_demo_worker_loop,
             open_repository,
             queue_mission,
             save_attachment,

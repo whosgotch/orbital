@@ -59,14 +59,11 @@ import {
 import {
   approvePatchMissionLoopState,
   deleteMissionLoopState,
-  demoRepoPath,
   linkMissionsLoopState,
-  loadMissionLoopState,
   openMissionLoopRepository,
   planRepoLoopState,
   queueMissionLoopState,
   rejectPatchMissionLoopState,
-  refreshMissionLoopState,
   sendAgentMessageLoopState,
   startAgentRunMissionLoopState,
   unlinkMissionsLoopState,
@@ -103,7 +100,7 @@ export function App() {
   const cancelledMissionsRef = useRef<Set<string>>(new Set());
   const [refreshingMissionLoop, setRefreshingMissionLoop] = useState(false);
   const [missionLoopError, setMissionLoopError] = useState("");
-  const [activeRepoPath, setActiveRepoPath] = useState(demoRepoPath);
+  const [activeRepoPath, setActiveRepoPath] = useState("");
   const [selectedNodeId, setSelectedNodeId] = useState("");
   // The node id the follow-up chip was dismissed for — dismissal is
   // per-selection, so picking a different mission brings the chip back.
@@ -1027,24 +1024,6 @@ export function App() {
     }
   };
 
-  const loadDemoFactory = async () => {
-    setActiveRepoPath(demoRepoPath);
-    await refreshMissionLoop();
-  };
-
-  const refreshMissionLoop = async () => {
-    setRefreshingMissionLoop(true);
-    setMissionLoopError("");
-
-    try {
-      applyRepoState(activeRepoPath === demoRepoPath ? await refreshMissionLoopState() : await loadMissionLoopState(activeRepoPath));
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to load mission loop state."));
-    } finally {
-      setRefreshingMissionLoop(false);
-    }
-  };
-
   useEffect(() => {
     const loadMissionLoop = async () => {
       setRefreshingMissionLoop(true);
@@ -1053,7 +1032,7 @@ export function App() {
       try {
         // Reopen the workspace the last session had open. A path that no
         // longer opens (moved/deleted repo) is dropped, not surfaced as an
-        // error. Falls back to the demo load when nothing was open.
+        // error. If nothing was open, the app starts with no active repo.
         const lastOpen = lastOpenRepoPaths();
         let reopened = false;
         for (const repoPath of lastOpen) {
@@ -1068,9 +1047,6 @@ export function App() {
             forgetRecentRepo(repoPath);
           }
         }
-        if (reopened) return;
-
-        applyRepoState(await loadMissionLoopState(activeRepoPath));
       } catch (error) {
         setMissionLoopError(errorMessage(error, "Failed to load mission loop state."));
       } finally {
@@ -1379,9 +1355,6 @@ export function App() {
                       </ul>
                     );
                   })()}
-                  <button className="ghost mini-text" type="button" onClick={loadDemoFactory} disabled={refreshingMissionLoop}>
-                    Demo
-                  </button>
                 </>
               ) : null}
             </div>

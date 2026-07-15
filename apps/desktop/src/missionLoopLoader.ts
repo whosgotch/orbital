@@ -1,21 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { MissionLoopState, PlanFormat, RepoCommit } from "./domain";
 
-export const demoRepoPath = "/private/tmp/orbital-demo-repo";
-
 // Every worker command replies with the full mission-loop state as a JSON
 // string.
 async function invokeState(command: string, args: Record<string, unknown>): Promise<MissionLoopState> {
   const state = await invoke<string>(command, args);
   return JSON.parse(state) as MissionLoopState;
-}
-
-export function loadMissionLoopState(repoPath = demoRepoPath): Promise<MissionLoopState> {
-  return invokeState("load_worker_state", { repoPath });
-}
-
-export function refreshMissionLoopState(): Promise<MissionLoopState> {
-  return invokeState("refresh_demo_worker_loop", {});
 }
 
 export function openMissionLoopRepository(repoPath: string) {
