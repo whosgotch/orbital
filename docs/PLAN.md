@@ -1,5 +1,9 @@
 # Orbital MVP — the living fabric
 
+> **Internal design note.** This is a working planning document that captures the
+> MVP hypothesis and its blocks — not user-facing product documentation. Kept in
+> the tree for context on why the product is shaped the way it is.
+
 ## Hypothesis
 
 A canvas the AI weaves itself — and that remembers all work on a repo — beats a chat
