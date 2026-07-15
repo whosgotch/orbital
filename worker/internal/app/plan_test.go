@@ -306,6 +306,90 @@ func TestPlanRepoLinksBasedOnToExistingDoneMissions(t *testing.T) {
 	}
 }
 
+// A prose reply (no JSON contract) triggers exactly one repair call; when the
+// repair reply parses, its plan/subtasks are used instead of the goal-fallback
+// salvage.
+func TestPlanWithRepairFixesProseReplyOnSuccessfulRepair(t *testing.T) {
+	calls := 0
+	query := func(ctx context.Context, repoPath, model, prompt string, onStep func(kind, text string)) (string, error) {
+		calls++
+		if calls == 1 {
+			return "Sure, here's how I'd approach it: first add the parser, then wire the CLI.", nil
+		}
+		return `{"plan":"# Plan\n1. Add parser\n2. Wire CLI","subtasks":[{"title":"parser","text":"add parse_config"},{"title":"cli","text":"wire it up"}]}`, nil
+	}
+
+	var steps []string
+	onStep := func(kind, text string) { steps = append(steps, text) }
+
+	result, err := planWithRepair(context.Background(), query, "model", "/repo", "make it loadable", domain.PlanFormatMarkdown, "", onStep)
+	if err != nil {
+		t.Fatalf("planWithRepair() error = %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("query calls = %d, want 2 (plan + repair)", calls)
+	}
+	if result.Content != "# Plan\n1. Add parser\n2. Wire CLI" || len(result.Subtasks) != 2 {
+		t.Fatalf("result = %+v, want repaired plan/subtasks", result)
+	}
+	found := false
+	for _, s := range steps {
+		if strings.Contains(s, "repairing plan output") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a step announcing the repair, got %v", steps)
+	}
+}
+
+// When the repair call itself still doesn't produce parseable JSON, today's
+// prose-salvage behavior is unchanged: the prose becomes the plan document
+// with no subtasks.
+func TestPlanWithRepairFallsBackToSalvageOnFailedRepair(t *testing.T) {
+	calls := 0
+	prose := "Sure, here's how I'd approach it: first add the parser, then wire the CLI."
+	query := func(ctx context.Context, repoPath, model, prompt string, onStep func(kind, text string)) (string, error) {
+		calls++
+		if calls == 1 {
+			return prose, nil
+		}
+		return "Sorry, still not JSON.", nil
+	}
+
+	result, err := planWithRepair(context.Background(), query, "model", "/repo", "make it loadable", domain.PlanFormatMarkdown, "", func(string, string) {})
+	if err != nil {
+		t.Fatalf("planWithRepair() error = %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("query calls = %d, want 2 (plan + repair attempt)", calls)
+	}
+	if result.Content != prose || len(result.Subtasks) != 0 {
+		t.Fatalf("result = %+v, want prose salvage with no subtasks", result)
+	}
+}
+
+// A reply that already carries the JSON contract with subtasks never triggers
+// a repair call.
+func TestPlanWithRepairSkipsRepairWhenSubtasksPresent(t *testing.T) {
+	calls := 0
+	query := func(ctx context.Context, repoPath, model, prompt string, onStep func(kind, text string)) (string, error) {
+		calls++
+		return `{"plan":"# Plan","subtasks":[{"title":"a","text":"do a"}]}`, nil
+	}
+
+	result, err := planWithRepair(context.Background(), query, "model", "/repo", "goal", domain.PlanFormatMarkdown, "", func(string, string) {})
+	if err != nil {
+		t.Fatalf("planWithRepair() error = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("query calls = %d, want 1 (no repair)", calls)
+	}
+	if result.Content != "# Plan" || len(result.Subtasks) != 1 {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
 func TestParsePlanResultToleratesFences(t *testing.T) {
 	result, err := parsePlanResult("```json\n{\"plan\":\"<h1>Plan</h1>\",\"subtasks\":[{\"title\":\"a\",\"text\":\"do a\"}]}\n```")
 	if err != nil {

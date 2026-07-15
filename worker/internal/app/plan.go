@@ -246,12 +246,57 @@ func normalizePlanFormat(format domain.PlanFormat) domain.PlanFormat {
 	}
 }
 
+// planQueryFunc matches agent.QueryClaudeInRepoStreaming's signature. Injected
+// into planWithRepair so tests can fake both the planning call and the repair
+// call without touching the claude CLI — mirrors how Service.plan/SetPlanner
+// already lets PlanRepo be tested.
+type planQueryFunc func(ctx context.Context, repoPath, model, prompt string, onStep func(kind, text string)) (string, error)
+
 func claudePlan(ctx context.Context, model, repoPath, goal string, format domain.PlanFormat, graphContext string, onStep func(kind, text string)) (PlanResult, error) {
-	out, err := agent.QueryClaudeInRepoStreaming(ctx, repoPath, model, planPrompt(goal, format, graphContext), onStep)
+	return planWithRepair(ctx, agent.QueryClaudeInRepoStreaming, model, repoPath, goal, format, graphContext, onStep)
+}
+
+// planWithRepair runs the planner query and, when the reply didn't carry the
+// JSON contract (prose) or carried it but proposed zero subtasks, makes one
+// follow-up call asking the model to convert its own reply into that contract
+// instead of letting PlanRepo fabricate a fake one-task plan from the prose.
+// If the repair call errors or still doesn't parse, today's salvage behavior
+// (prose becomes the plan document, no subtasks) is unchanged.
+func planWithRepair(ctx context.Context, query planQueryFunc, model, repoPath, goal string, format domain.PlanFormat, graphContext string, onStep func(kind, text string)) (PlanResult, error) {
+	raw, err := query(ctx, repoPath, model, planPrompt(goal, format, graphContext), onStep)
 	if err != nil {
 		return PlanResult{}, err
 	}
-	return parsePlanResult(out)
+	result, parseErr := parsePlanResult(raw)
+	if parseErr != nil {
+		return PlanResult{}, parseErr
+	}
+	if result.Content == "" || len(result.Subtasks) > 0 {
+		return result, nil // atomic, or a proper plan with subtasks — nothing to repair
+	}
+
+	onStep("action", "repairing plan output")
+	repairedRaw, repairErr := query(ctx, repoPath, model, planRepairPrompt(raw), onStep)
+	if repairErr == nil {
+		if repaired, ok := planRepairResult(repairedRaw); ok {
+			return repaired, nil
+		}
+	}
+	return result, nil // repair failed — fall back to the prose salvage
+}
+
+// planRepairPrompt asks the model to turn its own prior reply into the
+// contract JSON, extracting only the tasks that reply already describes.
+func planRepairPrompt(rawReply string) string {
+	return `Your previous reply below did not follow the required output format. Convert it into the contract JSON.
+
+Extract the plan and any tasks your reply already describes — never invent new work. If the reply truly proposes no concrete tasks, an empty "subtasks" array is correct.
+
+Output ONLY this JSON, no prose or fences around it. Your reply must start with { and end with }:
+{"plan": "<the plan document as a string>", "subtasks": [{"title": "...", "text": "...", "dependsOn": [], "basedOn": []}]}
+
+Your previous reply:
+` + rawReply
 }
 
 // streamPlanEvent surfaces one planner step as an EVENT: line so the UI can
@@ -308,6 +353,8 @@ Produce:
 
 Keep tasks few and real — only the work the goal actually needs, never busywork. Never propose a testing/verifying/reviewing task: verification is a lifecycle stage every task already has.
 
+Even if the goal reads like a question or a conversational message, never reply conversationally — always produce the plan document and the JSON contract below.
+
 Output ONLY this JSON, no prose or fences around it. Your reply must start with { and end with }:
 {"plan": "<the plan document as a string, in the requested format>", "subtasks": [{"title": "...", "text": "...", "dependsOn": [], "basedOn": []}]}`
 }
@@ -335,6 +382,21 @@ func parsePlanResult(raw string) (PlanResult, error) {
 		return PlanResult{}, nil
 	}
 	return PlanResult{Content: parsed.Plan, Subtasks: parsed.Subtasks}, nil
+}
+
+// planRepairResult is a strict variant of parsePlanResult used only to judge a
+// repair reply: unlike parsePlanResult, it never salvages prose — a repair
+// reply only counts as successful if it actually parses as the contract JSON.
+func planRepairResult(raw string) (PlanResult, bool) {
+	clean := extractJSONObject(raw)
+	var parsed struct {
+		Plan     string            `json:"plan"`
+		Subtasks []ProposedSubtask `json:"subtasks"`
+	}
+	if err := json.Unmarshal([]byte(clean), &parsed); err != nil {
+		return PlanResult{}, false
+	}
+	return PlanResult{Content: parsed.Plan, Subtasks: parsed.Subtasks}, true
 }
 
 // extractJSONObject slices out the first {...} span, so a model that wraps its
