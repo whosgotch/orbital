@@ -155,11 +155,10 @@ async fn start_agent_run(
     runs: State<'_, RunningRuns>,
     repo_path: String,
     mission_id: String,
-    worker_name: Option<String>,
+    worker_name: String,
     command: Option<String>,
     model: Option<String>,
 ) -> Result<String, String> {
-    let worker_name = worker_name.unwrap_or_else(|| "mock".to_string());
     let mut args: Vec<String> = if worker_name.trim() == "local-command" {
         let cmd = command.unwrap_or_default();
         vec![

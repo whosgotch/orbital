@@ -26,7 +26,7 @@ export function updateMissionTextLoopState(repoPath: string, missionId: string, 
   return invokeState("update_mission_text", { repoPath, missionId, text });
 }
 
-export function startAgentRunMissionLoopState(repoPath: string, missionId: string, workerName = "mock", command = "", model = "") {
+export function startAgentRunMissionLoopState(repoPath: string, missionId: string, workerName: string, command = "", model = "") {
   return invokeState("start_agent_run", { repoPath, missionId, workerName, command, model });
 }
 
