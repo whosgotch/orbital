@@ -1,143 +1,89 @@
-// A dependency-light markdown renderer for agent chat replies: fenced code
-// blocks (syntax-highlighted), lists, headings, inline code/bold/italic.
-// Deliberately small — chat needs readable answers, not a full spec.
-import { Fragment, useMemo, type ReactNode } from "react";
+// Full GFM markdown rendering for agent chat replies and research documents:
+// tables, nested/task lists, blockquotes, links, and headings beyond h4, on
+// top of the fenced-code + inline styling the hand-rolled renderer used to
+// cover alone. react-markdown does not render raw HTML, so this stays safe
+// against anything a repo or prompt might smuggle into a reply.
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { highlightCode, languageForTag } from "../highlight";
 
-type Block =
-  | { kind: "code"; language?: string; text: string }
-  | { kind: "list"; ordered: boolean; items: string[] }
-  | { kind: "heading"; level: number; text: string }
-  | { kind: "paragraph"; text: string };
+// react-markdown gives code elements a `className` like "language-ts" for
+// fenced blocks and no className at all for inline code.
+function CodeRenderer({ className, children }: { className?: string; children?: React.ReactNode }) {
+  const text = String(children).replace(/\n$/, "");
+  const match = /language-(\S+)/.exec(className ?? "");
+  if (!match) {
+    return <code className="md-code">{children}</code>;
+  }
+  return (
+    <pre className="md-pre">
+      <code
+        className="hljs"
+        dangerouslySetInnerHTML={{ __html: highlightCode(text, languageForTag(match[1])) }}
+      />
+    </pre>
+  );
+}
 
-function parseBlocks(source: string): Block[] {
-  const blocks: Block[] = [];
-  const lines = source.replace(/\r\n/g, "\n").split("\n");
-  let paragraph: string[] = [];
+// Links open in the OS browser rather than navigating the Tauri webview away
+// from the app.
+function LinkRenderer({ href, children }: { href?: string; children?: React.ReactNode }) {
+  return (
+    <a
+      className="md-link"
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(event) => {
+        event.preventDefault();
+        if (href) window.open(href);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
 
-  const flushParagraph = () => {
-    if (paragraph.length > 0) {
-      blocks.push({ kind: "paragraph", text: paragraph.join("\n") });
-      paragraph = [];
-    }
+function TableRenderer({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className="md-table-wrap">
+      <table className="md-table">{children}</table>
+    </div>
+  );
+}
+
+function heading(level: number) {
+  return function Heading({ children }: { children?: React.ReactNode }) {
+    const Tag = `h${level}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+    return <Tag className={`md-heading level-${level}`}>{children}</Tag>;
   };
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-
-    const fence = line.match(/^```(.*)$/);
-    if (fence) {
-      flushParagraph();
-      const body: string[] = [];
-      i += 1;
-      while (i < lines.length && !lines[i].startsWith("```")) {
-        body.push(lines[i]);
-        i += 1;
-      }
-      blocks.push({ kind: "code", language: languageForTag(fence[1]), text: body.join("\n") });
-      continue;
-    }
-
-    const heading = line.match(/^(#{1,4})\s+(.*)$/);
-    if (heading) {
-      flushParagraph();
-      blocks.push({ kind: "heading", level: heading[1].length, text: heading[2] });
-      continue;
-    }
-
-    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
-    const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
-    if (bullet || numbered) {
-      flushParagraph();
-      const ordered = Boolean(numbered);
-      const items: string[] = [(bullet ?? numbered)![1]];
-      while (i + 1 < lines.length) {
-        const next = lines[i + 1].match(ordered ? /^\s*\d+[.)]\s+(.*)$/ : /^\s*[-*]\s+(.*)$/);
-        if (!next) break;
-        items.push(next[1]);
-        i += 1;
-      }
-      blocks.push({ kind: "list", ordered, items });
-      continue;
-    }
-
-    if (line.trim() === "") {
-      flushParagraph();
-      continue;
-    }
-
-    paragraph.push(line);
-  }
-
-  flushParagraph();
-  return blocks;
 }
 
-// Inline markdown: `code`, **bold**, *italic*. Rendered as real React nodes so
-// only highlighted code blocks ever go through innerHTML.
-function renderInline(text: string): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g;
-  let last = 0;
-  let key = 0;
-
-  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
-    if (match.index > last) nodes.push(text.slice(last, match.index));
-    const token = match[0];
-    if (token.startsWith("`")) {
-      nodes.push(<code key={key} className="md-code">{token.slice(1, -1)}</code>);
-    } else if (token.startsWith("**")) {
-      nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
-    } else {
-      nodes.push(<em key={key}>{token.slice(1, -1)}</em>);
-    }
-    key += 1;
-    last = match.index + token.length;
-  }
-  if (last < text.length) nodes.push(text.slice(last));
-  return nodes;
+function CheckboxRenderer(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  if (props.type !== "checkbox") return <input {...props} />;
+  return <input {...props} disabled className="md-checkbox" />;
 }
+
+const components: Components = {
+  code: CodeRenderer,
+  a: LinkRenderer,
+  table: TableRenderer,
+  h1: heading(1),
+  h2: heading(2),
+  h3: heading(3),
+  h4: heading(4),
+  h5: heading(5),
+  h6: heading(6),
+  input: CheckboxRenderer,
+  img: ({ alt, ...props }) => <img alt={alt ?? ""} className="md-img" {...props} />,
+};
 
 export function Markdown({ text }: { text: string }) {
-  const blocks = useMemo(() => parseBlocks(text), [text]);
-
   return (
     <div className="markdown">
-      {blocks.map((block, index) => {
-        if (block.kind === "code") {
-          return (
-            <pre key={index} className="md-pre">
-              <code
-                className="hljs"
-                dangerouslySetInnerHTML={{ __html: highlightCode(block.text, block.language) }}
-              />
-            </pre>
-          );
-        }
-        if (block.kind === "heading") {
-          return (
-            <div key={index} className={`md-heading level-${block.level}`}>
-              {renderInline(block.text)}
-            </div>
-          );
-        }
-        if (block.kind === "list") {
-          const items = block.items.map((item, itemIndex) => (
-            <li key={itemIndex}>{renderInline(item)}</li>
-          ));
-          return block.ordered ? <ol key={index}>{items}</ol> : <ul key={index}>{items}</ul>;
-        }
-        return (
-          <p key={index}>
-            {block.text.split("\n").map((line, lineIndex, all) => (
-              <Fragment key={lineIndex}>
-                {renderInline(line)}
-                {lineIndex < all.length - 1 ? <br /> : null}
-              </Fragment>
-            ))}
-          </p>
-        );
-      })}
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {text}
+      </ReactMarkdown>
     </div>
   );
 }
