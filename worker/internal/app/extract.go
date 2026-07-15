@@ -134,6 +134,7 @@ func buildSubtaskMissions(repoID, campaignID string, subtasks []ProposedSubtask,
 		created = append(created, domain.Mission{
 			ID:           ids[i],
 			RepositoryID: repoID,
+			Title:        strings.TrimSpace(subtask.Title),
 			Text:         text,
 			Status:       domain.MissionStatusDraft,
 			CreatedAt:    now,
@@ -274,7 +275,7 @@ func extractionPrompt(document, graphContext string) string {
 ` + graphSection + `
 Propose the FEWEST concrete tasks the findings actually call for — a single task is a perfectly good answer; only split when the work genuinely contains distinct pieces. Never invent work the document doesn't support, and never propose a testing/verifying/reviewing task: verification is a lifecycle stage every task already has.
 
-Each task needs a short "title", a "text" prompt (2-4 sentences, concise and actionable — the engineer running it receives the research document alongside, so point at the relevant finding instead of restating it), "dependsOn": indices of earlier tasks in this list that must finish first (empty if it can run in parallel), and "basedOn": numbers of existing DONE nodes above that it builds on (empty when it stands alone).
+Each task needs a "title" (3-6 words, imperative, like a kanban card label), a "text" prompt (2-4 sentences, concise and actionable — the engineer running it receives the research document alongside, so point at the relevant finding instead of restating it), "dependsOn": indices of earlier tasks in this list that must finish first (empty if it can run in parallel), and "basedOn": numbers of existing DONE nodes above that it builds on (empty when it stands alone).
 
 Output ONLY this JSON, no prose or fences around it. Your reply must start with { and end with }:
 {"subtasks": [{"title": "...", "text": "...", "dependsOn": [], "basedOn": []}]}`

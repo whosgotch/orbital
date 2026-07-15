@@ -29,8 +29,12 @@ const (
 )
 
 type Mission struct {
-	ID              string        `json:"id"`
-	RepositoryID    string        `json:"repository_id"`
+	ID           string `json:"id"`
+	RepositoryID string `json:"repository_id"`
+	// Title is a short, human-scannable display name (currently only set by
+	// task extraction); empty for hand-typed missions, where the frontend
+	// derives a display label from Text itself.
+	Title           string        `json:"title,omitempty"`
 	Text            string        `json:"text"`
 	Status          MissionStatus `json:"status"`
 	CreatedAt       time.Time     `json:"created_at"`

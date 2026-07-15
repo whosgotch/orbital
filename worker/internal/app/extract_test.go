@@ -69,6 +69,9 @@ func TestExtractTasksCreatesMissionsChainedToResearchNode(t *testing.T) {
 	if rotate.ID == "" || tests.ID == "" {
 		t.Fatal("expected both extracted tasks present")
 	}
+	if rotate.Title != "rotate keys" || tests.Title != "add tests" {
+		t.Fatalf("expected extracted missions to carry the subtask titles, got %q / %q", rotate.Title, tests.Title)
+	}
 	if len(rotate.DependsOn) != 1 || rotate.DependsOn[0] != missionID {
 		t.Fatalf("rotate.DependsOn = %v, want [%s]", rotate.DependsOn, missionID)
 	}
