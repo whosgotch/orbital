@@ -279,6 +279,11 @@ func planWithRepair(ctx context.Context, query planQueryFunc, model, repoPath, g
 	repairedRaw, repairErr := query(ctx, repoPath, model, planRepairPrompt(raw), onStep)
 	if repairErr == nil {
 		if repaired, ok := planRepairResult(repairedRaw); ok {
+			// A repair that dropped the document keeps the original prose as
+			// the plan; only the extracted subtasks are new information.
+			if strings.TrimSpace(repaired.Content) == "" {
+				repaired.Content = result.Content
+			}
 			return repaired, nil
 		}
 	}
