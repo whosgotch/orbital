@@ -3,8 +3,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 target/
-apps/desktop/src-tauri/gen/
+app/src-tauri/gen/
 
 .vite/
-apps/desktop/src-tauri/binaries/
+app/src-tauri/binaries/
 .claude/

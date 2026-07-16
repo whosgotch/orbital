@@ -13,7 +13,7 @@ const ext = goos === "windows" ? ".exe" : "";
 const out = path.resolve(import.meta.dirname, "../src-tauri/binaries", `orbital-worker-${triple}${ext}`);
 mkdirSync(path.dirname(out), { recursive: true });
 execSync(`go build -o ${JSON.stringify(out)} ./cmd/orbital`, {
-  cwd: path.resolve(import.meta.dirname, "../../../worker"),
+  cwd: path.resolve(import.meta.dirname, "../../worker"),
   stdio: "inherit",
   env: { ...process.env, GOOS: goos, GOARCH: goarch, CGO_ENABLED: "0" },
 });

@@ -38,19 +38,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/desktop/package-lock.json
+          cache-dependency-path: app/package-lock.json
 
       - run: npm ci
-        working-directory: apps/desktop
+        working-directory: app
 
       - run: npm run lint
-        working-directory: apps/desktop
+        working-directory: app
 
       - run: npx tsc --noEmit
-        working-directory: apps/desktop
+        working-directory: app
 
       - run: npm test
-        working-directory: apps/desktop
+        working-directory: app
 
   tauri:
     runs-on: ubuntu-latest
@@ -63,7 +63,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: apps/desktop/src-tauri
+          workspaces: app/src-tauri
 
       - name: Install Linux system dependencies
         run: |
@@ -73,12 +73,12 @@ jobs:
 
       - name: cargo fmt
         run: cargo fmt --check
-        working-directory: apps/desktop/src-tauri
+        working-directory: app/src-tauri
 
       - name: cargo clippy
         run: cargo clippy --all-targets -- -D warnings
-        working-directory: apps/desktop/src-tauri
+        working-directory: app/src-tauri
 
       - name: cargo test
         run: cargo test
-        working-directory: apps/desktop/src-tauri
+        working-directory: app/src-tauri

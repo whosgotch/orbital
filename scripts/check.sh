@@ -8,13 +8,13 @@ echo "== worker (Go)"
 (cd worker && go test ./...)
 
 echo "== desktop (TypeScript)"
-(cd apps/desktop && npm run lint)
-(cd apps/desktop && npx tsc --noEmit)
-(cd apps/desktop && npx vitest run)
+(cd app && npm run lint)
+(cd app && npx tsc --noEmit)
+(cd app && npx vitest run)
 
 echo "== desktop shell (Rust)"
-(cd apps/desktop/src-tauri && cargo fmt --check)
-(cd apps/desktop/src-tauri && cargo clippy --all-targets -- -D warnings)
-(cd apps/desktop/src-tauri && cargo test)
+(cd app/src-tauri && cargo fmt --check)
+(cd app/src-tauri && cargo clippy --all-targets -- -D warnings)
+(cd app/src-tauri && cargo test)
 
 echo "All checks passed."

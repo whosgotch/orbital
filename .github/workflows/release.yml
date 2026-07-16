@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/desktop/package-lock.json
+          cache-dependency-path: app/package-lock.json
 
       - uses: actions/setup-go@v5
         with:
@@ -53,18 +53,18 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
-        working-directory: apps/desktop
+        working-directory: app
 
       - name: Build worker sidecar
         run: node scripts/build-worker.mjs ${{ matrix.triple }}
-        working-directory: apps/desktop
+        working-directory: app
 
       - name: Build and upload bundles
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          projectPath: apps/desktop
+          projectPath: app
           tagName: ${{ github.ref_name }}
           releaseName: Orbital ${{ github.ref_name }}
           releaseDraft: false
@@ -77,7 +77,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          APP_DIR="apps/desktop/src-tauri/target/${{ matrix.triple }}/release/bundle/macos"
+          APP_DIR="app/src-tauri/target/${{ matrix.triple }}/release/bundle/macos"
           ARCH=$(echo "${{ matrix.triple }}" | cut -d- -f1)
           tar -czf "Orbital_${ARCH}.app.tar.gz" -C "$APP_DIR" Orbital.app
           gh release upload "${{ github.ref_name }}" "Orbital_${ARCH}.app.tar.gz" --clobber
