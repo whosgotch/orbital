@@ -175,6 +175,41 @@ func TestApplyPatchAppliesApprovedPatchAndMarksApplied(t *testing.T) {
 	}
 }
 
+func TestApplyPatchRecordsBranch(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+	repoDir := initGitRepository(t)
+	runGit(t, repoDir, "checkout", "-b", "feature/branch-recording")
+	filePath := filepath.Join(repoDir, "file.txt")
+	createdAt := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
+
+	if err := os.WriteFile(filePath, []byte("before\n"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := jsonStore.Save(patchApplyState(repoDir, domain.PatchStatusApproved, createdAt)); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	patch, err := svc.ApplyPatch("patch_1")
+	if err != nil {
+		t.Fatalf("ApplyPatch() error = %v", err)
+	}
+
+	if patch.Branch != "feature/branch-recording" {
+		t.Fatalf("patch branch = %q, want %q", patch.Branch, "feature/branch-recording")
+	}
+
+	got, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got.PatchProposals[0].Branch != "feature/branch-recording" {
+		t.Fatalf("saved patch branch = %q, want %q", got.PatchProposals[0].Branch, "feature/branch-recording")
+	}
+}
+
 func TestApplyPatchRejectsPendingPatch(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
 	svc := NewService(jsonStore)

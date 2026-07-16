@@ -163,6 +163,7 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 			}
 			state.PatchProposals[patchIndex].CommitHash = commitHash
 			state.PatchProposals[patchIndex].CommitSubject = subject
+			state.PatchProposals[patchIndex].Branch = currentGitBranch(repoPath)
 		}
 
 		// The approved work has landed in the main tree, so this mission's isolated
