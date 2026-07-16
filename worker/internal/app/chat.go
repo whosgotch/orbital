@@ -79,7 +79,6 @@ func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text s
 			state.AgentRuns = append(state.AgentRuns, run)
 		}
 
-		// Mark the run and mission active for this turn.
 		if runIndex := findRunIndex(state.AgentRuns, run.ID); runIndex != -1 {
 			state.AgentRuns[runIndex].Status = domain.AgentRunStatusRunning
 			state.AgentRuns[runIndex].CompletedAt = nil
@@ -93,7 +92,6 @@ func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text s
 
 	s.streamAgentRun(run)
 
-	// Record and stream the user's turn before the agent starts working.
 	userMessage := domain.ChatMessage{
 		ID:        fmt.Sprintf("msg_%d", now.UnixNano()),
 		MissionID: missionID,

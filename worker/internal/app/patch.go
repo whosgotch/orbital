@@ -302,13 +302,10 @@ func stagePatchPaths(repoPath string, diff string) {
 	_ = add.Run()
 }
 
-// commitApplied records an applied patch as a commit on the target repo, and
-// returns the new commit's short hash and subject line so the caller can show
-// what landed. Staging is limited to the patch's own files, so a user's
-// unrelated work-in-progress is never swept into a mission's commit. Returns
-// two empty strings for non-git scratch dirs (the mock worker) and when the
-// patch changed nothing (a re-apply already matching HEAD) — there is no new
-// commit to report.
+// Staging is limited to the patch's own files, so a user's unrelated
+// work-in-progress is never swept into a mission's commit. Returns two empty
+// strings for non-git scratch dirs (the mock worker) and when the patch
+// changed nothing (a re-apply already matching HEAD).
 func commitApplied(repoPath, diff, missionText string) (hash, subject string, err error) {
 	if !isGitRepo(repoPath) {
 		return "", "", nil

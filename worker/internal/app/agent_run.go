@@ -28,13 +28,11 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		StartedAt:  now,
 	}
 
-	// Record the run and mark the mission running. Capture the repo path and
-	// mission text so the rest of the run works without holding the lock.
-	// (resolveWorker's read and this write are separate transactions, but a
-	// mission's kind and tool command never change after creation.)
-	// A chained mission also receives its upstreams' work products here — the
-	// data flowing along the task→task edge — recorded as a hand-off event so
-	// the feed shows where the agent's context came from.
+	// Capture the repo path and mission text so the rest of the run works
+	// without holding the lock. (resolveWorker's read and this write are
+	// separate transactions, but a mission's kind and tool command never
+	// change after creation.) Upstream hand-offs are recorded as events so the
+	// feed shows where the agent's context came from.
 	var repoPath, missionText, upstreamCtx string
 	var handoffEvents []domain.WorkflowEvent
 	if _, err := s.store.Update(func(state *store.State) error {

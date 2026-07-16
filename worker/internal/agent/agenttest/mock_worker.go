@@ -1,6 +1,5 @@
-// Package agenttest holds worker test doubles. MockWorker used to ship in the
-// live binary as a demo worker; it now lives here so it is compiled only into
-// tests (via _test.go imports) and never into the shipped `orbital` binary.
+// Package agenttest holds worker test doubles, compiled only into tests (via
+// _test.go imports) and never into the shipped `orbital` binary.
 package agenttest
 
 import (

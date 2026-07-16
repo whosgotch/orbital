@@ -9,9 +9,9 @@ import (
 )
 
 // A diff whose final hunk line is a context line for a blank line in the file:
-// git writes that as a lone space (" "). The old strings.TrimSpace normalization
-// dropped it, leaving the body one line short of the "-1,3" the header counts —
-// which git apply rejects as "corrupt patch". This guards the fix.
+// git writes that as a lone space (" "). Dropping it leaves the body one line
+// short of the "-1,3" the header counts, which git apply rejects as "corrupt
+// patch".
 func TestNormalizeCapturedDiffKeepsTrailingBlankContextLine(t *testing.T) {
 	repo := t.TempDir()
 	runGit(t, repo, "init")

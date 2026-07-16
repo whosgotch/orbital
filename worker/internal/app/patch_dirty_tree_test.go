@@ -11,10 +11,9 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
-// A repo can carry leftover uncommitted edits (e.g. from applies that landed
-// before Orbital committed patches). git apply --3way refuses to touch such a
-// file ("does not match index"), which used to wedge every following mission.
-// ApplyPatch must fold the leftovers in and still land the new patch.
+// A repo can carry leftover uncommitted edits. git apply --3way refuses to
+// touch such a file ("does not match index"), so ApplyPatch must fold the
+// leftovers in and still land the new patch.
 func TestApplyPatchLandsOnDirtyWorkingTree(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
 	svc := NewService(jsonStore)
@@ -40,7 +39,7 @@ func TestApplyPatchLandsOnDirtyWorkingTree(t *testing.T) {
 	gitIn(t, repoDir, "checkout", "--", "file.txt")
 
 	// Leftover uncommitted edit on line 2: working tree no longer matches the
-	// index — the state that used to kill the 3-way merge.
+	// index — the state the 3-way merge must survive.
 	if err := os.WriteFile(filePath, []byte("a\nB-leftover\nc\nd\ne\nf\ng\n"), 0644); err != nil {
 		t.Fatal(err)
 	}

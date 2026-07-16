@@ -149,7 +149,6 @@ func QueryClaudeInRepoStreaming(ctx context.Context, repoPath, model, prompt str
 	return result, nil
 }
 
-// describeToolUse renders a concise, human-readable line for a Claude tool call.
 func describeToolUse(name string, input json.RawMessage) string {
 	var fields struct {
 		FilePath string `json:"file_path"`

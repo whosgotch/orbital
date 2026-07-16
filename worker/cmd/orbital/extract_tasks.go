@@ -10,11 +10,8 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
-// extractTasks turns a research mission's findings document into the fewest
-// concrete draft missions its conclusions call for, chained after the
-// research node. A blocking call — same shape as verify — since there is no
-// live thinking feed to stream to the caller. Prints the refreshed state for
-// the GUI to rehydrate.
+// extractTasks is a blocking call (no live thinking feed to stream) that
+// prints the refreshed state for the GUI to rehydrate.
 func extractTasks(ctx context.Context, args []string, stdout io.Writer) error {
 	if len(args) < 4 {
 		return usageError()

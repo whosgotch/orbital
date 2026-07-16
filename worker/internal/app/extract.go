@@ -20,18 +20,15 @@ const extractionFindingsLimit = 12000
 // aliased here so this package's call sites don't need the domain prefix.
 type ProposedSubtask = domain.ProposedSubtask
 
-// extractFunc turns a research document into the tasks its findings call for,
-// reporting each step (thought/action) to onStep as it happens. graphContext
-// is the compact index of existing canvas work (see graphIndexFor), empty
-// when the repo has no missions yet. Injectable so ExtractTasks is testable
-// without the claude CLI.
+// graphContext is the compact index of existing canvas work (see
+// graphIndexFor), empty when the repo has no missions yet. Injectable so
+// ExtractTasks is testable without the claude CLI.
 type extractFunc func(ctx context.Context, model, repoPath, document, graphContext string, onStep func(kind, text string)) ([]ProposedSubtask, error)
 
-// ExtractTasks turns a research mission's findings document into the fewest
-// concrete draft missions its conclusions call for. Each is chained after the
-// research mission (DependsOn), so its findings flow down the same edge every
-// task→task hand-off already uses (see upstreamContextFor) — no separate
-// plumbing is needed to get the document to the engineer.
+// Extracted missions are chained after the research mission (DependsOn), so
+// its findings flow down the same edge every task→task hand-off already uses
+// (see upstreamContextFor) — no separate plumbing gets the document to the
+// engineer.
 func (s *Service) ExtractTasks(ctx context.Context, missionID string) ([]domain.Mission, error) {
 	state, err := s.store.Load()
 	if err != nil {
@@ -204,8 +201,6 @@ func graphIndexFor(state *store.State, repoID string) (string, []string) {
 	return strings.Join(lines, "\n"), ids
 }
 
-// firstLine is the first non-empty line of a mission's text, trimmed — the
-// short title a graph index line shows.
 func firstLine(text string) string {
 	for _, line := range strings.Split(text, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -281,8 +276,6 @@ Output ONLY this JSON, no prose or fences around it. Your reply must start with 
 {"subtasks": [{"title": "...", "text": "...", "dependsOn": [], "basedOn": []}]}`
 }
 
-// extractRepairPrompt asks the model to turn its own prior reply into the
-// contract JSON, extracting only the tasks that reply already describes.
 func extractRepairPrompt(rawReply string) string {
 	return `Your previous reply below did not follow the required output format. Convert it into the contract JSON.
 
@@ -295,8 +288,6 @@ Your previous reply:
 ` + rawReply
 }
 
-// parseExtractResult reads the extractor's JSON, tolerating stray prose or
-// fences around it. Returns ok=false when the reply isn't the contract JSON.
 func parseExtractResult(raw string) ([]ProposedSubtask, bool) {
 	clean := extractJSONObject(raw)
 	var parsed struct {
@@ -320,11 +311,8 @@ func extractJSONObject(s string) string {
 	return s
 }
 
-// streamExtractEvent surfaces one extraction step as an EVENT: line so a
-// caller streaming eventOut can show the AI thinking live — the CLI's
-// extract-tasks command runs as a blocking call and never sets eventOut, so
-// this is a no-op there; the plumbing just mirrors every other claude-backed
-// pass in this package. Extraction steps are ephemeral — never persisted.
+// No-op when eventOut is unset (the CLI's blocking extract-tasks path).
+// Extraction steps are ephemeral — never persisted.
 func (s *Service) streamExtractEvent(kind, message string) {
 	if s.eventOut == nil {
 		return

@@ -11,10 +11,9 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
-// Two missions build their patches against the same base; landing the first
-// used to leave the repo's working tree ahead of its index, so the second
-// apply died with "does not match index". Committing each applied patch keeps
-// the repo consistent, and both missions end up as their own commits.
+// Two missions build their patches against the same base. Without committing
+// each applied patch, landing the first leaves the repo's working tree ahead
+// of its index, so the second apply dies with "does not match index".
 func TestApplyPatchCommitsEachMissionSoTheNextOneLands(t *testing.T) {
 	jsonStore := store.NewJSONStore(t.TempDir())
 	svc := NewService(jsonStore)
