@@ -1054,23 +1054,33 @@ h3 {
   white-space: nowrap;
 }
 
-/* The agent's live work (phase spine + reasoning) sits inline under the thread. */
-.chat-work {
+/* The agent's live work rides the thread as its own card — same rhythm as a
+   chat bubble (full width, quiet background), not a docked status panel. */
+.chat-activity {
   align-self: stretch;
-  border-top: 1px dashed var(--line);
-  padding-top: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
 }
 
-.chat-work .agent-status {
+.chat-activity .agent-status {
   flex: 0 0 auto;
   overflow: visible;
   gap: 10px;
 }
 
-/* Keep the chat side calm: the diff pane already shows which files changed, so
-   the in-chat status stays a slim phase + "now" line with reasoning on demand. */
-.chat-work .touched {
-  display: none;
+.chat-activity .touched-file-link {
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.chat-activity .touched-file-link:hover {
+  background: var(--panel);
 }
 
 .chat-composer {

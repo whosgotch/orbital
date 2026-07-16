@@ -278,8 +278,7 @@ export function TaskPanel({
               messages={chatMessages}
               statusModel={agentStatus}
               transcript={agentTranscript}
-              files={agentStatus.files}
-              onOpenFile={onOpenDiffFile}
+              onGoToChanges={() => onChangeTaskView("changes")}
               sending={chatSending}
               onSend={onSendChat}
               readOnly={mission.kind === "tool"}

@@ -64,8 +64,7 @@ export function AgentChat({
   messages,
   statusModel,
   transcript,
-  files,
-  onOpenFile,
+  onGoToChanges,
   onSend,
   sending,
   readOnly = false,
@@ -74,8 +73,9 @@ export function AgentChat({
   messages: ChatMessage[];
   statusModel: AgentStatusModel;
   transcript: TranscriptEntry[];
-  files: TouchedFile[];
-  onOpenFile: (path: string) => void;
+  // Files changed ride along inside the activity card; clicking one switches
+  // to the Changes tab instead of opening a diff modal from chat.
+  onGoToChanges: (path?: string) => void;
   onSend: (text: string) => void;
   sending: boolean;
   // A tool step is a deterministic command, not a conversation — its panel
@@ -96,7 +96,7 @@ export function AgentChat({
     if (!log) return;
     const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 160;
     if (nearBottom) log.scrollTo({ top: log.scrollHeight });
-  }, [messages.length, sending, statusModel.now, files.length, transcript.length]);
+  }, [messages.length, sending, statusModel.now, statusModel.files.length, transcript.length]);
 
   const submit = () => {
     const text = draft.trim();
@@ -128,12 +128,10 @@ export function AgentChat({
         ))}
 
         {statusModel.hasActivity ? (
-          <div className="chat-work">
-            <AgentStatus model={statusModel} transcript={transcript} />
+          <div className="chat-activity">
+            <AgentStatus model={statusModel} transcript={transcript} onSelectFile={onGoToChanges} />
           </div>
         ) : null}
-
-        {!sending && files.length > 0 ? <ChangesCard files={files} onOpenFile={onOpenFile} /> : null}
       </div>
 
       {readOnly ? null : (

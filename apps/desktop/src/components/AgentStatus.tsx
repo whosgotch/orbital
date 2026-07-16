@@ -20,7 +20,17 @@ function ChangeGlyph({ change }: { change: FileChange }) {
   return <FilePen size={13} aria-hidden="true" />;
 }
 
-export function AgentStatus({ model, transcript }: { model: AgentStatusModel; transcript: TranscriptEntry[] }) {
+export function AgentStatus({
+  model,
+  transcript,
+  onSelectFile,
+}: {
+  model: AgentStatusModel;
+  transcript: TranscriptEntry[];
+  // When present, the touched-files section becomes clickable — used in chat
+  // to jump to the Changes tab instead of showing files as inert text.
+  onSelectFile?: (path: string) => void;
+}) {
   // Reasoning stays folded until asked for: while an agent is live, the phase
   // spine + now line carry the story, and the conversation stays readable
   // instead of being flooded by the raw transcript.
@@ -61,18 +71,38 @@ export function AgentStatus({ model, transcript }: { model: AgentStatusModel; tr
             Touching {model.files.length} file{model.files.length === 1 ? "" : "s"}
           </div>
           <ul className="touched-list">
-            {model.files.map((file) => (
-              <li key={file.path} className={`touched-file ${file.change}`}>
-                <span className="touched-glyph">
-                  <ChangeGlyph change={file.change} />
-                </span>
-                <span className="touched-path">{file.path}</span>
-                <span className="touched-counts">
-                  {file.added > 0 ? <span className="add">+{file.added}</span> : null}
-                  {file.removed > 0 ? <span className="del">−{file.removed}</span> : null}
-                </span>
-              </li>
-            ))}
+            {model.files.map((file) =>
+              onSelectFile ? (
+                <li key={file.path}>
+                  <button
+                    type="button"
+                    className={`touched-file touched-file-link ${file.change}`}
+                    onClick={() => onSelectFile(file.path)}
+                    title={`Open ${file.path} in Changes`}
+                  >
+                    <span className="touched-glyph">
+                      <ChangeGlyph change={file.change} />
+                    </span>
+                    <span className="touched-path">{file.path}</span>
+                    <span className="touched-counts">
+                      {file.added > 0 ? <span className="add">+{file.added}</span> : null}
+                      {file.removed > 0 ? <span className="del">−{file.removed}</span> : null}
+                    </span>
+                  </button>
+                </li>
+              ) : (
+                <li key={file.path} className={`touched-file ${file.change}`}>
+                  <span className="touched-glyph">
+                    <ChangeGlyph change={file.change} />
+                  </span>
+                  <span className="touched-path">{file.path}</span>
+                  <span className="touched-counts">
+                    {file.added > 0 ? <span className="add">+{file.added}</span> : null}
+                    {file.removed > 0 ? <span className="del">−{file.removed}</span> : null}
+                  </span>
+                </li>
+              ),
+            )}
           </ul>
         </div>
       ) : null}
