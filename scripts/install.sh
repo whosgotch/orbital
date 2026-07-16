@@ -1,6 +1,6 @@
 #!/bin/sh
 # Orbital installer.
-#   curl -fsSL https://raw.githubusercontent.com/whosgotch/orbital/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/whosgotch/orbital/main/scripts/install.sh | sh
 # Downloads the latest release for this OS/arch and installs it.
 set -eu
 
