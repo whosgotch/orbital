@@ -44,32 +44,45 @@ export function AgentStatus({
     );
   }
 
+  // A finished, fully green spine says nothing the ✓ in the header doesn't;
+  // it earns its space only while live or when a phase failed.
+  const spineInformative = model.isLive || model.phases.some((phase) => phase.status === "failed");
+
   return (
     <div className="agent-status">
       <div className="agent-status-head">
-        <span className="agent-status-name">{model.agentLabel}</span>
-        <span className={`agent-status-live ${model.isLive ? "live" : ""}`}>
-          {model.isLive ? <Loader size={12} className="spin" aria-hidden="true" /> : null}
-          {model.liveLabel}
+        <span className={`agent-status-live ${model.isLive ? "live" : ""}`} aria-label={model.liveLabel}>
+          {model.isLive ? <Loader size={12} className="spin" aria-hidden="true" /> : <span className="glyph-char" aria-hidden="true">✓</span>}
         </span>
+        <span className="agent-status-name">{model.agentLabel}</span>
+        <span className="agent-meta">
+          {model.steps > 0 ? ` · ${model.steps} step${model.steps === 1 ? "" : "s"}` : ""}
+          {model.elapsed ? ` · ${model.elapsed}` : ""}
+        </span>
+        <span className="agent-status-spacer" />
+        {transcript.length > 0 ? (
+          <button type="button" className="ghost mini-text" onClick={() => setShowReasoning((shown) => !shown)}>
+            {showReasoning ? <ChevronDown size={13} aria-hidden="true" /> : <ChevronRight size={13} aria-hidden="true" />}
+            {showReasoning ? "hide reasoning" : "show reasoning"}
+          </button>
+        ) : null}
       </div>
 
-      <ol className="phase-spine">
-        {model.phases.map((phase) => (
-          <li key={phase.id} className={`phase ${phase.status}`}>
-            <span className="phase-glyph">
-              <PhaseGlyph status={phase.status} />
-            </span>
-            <span className="phase-label">{phase.label}</span>
-          </li>
-        ))}
-      </ol>
+      {spineInformative ? (
+        <ol className="phase-spine">
+          {model.phases.map((phase) => (
+            <li key={phase.id} className={`phase ${phase.status}`}>
+              <span className="phase-glyph">
+                <PhaseGlyph status={phase.status} />
+              </span>
+              <span className="phase-label">{phase.label}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
 
       {model.files.length > 0 ? (
         <div className="touched">
-          <div className="touched-head">
-            Touching {model.files.length} file{model.files.length === 1 ? "" : "s"}
-          </div>
           <ul className="touched-list">
             {model.files.map((file) =>
               onSelectFile ? (
@@ -108,20 +121,6 @@ export function AgentStatus({
       ) : null}
 
       {model.now ? <div className="agent-now">{model.now}</div> : null}
-
-      <div className="agent-status-foot">
-        <span className="agent-meta">
-          {model.steps > 0 ? `${model.steps} step${model.steps === 1 ? "" : "s"}` : ""}
-          {model.steps > 0 && model.elapsed ? " · " : ""}
-          {model.elapsed}
-        </span>
-        {transcript.length > 0 ? (
-          <button type="button" className="ghost mini-text" onClick={() => setShowReasoning((shown) => !shown)}>
-            {showReasoning ? <ChevronDown size={13} aria-hidden="true" /> : <ChevronRight size={13} aria-hidden="true" />}
-            {showReasoning ? "hide reasoning" : "show reasoning"}
-          </button>
-        ) : null}
-      </div>
 
       {showReasoning ? (
         <div className="agent-reasoning">

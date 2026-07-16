@@ -1056,12 +1056,10 @@ h3 {
 
 /* The agent's live work rides the thread as its own card — same rhythm as a
    chat bubble (full width, quiet background), not a docked status panel. */
+/* Not a card: agent activity reads as quiet system lines in the thread. */
 .chat-activity {
   align-self: stretch;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
+  padding: 2px 0;
 }
 
 .chat-activity .agent-status {
@@ -1120,38 +1118,38 @@ h3 {
   border-radius: 6px;
 }
 
-/* Glanceable agent status: phase spine + files touched + live "now" line. */
+/* Glanceable agent status: one summary line, phase spine while live, files
+   touched, and the "now" line — plain thread text, not a widget. */
 .agent-status {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
 .agent-status-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+}
+
+.agent-status-spacer {
+  flex: 1 1 auto;
 }
 
 .agent-status-name {
-  font-size: 14px;
-  font-weight: 650;
-  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--soft);
 }
 
 .agent-status-live {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
+  color: var(--green);
+  font-size: 12px;
 }
 
 .agent-status-live.live {
@@ -1217,15 +1215,6 @@ h3 {
   border-color: rgba(226, 97, 95, 0.4);
 }
 
-.touched-head {
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
-
 .touched-list {
   list-style: none;
   margin: 0;
@@ -1288,20 +1277,9 @@ h3 {
 }
 
 .agent-now {
-  padding: 9px 11px;
-  border-radius: 6px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  font-size: 13px;
-  color: var(--text);
+  font-size: 12.5px;
+  color: var(--soft);
   line-height: 1.4;
-}
-
-.agent-status-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
 .agent-meta {
