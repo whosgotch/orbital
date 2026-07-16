@@ -5,16 +5,11 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, State};
 
-/// Tracks the OS process group id of every in-flight agent run, keyed by
-/// mission id, so a delete can shut the live agent down. Each run is spawned as
-/// its own process-group leader (see `run_worker_streaming`), so killing the
-/// group tears down the whole tree: the worker binary and any `claude`/`git`
-/// children it spawns.
+/// Each run is its own process-group leader, so killing the group id stored
+/// here tears down the whole tree (worker binary + any `claude`/`git` children).
 #[derive(Default, Clone)]
 struct RunningRuns(Arc<Mutex<HashMap<String, u32>>>);
 
-/// Removes a mission's registry entry when the run finishes, however it ends
-/// (normal completion, error, or being killed by a delete).
 struct RunGuard {
     runs: RunningRuns,
     mission_id: String,
@@ -28,10 +23,7 @@ impl Drop for RunGuard {
     }
 }
 
-/// Compiled worker binary, built once per app launch. Every command then execs
-/// the binary directly instead of paying `go run`'s compile-and-link check on
-/// each invocation — the difference between a snappy canvas and dead air.
-/// Failures are not cached, so a broken build is retried on the next call.
+/// Cached per app launch; a build failure is not cached, so it's retried on the next call.
 static WORKER_BINARY: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 fn worker_binary() -> Result<PathBuf, String> {
@@ -42,8 +34,7 @@ fn worker_binary() -> Result<PathBuf, String> {
         return Ok(path.clone());
     }
 
-    // Resolution order: explicit override, the sidecar shipped next to the app
-    // executable (bundled builds), then compiling from source (dev checkout).
+    // Resolution order: explicit override, sidecar (bundled builds), then build from source (dev).
     let bin = if let Ok(path) = std::env::var("ORBITAL_WORKER") {
         PathBuf::from(path)
     } else if let Some(sidecar) = sidecar_worker() {
@@ -121,9 +112,7 @@ fn queue_mission(
     run_worker(&args)
 }
 
-// Persist a pasted image under <repo>/.orbital/attachments and return its
-// absolute path. The path travels inside the mission/chat text; the agent
-// opens the file from disk to look at it.
+// The saved path travels inside mission/chat text; the agent opens the file from disk to view it.
 #[tauri::command]
 fn save_attachment(repo_path: String, extension: String, data: String) -> Result<String, String> {
     use base64::Engine as _;
@@ -194,8 +183,7 @@ async fn start_agent_run(
     let runs = runs.inner().clone();
     let mission_id = mission_id.trim().to_string();
 
-    // Run the blocking worker off the main thread so the UI stays responsive
-    // while events stream in over the ~minute the run takes.
+    // Long-running commands must stay async + spawn_blocking, or the UI thread freezes.
     tauri::async_runtime::spawn_blocking(move || {
         let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         run_worker_streaming(&app, &runs, &mission_id, &arg_refs)
@@ -226,8 +214,7 @@ async fn send_agent_message(
     let runs = runs.inner().clone();
     let mission_id = mission_id.trim().to_string();
 
-    // A chat turn streams the agent's work just like a run; keep it off the main
-    // thread so the UI stays responsive while the agent thinks and edits.
+    // Must stay async + spawn_blocking, or the UI thread freezes while the agent works.
     tauri::async_runtime::spawn_blocking(move || {
         let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         run_worker_streaming(&app, &runs, &mission_id, &arg_refs)
@@ -258,9 +245,7 @@ fn delete_mission(
 ) -> Result<String, String> {
     let mission_id = mission_id.trim();
 
-    // Shut the live agent down first so it can't keep writing to the worktree
-    // we're about to remove. The streaming task's RunGuard clears the registry
-    // entry once the killed process is reaped.
+    // Kill the live agent first so it can't keep writing to the worktree we're about to remove.
     let pgid = runs
         .0
         .lock()
@@ -273,9 +258,7 @@ fn delete_mission(
     run_worker(&["delete", repo_path.trim(), mission_id])
 }
 
-/// Terminates a process group: SIGTERM to let `claude`/`git` unwind, then
-/// SIGKILL as a fallback for anything that ignored it. A negative pid targets
-/// the whole group, which is why agent runs are spawned as group leaders.
+/// SIGTERM first to let `claude`/`git` unwind, then SIGKILL as fallback. A negative pid targets the whole group.
 #[cfg(unix)]
 fn kill_process_group(pgid: u32) {
     let _ = Command::new("kill")
@@ -363,8 +346,7 @@ fn verify_mission(
     ])
 }
 
-// Async + spawn_blocking: extraction is a full model call (tens of seconds),
-// and a synchronous command would freeze the UI thread for its whole duration.
+// Extraction is a full model call (tens of seconds); must stay async + spawn_blocking or the UI thread freezes.
 #[tauri::command]
 async fn extract_tasks(
     repo_path: String,
@@ -395,9 +377,7 @@ fn run_worker_streaming(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    // Put the run in its own process group so a delete can kill the entire
-    // tree (the worker spawns `claude`/`git` children) in one signal to the
-    // group.
+    // Own process group so a delete can kill the whole tree (worker + `claude`/`git` children) in one signal.
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -408,8 +388,6 @@ fn run_worker_streaming(
         .spawn()
         .map_err(|e| format!("failed to spawn worker: {e}"))?;
 
-    // Registry holds the group id (== leader pid) so delete_mission can find
-    // it; the guard clears it on every exit path, including a kill.
     if let Ok(mut map) = runs.0.lock() {
         map.insert(mission_id.to_string(), child.id());
     }
@@ -503,16 +481,13 @@ fn worker_dir() -> Result<PathBuf, String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-/// Apps launched from Finder inherit launchd's minimal PATH, not the user's
-/// shell PATH — so the worker's children (`claude`, `node`, ...) installed in
-/// ~/.local/bin, Homebrew, or nvm are not found. Adopt the login shell's PATH
-/// so every spawned worker sees the same commands a terminal would.
+// Apps launched from Finder inherit launchd's minimal PATH, not the user's shell PATH,
+// so worker children (`claude`, `node`, ...) in ~/.local/bin, Homebrew, or nvm aren't found.
 #[cfg(target_os = "macos")]
 fn adopt_login_shell_path() {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-    // Interactive + login shell: PATH exports commonly live in .zshrc, which
-    // a plain login shell never reads. Interactive rc files may print their
-    // own output, so the echoed PATH is the last non-empty stdout line.
+    // -ilc: PATH exports commonly live in .zshrc, which a plain login shell never reads.
+    // Interactive rc files may print their own output, so take the last non-empty stdout line.
     let Ok(output) = Command::new(shell).args(["-ilc", "echo $PATH"]).output() else {
         return;
     };
