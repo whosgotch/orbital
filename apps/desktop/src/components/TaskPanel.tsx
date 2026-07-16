@@ -1,7 +1,7 @@
 // The right-docked inspector for the selected mission: prompt header, the
 // chat/changes/doc tab switch, and (for changes) the verify bar and
 // approve/reject actions. Props in, callbacks out — App owns all the state.
-import { useState } from "react";
+import { useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Check, ChevronDown, ListTree, Loader, Pencil, Terminal, Trash2, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "./AgentChat";
 import { DocumentView } from "./DocumentView";
@@ -12,6 +12,15 @@ import { verifyPillClass, verifyPillLabel, verificationOutput } from "../mission
 import type { CommitInfo, WorkspaceRuntime } from "../workspaceAdapter";
 import type { WorkspaceMission } from "../graph";
 import type { ChatMessage, Repository } from "../domain";
+
+const PANEL_WIDTH_KEY = "orbital.taskPanelWidth";
+const PANEL_WIDTH_MIN = 320;
+const PANEL_WIDTH_DEFAULT = 440;
+
+function clampPanelWidth(width: number): number {
+  const max = Math.min(720, window.innerWidth * 0.6);
+  return Math.min(Math.max(width, PANEL_WIDTH_MIN), max);
+}
 
 type TaskPanelProps = {
   mission: WorkspaceMission;
@@ -88,8 +97,40 @@ export function TaskPanel({
   // so switching nodes collapses it again without any effect.
   const [expandedPromptFor, setExpandedPromptFor] = useState("");
   const promptExpanded = expandedPromptFor === mission.id;
+
+  // User-resizable width, dragged from the left edge; persisted across
+  // sessions. Lazy init reads localStorage once, falling back to the panel's
+  // usual width.
+  const [panelWidth, setPanelWidth] = useState(() => {
+    const stored = Number(localStorage.getItem(PANEL_WIDTH_KEY));
+    return clampPanelWidth(stored > 0 ? stored : PANEL_WIDTH_DEFAULT);
+  });
+
+  const onResizeHandlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    const onMove = (moveEvent: PointerEvent) => {
+      setPanelWidth(clampPanelWidth(window.innerWidth - moveEvent.clientX));
+    };
+    const onUp = (upEvent: PointerEvent) => {
+      localStorage.setItem(PANEL_WIDTH_KEY, String(clampPanelWidth(window.innerWidth - upEvent.clientX)));
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+  };
+
   return (
-    <aside className="inspector task-window" aria-label="Task">
+    <aside className="inspector task-window" aria-label="Task" style={{ width: panelWidth }}>
+      <div
+        className="task-panel-resize-handle"
+        onPointerDown={onResizeHandlePointerDown}
+        title="Drag to resize"
+        role="separator"
+        aria-orientation="vertical"
+      />
       <section className="task-panel" aria-label="Task">
         <div className="panel-head review-head">
           <div>

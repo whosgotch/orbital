@@ -508,6 +508,24 @@ h3 {
   animation: panel-in 160ms ease-out;
 }
 
+/* Drag strip on the task panel's left edge — the only resizable panel. */
+.task-panel-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 1;
+  cursor: col-resize;
+  background: transparent;
+  touch-action: none;
+}
+
+.task-panel-resize-handle:hover,
+.task-panel-resize-handle:active {
+  background: var(--line-strong);
+}
+
 @keyframes panel-in {
   from {
     transform: translateX(24px);
