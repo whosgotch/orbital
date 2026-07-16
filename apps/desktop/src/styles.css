@@ -822,8 +822,25 @@ h3 {
   padding: 12px 2px;
 }
 
-.chat-bubble {
+/* Each message plus its pinned footer (reasoning toggle, changes line) moves
+   as one unit — the footer takes over the alignment/width the bubble alone
+   used to own. */
+.chat-msg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   max-width: 88%;
+}
+
+.chat-msg-group.user {
+  align-self: flex-end;
+}
+
+.chat-msg-group.assistant {
+  align-self: flex-start;
+}
+
+.chat-bubble {
   padding: 9px 12px;
   border-radius: 6px;
   font-size: 13px;
@@ -833,7 +850,6 @@ h3 {
 }
 
 .chat-bubble.user {
-  align-self: flex-end;
   background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--text);
@@ -841,10 +857,38 @@ h3 {
 }
 
 .chat-bubble.assistant {
-  align-self: flex-start;
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-bottom-left-radius: 4px;
+}
+
+/* The quiet footer under an assistant reply: a "› reasoning" toggle and,
+   under the last reply only, the one-line change summary — both read like
+   secondary metadata, never like UI chrome bolted onto the thread. */
+.chat-msg-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+}
+
+.chat-changes-line {
+  border: none;
+  background: transparent;
+  padding: 4px 6px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.chat-changes-line:hover {
+  color: var(--text);
+  text-decoration: underline;
+  background: rgba(152, 152, 159, 0.1);
 }
 
 /* Markdown inside assistant bubbles: calm, readable, code-forward. */
@@ -1068,19 +1112,6 @@ h3 {
   gap: 10px;
 }
 
-.chat-activity .touched-file-link {
-  width: 100%;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-
-.chat-activity .touched-file-link:hover {
-  background: var(--panel);
-}
-
 .chat-composer {
   flex: 0 0 auto;
   display: flex;
@@ -1118,8 +1149,9 @@ h3 {
   border-radius: 6px;
 }
 
-/* Glanceable agent status: one summary line, phase spine while live, files
-   touched, and the "now" line — plain thread text, not a widget. */
+/* Glanceable agent status while live (or, for read-only tool missions,
+   always): one summary line, phase spine, and the "now" line — plain thread
+   text, not a widget. */
 .agent-status {
   flex: 1 1 auto;
   min-height: 0;
@@ -1213,67 +1245,6 @@ h3 {
 .phase.failed {
   color: var(--red);
   border-color: rgba(226, 97, 95, 0.4);
-}
-
-.touched-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.touched-file {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.touched-file:hover {
-  background: var(--panel-2);
-}
-
-.touched-glyph {
-  flex-shrink: 0;
-  color: var(--muted);
-}
-
-.touched-file.added .touched-glyph {
-  color: var(--green);
-}
-
-.touched-file.deleted .touched-glyph {
-  color: var(--red);
-}
-
-.touched-path {
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.touched-counts {
-  flex-shrink: 0;
-  display: inline-flex;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.touched-counts .add {
-  color: var(--green);
-}
-
-.touched-counts .del {
-  color: var(--red);
 }
 
 .agent-now {

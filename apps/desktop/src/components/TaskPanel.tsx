@@ -54,6 +54,7 @@ type TaskPanelProps = {
   chatMessages: ChatMessage[];
   chatSending: boolean;
   agentTranscript: TranscriptEntry[];
+  reasoningByMessage: Record<string, TranscriptEntry[]>;
   onOpenDiffFile: (path: string) => void;
   onSendChat: (text: string) => void;
   verifyOpen: boolean;
@@ -91,6 +92,7 @@ export function TaskPanel({
   chatMessages,
   chatSending,
   agentTranscript,
+  reasoningByMessage,
   onOpenDiffFile,
   onSendChat,
   verifyOpen,
@@ -278,6 +280,7 @@ export function TaskPanel({
               messages={chatMessages}
               statusModel={agentStatus}
               transcript={agentTranscript}
+              reasoningByMessage={reasoningByMessage}
               onGoToChanges={() => onChangeTaskView("changes")}
               sending={chatSending}
               onSend={onSendChat}

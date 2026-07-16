@@ -10,7 +10,7 @@ import { HistoryPanel } from "./components/HistoryPanel";
 import { QueueIntakePanel } from "./components/QueueIntakePanel";
 import { CanvasEmptyState } from "./components/CanvasEmptyState";
 import { buildAgentStatus } from "./agentStatus";
-import { buildAgentTranscript } from "./agentTranscript";
+import { buildAgentTranscript, sliceTranscriptByMessage } from "./agentTranscript";
 import { missionStatusFor, queuedRuntime, repositoryFor } from "./missionUi";
 import { followUpTargetFor } from "./workspaceAdapter";
 import { buildCanvasEdges, buildCanvasNodes, enrichGraphNodes } from "./canvasView";
@@ -163,8 +163,17 @@ export function App() {
     [missionLoopState, selectedMissionId, selectedPatchDiff, selectedActivity, selectedRuntime],
   );
   const missionStatus = missionStatusFor(selectedRuntime, patchReady);
-  const selectedChatMessages = chatByMission[selectedMission?.id ?? ""] ?? [];
+  const selectedChatMessages = useMemo(
+    () => chatByMission[selectedMission?.id ?? ""] ?? [],
+    [chatByMission, selectedMission?.id],
+  );
   const selectedChatSending = chatSendingByMission[selectedMission?.id ?? ""] ?? false;
+  // Each assistant message's own slice of the mission's reasoning, pinned to
+  // its footer in chat — replaces the old whole-transcript "show reasoning".
+  const reasoningByMessage = useMemo(
+    () => sliceTranscriptByMessage(missionLoopState, selectedMissionId ?? "", selectedChatMessages),
+    [missionLoopState, selectedMissionId, selectedChatMessages],
+  );
 
   // Close the inline prompt editor whenever the selected node changes, so an
   // unsaved draft never leaks onto a different mission. Render-phase reset
@@ -476,6 +485,7 @@ export function App() {
           chatMessages={selectedChatMessages}
           chatSending={selectedChatSending}
           agentTranscript={agentTranscript}
+          reasoningByMessage={reasoningByMessage}
           onOpenDiffFile={(path) => {
             setFocusedDiffFile(path);
             setDiffModalOpen(true);

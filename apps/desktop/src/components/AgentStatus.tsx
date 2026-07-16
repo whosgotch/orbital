@@ -1,10 +1,12 @@
-// A glanceable summary of what an agent is doing: a phase spine, the files it
-// touched (with sizes — so scope is obvious at a glance), and a live "now" line.
-// The raw reasoning transcript stays one click away behind "show reasoning".
+// A glanceable summary of what an agent is doing while it's live: a phase
+// spine and a "now" line. Once a turn finishes, its reasoning and file changes
+// are pinned to the chat message that reported them (see AgentChat) — this
+// component only keeps rendering after the fact for read-only tool missions,
+// which have no chat bubbles to pin anything to.
 import { useState } from "react";
-import { Loader, FilePlus, FileMinus, FilePen, ChevronRight, ChevronDown } from "lucide-react";
+import { Loader, ChevronRight, ChevronDown } from "lucide-react";
 import { AgentTranscript, type TranscriptEntry } from "./AgentTranscript";
-import type { AgentPhaseStatus, AgentStatusModel, FileChange } from "../agentStatus";
+import type { AgentPhaseStatus, AgentStatusModel } from "../agentStatus";
 
 // Claude Code's state glyphs: ✓ done, ✗ failed, ⏺ active, · not reached.
 function PhaseGlyph({ status }: { status: AgentPhaseStatus }) {
@@ -14,22 +16,16 @@ function PhaseGlyph({ status }: { status: AgentPhaseStatus }) {
   return <span className="phase-dot" aria-hidden="true" />;
 }
 
-function ChangeGlyph({ change }: { change: FileChange }) {
-  if (change === "added") return <FilePlus size={13} aria-hidden="true" />;
-  if (change === "deleted") return <FileMinus size={13} aria-hidden="true" />;
-  return <FilePen size={13} aria-hidden="true" />;
-}
-
 export function AgentStatus({
   model,
   transcript,
-  onSelectFile,
+  alwaysVisible = false,
 }: {
   model: AgentStatusModel;
   transcript: TranscriptEntry[];
-  // When present, the touched-files section becomes clickable — used in chat
-  // to jump to the Changes tab instead of showing files as inert text.
-  onSelectFile?: (path: string) => void;
+  // Tool missions have no chat messages to pin reasoning to, so their status
+  // (and whole-run "show reasoning") must stay visible after the run ends too.
+  alwaysVisible?: boolean;
 }) {
   // Reasoning stays folded until asked for: while an agent is live, the phase
   // spine + now line carry the story, and the conversation stays readable
@@ -42,6 +38,13 @@ export function AgentStatus({
         No agent activity yet — run this mission with an AI worker to watch it work.
       </div>
     );
+  }
+
+  // A finished turn's reasoning lives in its message footer now; once it's no
+  // longer live, this block has nothing left to say — except for read-only
+  // tool missions, whose run log has no message to pin to.
+  if (!model.isLive && !alwaysVisible) {
+    return null;
   }
 
   // A finished, fully green spine says nothing the ✓ in the header doesn't;
@@ -79,45 +82,6 @@ export function AgentStatus({
             </li>
           ))}
         </ol>
-      ) : null}
-
-      {model.files.length > 0 ? (
-        <div className="touched">
-          <ul className="touched-list">
-            {model.files.map((file) =>
-              onSelectFile ? (
-                <li key={file.path}>
-                  <button
-                    type="button"
-                    className={`touched-file touched-file-link ${file.change}`}
-                    onClick={() => onSelectFile(file.path)}
-                    title={`Open ${file.path} in Changes`}
-                  >
-                    <span className="touched-glyph">
-                      <ChangeGlyph change={file.change} />
-                    </span>
-                    <span className="touched-path">{file.path}</span>
-                    <span className="touched-counts">
-                      {file.added > 0 ? <span className="add">+{file.added}</span> : null}
-                      {file.removed > 0 ? <span className="del">−{file.removed}</span> : null}
-                    </span>
-                  </button>
-                </li>
-              ) : (
-                <li key={file.path} className={`touched-file ${file.change}`}>
-                  <span className="touched-glyph">
-                    <ChangeGlyph change={file.change} />
-                  </span>
-                  <span className="touched-path">{file.path}</span>
-                  <span className="touched-counts">
-                    {file.added > 0 ? <span className="add">+{file.added}</span> : null}
-                    {file.removed > 0 ? <span className="del">−{file.removed}</span> : null}
-                  </span>
-                </li>
-              ),
-            )}
-          </ul>
-        </div>
       ) : null}
 
       {model.now ? <div className="agent-now">{model.now}</div> : null}

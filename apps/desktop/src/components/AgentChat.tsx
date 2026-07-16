@@ -1,10 +1,11 @@
 // A live, two-way conversation with an agent. You steer the agent by sending
 // messages; it keeps its session across turns and its diff evolves in place.
-// Agent replies render as markdown, and the change set rides along as a
-// clickable card — pick a file to open its diff.
+// Agent replies render as markdown; each reply's reasoning and (for the last
+// reply) its change set are pinned to a quiet footer under that message.
 import { useEffect, useRef, useState } from "react";
-import { FileMinus, FilePen, FilePlus, Loader, SendHorizontal } from "lucide-react";
+import { ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus, Loader, SendHorizontal } from "lucide-react";
 import { AgentStatus } from "./AgentStatus";
+import { AgentTranscript } from "./AgentTranscript";
 import { AttachmentChips } from "./AttachmentChips";
 import { attachmentLines, usePastedImages } from "../attachments";
 import { Markdown } from "./Markdown";
@@ -18,8 +19,17 @@ function ChangeGlyph({ change }: { change: FileChange }) {
   return <FilePen size={13} aria-hidden="true" />;
 }
 
+// The one-line summary that rides under the last reply in chat: "3 files
+// changed +12 −4", read like a PR summary line rather than a file list.
+function changesSummary(files: TouchedFile[]): string {
+  const additions = files.reduce((sum, file) => sum + file.added, 0);
+  const deletions = files.reduce((sum, file) => sum + file.removed, 0);
+  const counts = [additions > 0 ? `+${additions}` : "", deletions > 0 ? `−${deletions}` : ""].filter(Boolean).join(" ");
+  return `${files.length} file${files.length === 1 ? "" : "s"} changed${counts ? ` ${counts}` : ""}`;
+}
+
 // The glanceable change set: what changed, one click from the file's diff.
-// Shared by chat (rides along with replies) and the Changes tab.
+// Used by the Changes tab (chat now shows only the one-line summary above).
 export function ChangesCard({ files, onOpenFile }: { files: TouchedFile[]; onOpenFile: (path: string) => void }) {
   const additions = files.reduce((sum, file) => sum + file.added, 0);
   const deletions = files.reduce((sum, file) => sum + file.removed, 0);
@@ -64,6 +74,7 @@ export function AgentChat({
   messages,
   statusModel,
   transcript,
+  reasoningByMessage,
   onGoToChanges,
   onSend,
   sending,
@@ -72,9 +83,13 @@ export function AgentChat({
 }: {
   messages: ChatMessage[];
   statusModel: AgentStatusModel;
+  // The whole mission's transcript — used only by the live/read-only status
+  // block below the thread, for the turn that hasn't landed as a message yet.
   transcript: TranscriptEntry[];
-  // Files changed ride along inside the activity card; clicking one switches
-  // to the Changes tab instead of opening a diff modal from chat.
+  // Each assistant message's own slice of the transcript, pinned to its footer.
+  reasoningByMessage: Record<string, TranscriptEntry[]>;
+  // Files changed ride along under the last reply as one link; clicking it
+  // switches to the Changes tab instead of opening a diff modal from chat.
   onGoToChanges: (path?: string) => void;
   onSend: (text: string) => void;
   sending: boolean;
@@ -85,6 +100,7 @@ export function AgentChat({
   repoPath?: string;
 }) {
   const [draft, setDraft] = useState("");
+  const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({});
   const attachments = usePastedImages(repoPath);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -106,6 +122,15 @@ export function AgentChat({
     attachments.clear();
   };
 
+  const lastAssistantId = messages.reduce<string | undefined>(
+    (id, message) => (message.role === "assistant" ? message.id : id),
+    undefined,
+  );
+  // The status block below the thread carries the live/in-flight turn; once a
+  // turn's done, it has nothing left to say except for read-only tool
+  // missions, which have no chat message to pin their run log to.
+  const showStatusBlock = statusModel.hasActivity && (statusModel.isLive || readOnly);
+
   return (
     <div className="agent-chat">
       <div className="chat-log" ref={logRef}>
@@ -117,19 +142,54 @@ export function AgentChat({
           </div>
         ) : null}
 
-        {messages.map((message) => (
-          <div key={message.id} className={`chat-bubble ${message.role}`}>
-            {message.role === "assistant" ? (
-              <Markdown text={message.text} />
-            ) : (
-              <span className="chat-text">{message.text}</span>
-            )}
-          </div>
-        ))}
+        {messages.map((message) => {
+          const reasoning = reasoningByMessage[message.id] ?? [];
+          const hasReasoning = message.role === "assistant" && reasoning.length > 0;
+          const showChanges = message.role === "assistant" && message.id === lastAssistantId && statusModel.files.length > 0;
+          const expanded = expandedReasoning[message.id] ?? false;
 
-        {statusModel.hasActivity ? (
+          return (
+            <div key={message.id} className={`chat-msg-group ${message.role}`}>
+              <div className={`chat-bubble ${message.role}`}>
+                {message.role === "assistant" ? (
+                  <Markdown text={message.text} />
+                ) : (
+                  <span className="chat-text">{message.text}</span>
+                )}
+              </div>
+
+              {hasReasoning || showChanges ? (
+                <div className="chat-msg-footer">
+                  {hasReasoning ? (
+                    <button
+                      type="button"
+                      className="ghost mini-text"
+                      onClick={() => setExpandedReasoning((current) => ({ ...current, [message.id]: !expanded }))}
+                    >
+                      {expanded ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}
+                      reasoning
+                    </button>
+                  ) : null}
+                  {showChanges ? (
+                    <button type="button" className="chat-changes-line" onClick={() => onGoToChanges()}>
+                      {changesSummary(statusModel.files)}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {hasReasoning && expanded ? (
+                <div className="agent-reasoning">
+                  <AgentTranscript entries={reasoning} emptyLabel="No reasoning captured." />
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+
+        {showStatusBlock ? (
           <div className="chat-activity">
-            <AgentStatus model={statusModel} transcript={transcript} onSelectFile={onGoToChanges} />
+            <AgentStatus model={statusModel} transcript={transcript} alwaysVisible={readOnly} />
           </div>
         ) : null}
       </div>
