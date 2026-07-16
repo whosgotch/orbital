@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
 import { GraphMap } from "./components/GraphMap";
 import { TopBar } from "./components/TopBar";
-import { TaskPanel } from "./components/TaskPanel";
+import { TaskPanel, loadPanelWidth } from "./components/TaskPanel";
 import { DiffModal } from "./components/DiffModal";
 import { DiffView } from "./components/DiffView";
 import { PromptBar } from "./components/PromptBar";
@@ -77,6 +77,9 @@ export function App() {
     localStorage.setItem("orbital:model", model);
   };
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  // Panel width lives here (not in TaskPanel) because the prompt bar centers
+  // itself around the panel via the --task-panel-width CSS var on the shell.
+  const [taskPanelWidth, setTaskPanelWidth] = useState(loadPanelWidth);
   // Whether a draft task card is open on the canvas ("+ Task" was clicked).
   const [draftingTask, setDraftingTask] = useState(false);
   // Inline prompt editor for refining a mission's instruction before launch.
@@ -355,7 +358,10 @@ export function App() {
   }, [selectedMission, selectedNodeId, deleteMission]);
 
   return (
-    <main className={`canvas-shell${selectedMission ? " panel-open" : ""}`}>
+    <main
+      className={`canvas-shell${selectedMission ? " panel-open" : ""}`}
+      style={{ "--task-panel-width": `${taskPanelWidth}px` } as CSSProperties}
+    >
       <TopBar
         repositories={missionLoopState.repositories}
         activeRepoPath={activeRepoPath}
@@ -456,6 +462,7 @@ export function App() {
           onSavePrompt={() => void saveMissionPrompt(selectedMission.id, promptDraft)}
           onDelete={() => void deleteMission(selectedMission.id)}
           onClose={() => setSelectedNodeId("")}
+          onWidthChange={setTaskPanelWidth}
           taskView={taskView}
           onChangeTaskView={setTaskView}
           agentStatus={agentStatus}

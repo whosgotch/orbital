@@ -22,6 +22,13 @@ function clampPanelWidth(width: number): number {
   return Math.min(Math.max(width, PANEL_WIDTH_MIN), max);
 }
 
+// App owns the width (it also positions the prompt bar around the panel via
+// the --task-panel-width CSS var); this reads the persisted value once.
+export function loadPanelWidth(): number {
+  const stored = Number(localStorage.getItem(PANEL_WIDTH_KEY));
+  return clampPanelWidth(stored > 0 ? stored : PANEL_WIDTH_DEFAULT);
+}
+
 type TaskPanelProps = {
   mission: WorkspaceMission;
   repository: Repository | undefined;
@@ -35,6 +42,7 @@ type TaskPanelProps = {
   onSavePrompt: () => void;
   onDelete: () => void;
   onClose: () => void;
+  onWidthChange: (width: number) => void;
   taskView: "chat" | "changes" | "doc";
   onChangeTaskView: (view: "chat" | "changes" | "doc") => void;
   agentStatus: AgentStatusModel;
@@ -71,6 +79,7 @@ export function TaskPanel({
   onSavePrompt,
   onDelete,
   onClose,
+  onWidthChange,
   taskView,
   onChangeTaskView,
   agentStatus,
@@ -98,32 +107,26 @@ export function TaskPanel({
   const [expandedPromptFor, setExpandedPromptFor] = useState("");
   const promptExpanded = expandedPromptFor === mission.id;
 
-  // User-resizable width, dragged from the left edge; persisted across
-  // sessions. Lazy init reads localStorage once, falling back to the panel's
-  // usual width.
-  const [panelWidth, setPanelWidth] = useState(() => {
-    const stored = Number(localStorage.getItem(PANEL_WIDTH_KEY));
-    return clampPanelWidth(stored > 0 ? stored : PANEL_WIDTH_DEFAULT);
-  });
-
   const onResizeHandlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const handle = event.currentTarget;
     handle.setPointerCapture(event.pointerId);
     const onMove = (moveEvent: PointerEvent) => {
-      setPanelWidth(clampPanelWidth(window.innerWidth - moveEvent.clientX));
+      onWidthChange(clampPanelWidth(window.innerWidth - moveEvent.clientX));
     };
     const onUp = (upEvent: PointerEvent) => {
       localStorage.setItem(PANEL_WIDTH_KEY, String(clampPanelWidth(window.innerWidth - upEvent.clientX)));
       handle.removeEventListener("pointermove", onMove);
       handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
     };
     handle.addEventListener("pointermove", onMove);
     handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
   };
 
   return (
-    <aside className="inspector task-window" aria-label="Task" style={{ width: panelWidth }}>
+    <aside className="inspector task-window" aria-label="Task">
       <div
         className="task-panel-resize-handle"
         onPointerDown={onResizeHandlePointerDown}
