@@ -48,7 +48,9 @@ func showStatus(args []string, stdout io.Writer) error {
 
 func showStatusJSON(repoPath string, stdout io.Writer) error {
 	jsonStore := store.NewJSONStore(filepath.Join(repoPath, ".orbital"))
-	state, err := jsonStore.Load()
+	service := app.NewService(jsonStore)
+
+	state, err := service.LoadStateWithLiveBranches()
 	if err != nil {
 		return err
 	}

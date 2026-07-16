@@ -96,3 +96,58 @@ func TestScopedQueriesReturnMatchingRecords(t *testing.T) {
 		t.Fatalf("verifications = %+v, want only verification_1", verifications)
 	}
 }
+
+func TestLoadStateWithLiveBranchesRefreshesFromDisk(t *testing.T) {
+	repoDir := initGitRepository(t)
+	runGit(t, repoDir, "checkout", "-b", "feature/live-branch")
+
+	jsonStore := store.NewJSONStore(t.TempDir())
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{
+			{ID: "repo_1", Path: repoDir, Name: "demo", Branch: "main"},
+		},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	svc := NewService(jsonStore)
+
+	state, err := svc.LoadStateWithLiveBranches()
+	if err != nil {
+		t.Fatalf("LoadStateWithLiveBranches() error = %v", err)
+	}
+
+	if state.Repositories[0].Branch != "feature/live-branch" {
+		t.Fatalf("branch = %q, want %q", state.Repositories[0].Branch, "feature/live-branch")
+	}
+
+	persisted, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if persisted.Repositories[0].Branch != "main" {
+		t.Fatalf("persisted branch = %q, want unchanged %q", persisted.Repositories[0].Branch, "main")
+	}
+}
+
+func TestLoadStateWithLiveBranchesKeepsStoredBranchForNonGitPath(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{
+			{ID: "repo_1", Path: t.TempDir(), Name: "demo", Branch: "main"},
+		},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	svc := NewService(jsonStore)
+
+	state, err := svc.LoadStateWithLiveBranches()
+	if err != nil {
+		t.Fatalf("LoadStateWithLiveBranches() error = %v", err)
+	}
+
+	if state.Repositories[0].Branch != "main" {
+		t.Fatalf("branch = %q, want unchanged %q", state.Repositories[0].Branch, "main")
+	}
+}

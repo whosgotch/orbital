@@ -1,6 +1,28 @@
 package app
 
-import "github.com/whosgotch/orbital/worker/internal/domain"
+import (
+	"github.com/whosgotch/orbital/worker/internal/domain"
+	"github.com/whosgotch/orbital/worker/internal/store"
+)
+
+// LoadStateWithLiveBranches loads the current state and refreshes each
+// repository's Branch field from the live git checkout. It never persists
+// the refreshed value back to disk, and it never blanks out a stored
+// branch when the path is no longer a git repository.
+func (s *Service) LoadStateWithLiveBranches() (*store.State, error) {
+	state, err := s.store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	for index, repository := range state.Repositories {
+		if branch := currentGitBranch(repository.Path); branch != "" {
+			state.Repositories[index].Branch = branch
+		}
+	}
+
+	return state, nil
+}
 
 func (s *Service) ListRepositories() ([]domain.Repository, error) {
 	state, err := s.store.Load()
