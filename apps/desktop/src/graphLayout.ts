@@ -13,21 +13,17 @@ const ROW_GAP = 28; // vertical gap between branches inside one lane
 export const LANE_GAP = 64; // vertical gap between mission lanes
 const COL_STEP = NODE_WIDTH + COL_GAP; // distance between aligned columns
 
-// Two rects (top-left + uniform node footprint) overlap only if they overlap
-// on both axes.
 function rectsOverlapVertically(top1: number, bottom1: number, top2: number, bottom2: number): boolean {
   return top1 < bottom2 && top2 < bottom1;
 }
 
-// layoutGraph arranges the graph as aligned swimlanes: every mission is its own
-// lane, and each node snaps to a GLOBAL column (its longest-path depth from the
-// repo) so the same pipeline stage lines up vertically across every lane — a
-// crisp grid for a large multi-mission workflow. Vertical placement within a
-// lane still comes from a dagre pass, which keeps branches (files, parallel
-// agents) tidy. `pinned` carries the top-left positions of any user-dragged
-// nodes (GraphMap's manualPositionsRef): lanes with no pinned members are
-// pushed clear of them so a freshly spawned lane never lands under a pin.
-// Returns top-left positions keyed by node id.
+// Aligned swimlanes: every mission is its own lane, and each node snaps to a
+// GLOBAL column (its longest-path depth from the repo) so the same pipeline
+// stage lines up vertically across every lane. Vertical placement within a
+// lane comes from a dagre pass. `pinned` carries the top-left positions of
+// user-dragged nodes (GraphMap's manualPositionsRef): lanes with no pinned
+// members are pushed clear of them so a freshly spawned lane never lands
+// under a pin. Returns top-left positions keyed by node id.
 export function layoutGraph(
   nodes: WorkspaceGraphNode[],
   edges: WorkspaceGraphEdge[],

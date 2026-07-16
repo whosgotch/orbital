@@ -1,8 +1,4 @@
-// Full GFM markdown rendering for agent chat replies and research documents:
-// tables, nested/task lists, blockquotes, links, and headings beyond h4, on
-// top of the fenced-code + inline styling the hand-rolled renderer used to
-// cover alone. react-markdown does not render raw HTML, so this stays safe
-// against anything a repo or prompt might smuggle into a reply.
+// react-markdown does not render raw HTML — deliberate, so this stays safe against anything a repo or prompt might smuggle into a reply.
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { highlightCode, languageForTag } from "../highlight";

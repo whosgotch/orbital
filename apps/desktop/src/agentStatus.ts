@@ -1,7 +1,3 @@
-// Derives a glanceable summary of an agent's work for a mission: a phase spine
-// (Plan → Engineer → Review → Patch), the files it touched with sizes, and a
-// live "now doing X" line. This replaces the flat bullet-point transcript as the
-// primary surface — the raw reasoning stays available behind a disclosure.
 import type { AgentRun, MissionLoopState, WorkflowEvent } from "./domain";
 import type { WorkspaceRuntime } from "./workspaceAdapter";
 
@@ -75,8 +71,6 @@ function orderedRuns(runs: AgentRun[]): AgentRun[] {
   return [...top, ...children];
 }
 
-// Parse a unified diff into per-file change summaries. This is the real "what
-// did the agent touch" signal, and it's what makes scope creep visible.
 export function parseDiffFiles(diff: string): TouchedFile[] {
   if (!diff.trim()) return [];
   const files: TouchedFile[] = [];
@@ -177,7 +171,6 @@ export function buildAgentStatus(
   );
   const steps = Math.max(activity.length, stepEvents.length);
 
-  // Elapsed across all the mission's runs.
   const startTimes = runs.map((run) => Date.parse(run.started_at)).filter((t) => !Number.isNaN(t));
   const start = startTimes.length > 0 ? Math.min(...startTimes) : NaN;
   const completions = runs.map((run) => (run.completed_at ? Date.parse(run.completed_at) : NaN));

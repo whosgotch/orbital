@@ -1,6 +1,3 @@
-// The canvas's placeholder when there's nothing to draw yet: no repository
-// open (offers the folder picker + recent list) or a repo with no tasks
-// (points at the prompt bar).
 import { FolderOpen } from "lucide-react";
 import { recentRepoPaths, repoNameFromPath } from "../recentRepos";
 

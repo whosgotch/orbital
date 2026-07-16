@@ -18,8 +18,7 @@ import { useWorkspaceState } from "./useWorkspaceState";
 import { useMissionActions } from "./useMissionActions";
 import { useRepoHistory } from "./useRepoHistory";
 
-// The single canvas draft-task card. It exists only in the rendered graph until
-// Queue/Run turns it into a real mission, so one well-known id is enough.
+// Exists only in the rendered graph until Queue/Run turns it into a real mission, so one well-known id is enough.
 const DRAFT_TASK_NODE_ID = "task_draft";
 
 export function App() {
@@ -57,19 +56,13 @@ export function App() {
     reopenLastSession,
   } = workspace;
 
-  // The node id the follow-up chip was dismissed for — dismissal is
-  // per-selection, so picking a different mission brings the chip back.
+  // Dismissal is per-selection, so picking a different mission brings the follow-up chip back.
   const [followUpDismissedFor, setFollowUpDismissedFor] = useState("");
-  // Which full-width view the task window shows, and whether the verification
-  // detail (command + output) is expanded under the diff. Research missions
-  // show "doc" (the findings document) instead of "changes".
+  // Research missions show "doc" (the findings document) instead of "changes".
   const [taskView, setTaskView] = useState<"chat" | "changes" | "doc">("chat");
   const [verifyOpen, setVerifyOpen] = useState(false);
-  // Whether the diff is popped out into a wide full-screen modal.
   const [diffModalOpen, setDiffModalOpen] = useState(false);
-  // File path to focus in the diff when a file node is clicked.
   const [focusedDiffFile, setFocusedDiffFile] = useState<string | undefined>(undefined);
-  // Claude model for every AI run and chat turn, persisted across sessions.
   // Empty string means the claude CLI's own default.
   const [claudeModel, setClaudeModel] = useState(() => localStorage.getItem("orbital:model") ?? "");
   const pickClaudeModel = (model: string) => {
@@ -77,22 +70,16 @@ export function App() {
     localStorage.setItem("orbital:model", model);
   };
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
-  // Panel width lives here (not in TaskPanel) because the prompt bar centers
-  // itself around the panel via the --task-panel-width CSS var on the shell.
+  // Panel width lives here (not in TaskPanel) because the prompt bar centers itself around the panel via the --task-panel-width CSS var on the shell.
   const [taskPanelWidth, setTaskPanelWidth] = useState(loadPanelWidth);
-  // Whether a draft task card is open on the canvas ("+ Task" was clicked).
   const [draftingTask, setDraftingTask] = useState(false);
-  // Inline prompt editor for refining a mission's instruction before launch.
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
   const [openPanel, setOpenPanel] = useState<null | "mission" | "history">(null);
   const repoHistory = useRepoHistory(activeRepoPath);
 
-  // Selecting a node opens the task window on that step's surface: task and
-  // agent land in the chat, changes and verify land in the diff.
   const handleSelectNode = (nodeId: string) => {
-    // The draft card is an input surface, not a mission — clicking it while
-    // typing must not steal the selection onto some other node.
+    // The draft card is an input surface, not a mission — clicking it while typing must not steal the selection onto some other node.
     if (nodeId === DRAFT_TASK_NODE_ID) return;
     setSelectedNodeId(nodeId);
     const node = workspaceGraphNodes.find((item) => item.id === nodeId);
@@ -118,17 +105,13 @@ export function App() {
     }
   };
 
-  // Selection is explicit: no selected node means no task panel. The panel is
-  // mission-scoped, so repo and campaign nodes never open it.
+  // The panel is mission-scoped, so repo and campaign nodes never open it.
   const selectedGraphNode = workspaceGraphNodes.find((node) => node.id === selectedNodeId);
   const selectedMissionId = selectedGraphNode?.mission_id;
   const selectedMission = workspaceMissions.find((mission) => mission.id === selectedMissionId);
-  // The raw mission record carries the untouched text (attachments included);
-  // the WorkspaceMission's title/prompt are the cleaned display versions.
+  // The raw mission record carries the untouched text (attachments included); the WorkspaceMission's title/prompt are the cleaned display versions.
   const selectedMissionRecord = missionLoopState.missions.find((mission) => mission.id === selectedMission?.id);
   const selectedRepository = selectedMission ? repositoryFor(selectedMission, missionLoopState.repositories) : undefined;
-  // The prompt bar chip: a task/research node selected and not dismissed for
-  // this particular selection becomes the new mission's follow-up target.
   const followUpTarget =
     followUpDismissedFor === selectedNodeId ? undefined : followUpTargetFor(selectedGraphNode, workspaceMissions);
   const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? queuedRuntime;
@@ -138,9 +121,7 @@ export function App() {
   const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
   const patchReady = (selectedPatchDiff ?? "") !== "";
 
-  // The agent run the transcript is scoped to: a clicked child agent uses its own
-  // run id; the manager node uses the mission's top-level run; otherwise the
-  // whole mission's agents are shown together.
+  // A clicked child agent uses its own run id; the manager node uses the mission's top-level run; otherwise the whole mission's agents are shown together.
   const selectedAgentRunId = useMemo(() => {
     if (!selectedGraphNode || selectedGraphNode.kind !== "agent") return undefined;
     if (selectedGraphNode.id.endsWith("_manager")) {
@@ -168,16 +149,13 @@ export function App() {
     [chatByMission, selectedMission?.id],
   );
   const selectedChatSending = chatSendingByMission[selectedMission?.id ?? ""] ?? false;
-  // Each assistant message's own slice of the mission's reasoning, pinned to
-  // its footer in chat — replaces the old whole-transcript "show reasoning".
+  // Each assistant message's own slice of the mission's reasoning, pinned to its footer in chat.
   const reasoningByMessage = useMemo(
     () => sliceTranscriptByMessage(missionLoopState, selectedMissionId ?? "", selectedChatMessages),
     [missionLoopState, selectedMissionId, selectedChatMessages],
   );
 
-  // Close the inline prompt editor whenever the selected node changes, so an
-  // unsaved draft never leaks onto a different mission. Render-phase reset
-  // (the React "adjust state on prop change" pattern) instead of an effect.
+  // Render-phase reset (the React "adjust state on prop change" pattern) instead of an effect, so an unsaved draft never leaks onto a different mission.
   const [editorMissionId, setEditorMissionId] = useState(selectedMissionId);
   if (editorMissionId !== selectedMissionId) {
     setEditorMissionId(selectedMissionId);
@@ -185,9 +163,7 @@ export function App() {
     setTaskView(selectedMission?.kind === "research" ? "doc" : "chat");
   }
 
-  // The research node's document, stored on the mission and rewritten in full
-  // by the researcher every turn. Missions from before the document field
-  // existed fall back to the latest assistant reply.
+  // Missions from before the document field existed fall back to the latest assistant reply.
   const researchDoc =
     selectedMission?.kind === "research"
       ? selectedMissionRecord?.document ??
@@ -195,8 +171,6 @@ export function App() {
         ""
       : "";
 
-  // The repository that will own a task drafted on the canvas: the selected
-  // one, else the active workspace, else whatever is connected.
   const draftRepository =
     selectedRepository ??
     missionLoopState.repositories.find((repo) => repo.path === activeRepoPath) ??
@@ -265,9 +239,6 @@ export function App() {
       return next;
     });
 
-  // Enrich each pipeline card with the live data its step operates on: the
-  // task's worker + launchability, the agent's "now" line, the change set's
-  // stats and gate state, the verify command and result.
   const graphNodes = useMemo(
     () =>
       enrichGraphNodes({
@@ -296,8 +267,6 @@ export function App() {
 
   const graphEdges = workspaceGraphEdges;
 
-  // While "+ Task" is open, the canvas shows one extra draft card wired to its
-  // repo, in its own lane — authored in place, committed via Queue/Run.
   const canvasNodes = useMemo(
     () => buildCanvasNodes(graphNodes, draftingTask, DRAFT_TASK_NODE_ID, draftRepository?.id),
     [graphNodes, draftingTask, draftRepository?.id],

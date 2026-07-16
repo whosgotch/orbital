@@ -1,6 +1,3 @@
-// The "Queue tasks" popover: a backlog textarea, optional multi-repo campaign
-// targeting, a worker pick, and the Queue button. Opened from the rocket icon
-// in the top bar.
 import type { WorkerMode } from "../missionUi";
 import type { Repository } from "../domain";
 

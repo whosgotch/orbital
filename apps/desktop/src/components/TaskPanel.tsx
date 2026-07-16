@@ -1,6 +1,3 @@
-// The right-docked inspector for the selected mission: prompt header, the
-// chat/changes/doc tab switch, and (for changes) the verify bar and
-// approve/reject actions. Props in, callbacks out — App owns all the state.
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Check, ChevronDown, GitBranch, ListTree, Loader, Pencil, Terminal, Trash2, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "./AgentChat";

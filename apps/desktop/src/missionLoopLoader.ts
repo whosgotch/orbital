@@ -1,8 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { MissionLoopState, RepoCommit } from "./domain";
 
-// Every worker command replies with the full mission-loop state as a JSON
-// string.
 async function invokeState(command: string, args: Record<string, unknown>): Promise<MissionLoopState> {
   const state = await invoke<string>(command, args);
   return JSON.parse(state) as MissionLoopState;

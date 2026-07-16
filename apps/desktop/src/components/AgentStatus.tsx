@@ -1,8 +1,3 @@
-// A glanceable summary of what an agent is doing while it's live: a phase
-// spine and a "now" line. Once a turn finishes, its reasoning and file changes
-// are pinned to the chat message that reported them (see AgentChat) — this
-// component only keeps rendering after the fact for read-only tool missions,
-// which have no chat bubbles to pin anything to.
 import { useState } from "react";
 import { Loader, ChevronRight, ChevronDown } from "lucide-react";
 import { AgentTranscript, type TranscriptEntry } from "./AgentTranscript";
@@ -27,9 +22,6 @@ export function AgentStatus({
   // (and whole-run "show reasoning") must stay visible after the run ends too.
   alwaysVisible?: boolean;
 }) {
-  // Reasoning stays folded until asked for: while an agent is live, the phase
-  // spine + now line carry the story, and the conversation stays readable
-  // instead of being flooded by the raw transcript.
   const [showReasoning, setShowReasoning] = useState(false);
 
   if (!model.hasActivity) {

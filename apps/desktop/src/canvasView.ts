@@ -1,7 +1,3 @@
-// Pure builders for what the canvas renders: enriching the workspace graph
-// nodes with live runtime data, and layering the in-progress draft task card
-// on top. Kept free of component state — everything comes in as a parameter —
-// so App.tsx's memos stay one-line calls into here.
 import { parseDiffFiles } from "./agentStatus";
 import { statusFromRuntime, workerModeFromName, workerModeLabel, type WorkerMode } from "./missionUi";
 import { compactLabel } from "./workspaceAdapter";
@@ -9,8 +5,7 @@ import type { CommitInfo, WorkspaceRuntimeMap } from "./workspaceAdapter";
 import type { MissionNodeStatus, WorkspaceGraphEdge, WorkspaceGraphNode, WorkspaceMission } from "./graph";
 import type { Repository } from "./domain";
 
-// Mirrors GraphMap's own GraphNode: the workspace node plus the derived
-// status dot/border color it renders with.
+// Mirrors GraphMap's own GraphNode.
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 
 export type EnrichGraphNodesArgs = {
@@ -25,9 +20,6 @@ export type EnrichGraphNodesArgs = {
   commitByMission: Record<string, CommitInfo>;
 };
 
-// Enrich each pipeline card with the live data its step operates on: the
-// task's worker + launchability, the agent's "now" line, the change set's
-// stats and gate state, the verify command and result.
 export function enrichGraphNodes({
   workspaceGraphNodes,
   workspaceMissions,

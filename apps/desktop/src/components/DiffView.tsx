@@ -1,7 +1,3 @@
-// A dependency-light unified-diff renderer: parses `git diff` text into files,
-// hunks and lines, adds per-line syntax highlighting plus word-level change
-// marks, and stacks every file into one scroll with sticky, collapsible
-// headers — the familiar GitHub review look.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus } from "lucide-react";
 import { escapeHtml, highlightCode, languageForPath } from "../highlight";

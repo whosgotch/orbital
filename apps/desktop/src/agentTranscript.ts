@@ -25,9 +25,7 @@ function eventToEntry(event: WorkflowEvent, labelForRun: (rid: string | undefine
   return { id: event.id, kind, text: event.message, agent: labelForRun(event.run_id) } as TranscriptEntry;
 }
 
-// buildAgentTranscript turns persisted workflow events into the agent's
-// thoughts + actions stream, scoped to one run when a specific agent is
-// selected, otherwise the whole mission's agents in order.
+// Scoped to one run when a specific agent is selected, otherwise the whole mission's agents in order.
 export function buildAgentTranscript(state: MissionLoopState, missionId: string, runId: string | undefined): TranscriptEntry[] {
   const labelForRun = labelForRunFactory(state);
   // Cluster each agent's events together by ordering on when its run started,
@@ -47,13 +45,9 @@ export function buildAgentTranscript(state: MissionLoopState, missionId: string,
     .filter((entry) => entry.text.trim() !== "");
 }
 
-// sliceTranscriptByMessage pins each assistant message to the slice of the
-// mission's reasoning that produced it: the workflow events between the
-// previous assistant reply (exclusive) and this one (inclusive), in
-// chronological order. Events aren't filtered by run_id — a multi-agent
-// mission (manager + engineer) feeds a single reply, so the whole window
-// belongs to that turn. Events newer than the last assistant message are the
-// in-flight turn, shown live rather than pinned to a bubble.
+// Each assistant message gets the workflow events between the previous assistant reply (exclusive) and this one (inclusive).
+// Events aren't filtered by run_id — a multi-agent mission (manager + engineer) feeds a single reply, so the whole window belongs to that turn.
+// Events newer than the last assistant message are the in-flight turn, shown live rather than pinned to a bubble.
 export function sliceTranscriptByMessage(
   state: MissionLoopState,
   missionId: string,
@@ -79,8 +73,6 @@ export function sliceTranscriptByMessage(
   return result;
 }
 
-// groupChatByMission buckets the flat chat log into per-mission conversations,
-// each ordered oldest-first so the thread reads top to bottom.
 export function groupChatByMission(messages: ChatMessage[]): Record<string, ChatMessage[]> {
   const byMission: Record<string, ChatMessage[]> = {};
   for (const message of messages) {

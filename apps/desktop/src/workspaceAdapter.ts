@@ -18,8 +18,7 @@ export type WorkspaceRuntime = {
 
 export type WorkspaceRuntimeMap = Record<string, WorkspaceRuntime>;
 
-// The commit a mission's patch landed as; hash "" means nothing has landed yet
-// (draft, pending, or a re-apply that changed nothing).
+// hash "" means nothing has landed yet (draft, pending, or a re-apply that changed nothing).
 export type CommitInfo = { hash: string; subject: string; branch: string };
 
 export type WorkspaceView = {
@@ -111,7 +110,7 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
   return {
     id: mission.id,
     repository_id: mission.repository_id,
-    // An extracted task's own short title, else the full prompt as today.
+    // An extracted task's own short title, else the full prompt.
     title: mission.title?.trim() || prompt,
     prompt,
     status: missionStatus(mission, patch?.status, verification),
@@ -140,12 +139,8 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
     meta: repository.branch ? { branch: repository.branch } : undefined,
   }));
 
-  // Every mission is a pipeline of operable steps: Task (run it) → Agent(s)
-  // (talk to them) → Changes (gate them) → Verify (prove them). Agent and gate
-  // nodes appear once their step is real; the Task node always exists — it's
-  // the starting point.
-  // Pasted-image counts come from the raw mission text; the titles the nodes
-  // wear have the attachment lines stripped already.
+  // Every mission is a pipeline of operable steps: Task → Agent(s) → Changes → Verify. Agent and gate nodes appear once their step is real; the Task node always exists.
+  // Pasted-image counts come from the raw mission text; the titles the nodes wear have the attachment lines stripped already.
   const attachmentsByMission = new Map(state.missions.map((mission) => [mission.id, attachmentCount(mission.text)]));
 
   const missionNodes = missions.flatMap((mission) => {
@@ -468,8 +463,6 @@ function stationActivityFromEvents(events: WorkflowEvent[]) {
   });
 }
 
-// compactLabel shortens a mission's text to the node card's title line —
-// enough words to read as a sentence head, an ellipsis when it was cut.
 export function compactLabel(title: string) {
   const words = title.split(/\s+/).filter(Boolean);
   const label = words.slice(0, 6).join(" ");

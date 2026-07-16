@@ -1,10 +1,3 @@
-// The universal intake: a chat-style prompt bar floating at the bottom of the
-// canvas. Enter creates a task instantly (one per line — a whole backlog at
-// once); Research asks a read-only question, whose findings a research node
-// can later turn into draft tasks. Enter and the primary button route by
-// detected intent (question → Research, otherwise Create); the secondary
-// button always offers the other one. Pasted screenshots ride along as
-// attachments.
 import { useRef, useState } from "react";
 import { Check, CornerDownLeft, CornerDownRight, Cpu, Search, X } from "lucide-react";
 import { AttachmentChips } from "./AttachmentChips";
@@ -13,11 +6,9 @@ import { detectIntent } from "../intent";
 import { useModels } from "../useModels";
 
 type PromptBarProps = {
-  // The repository new work lands in; undefined disables the bar.
   repoName?: string;
   repoPath?: string;
-  // The selected mission node Create/Research will chain the new mission
-  // after, if any — cleared by the × on the chip or by selecting elsewhere.
+  // The selected mission node Create/Research will chain the new mission after, if any.
   followUp?: { id: string; title: string };
   onDismissFollowUp: () => void;
   onCreate: (text: string, attachments: string[]) => void;

@@ -1,7 +1,4 @@
-// The bridge that makes the Changes view part of the conversation: a diff isn't
-// a frozen result to approve or reject, it's the current state of a talk with an
-// agent you can keep steering. Typing here sends one more chat turn to the same
-// session, so the diff revises in place instead of being redone from scratch.
+// Sends one more chat turn to the same session, so the diff revises in place instead of being redone from scratch.
 import { useState } from "react";
 import { Loader, SendHorizontal } from "lucide-react";
 

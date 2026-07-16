@@ -1,6 +1,3 @@
-// The app's header: open-repository tabs on the left, panel controls in the
-// top-right corner. Purely presentational — every action is a callback prop,
-// every open/closed flag comes in from App state.
 import { FolderOpen, History, Plus, Rocket, X } from "lucide-react";
 import type { Repository } from "../domain";
 

@@ -1,7 +1,3 @@
-// The workspace's mission-loop state: the raw record from the worker, the
-// per-mission maps derived from it that the canvas and task panel render, and
-// the plumbing that hydrates them — from a full repo load, a folded-in repo
-// state, or one live-streamed record at a time.
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { groupChatByMission } from "./agentTranscript";
@@ -14,13 +10,10 @@ import { forgetRecentRepo, lastOpenRepoPaths, persistOpenRepos, rememberRecentRe
 
 const initialWorkspaceView = workspaceViewFromMissionLoop(emptyMissionLoopState);
 
-// setSelectedNodeId lives in App (it's UI selection, not workspace data), but
-// hydration is what knows whether the selected node survived the reload —
-// so it takes the setter to clear a selection whose node disappeared.
+// Hydration knows whether the selected node survived the reload, so it takes the setter to clear a selection whose node disappeared.
 export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<string>>) {
   const [missionLoopState, setMissionLoopState] = useState(emptyMissionLoopState);
-  // Each opened repository keeps its own worker state; the canvas renders the
-  // union of them all. Keyed by repository id.
+  // Each opened repository keeps its own worker state; the canvas renders the union of them all. Keyed by repository id.
   const repoStatesRef = useRef<Record<string, MissionLoopState>>({});
   const [refreshingMissionLoop, setRefreshingMissionLoop] = useState(false);
   const [missionLoopError, setMissionLoopError] = useState("");
@@ -39,14 +32,10 @@ export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<str
   const [workerModeByMission, setWorkerModeByMission] = useState<Record<string, WorkerMode>>(
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, workerModeFromName(mission.worker)])),
   );
-  // The live conversation with each mission's agent, and which missions have a
-  // chat turn in flight (so the composer shows a spinner while the agent works).
   const [chatByMission, setChatByMission] = useState<Record<string, ChatMessage[]>>({});
   const [chatSendingByMission, setChatSendingByMission] = useState<Record<string, boolean>>({});
 
   const hydrateMissionLoop = (nextMissionLoopState: MissionLoopState) => {
-    // Every state change records which repos are open, so the next session
-    // starts from the same workspace.
     persistOpenRepos(nextMissionLoopState.repositories.map((repo) => repo.path));
     const nextWorkspaceView = workspaceViewFromMissionLoop(nextMissionLoopState);
     setMissionLoopState(nextMissionLoopState);
@@ -67,23 +56,17 @@ export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<str
         nextWorkspaceView.missions.map((mission) => [mission.id, current[mission.id] ?? workerModeFromName(mission.worker)]),
       ),
     }));
-    // Selection never auto-opens the panel: it survives a reload only while
-    // its node still exists.
+    // Selection survives a reload only while its node still exists.
     setSelectedNodeId((current) => (nextWorkspaceView.graphNodes.some((node) => node.id === current) ? current : ""));
   };
 
-  // applyRepoState folds a loaded state into the open set keyed by repo id,
-  // then re-hydrates the canvas from the union — so adding or updating a repo
-  // keeps the others.
   const applyRepoState = (state: MissionLoopState) => {
     const next = { ...repoStatesRef.current, ...splitByRepository(state) };
     repoStatesRef.current = next;
     hydrateMissionLoop(combineRepoStates(next));
   };
 
-  // Merge one live-streamed record (run/event/patch/chat) into the workspace
-  // and re-hydrate, so the canvas and transcript grow while the run is still
-  // working instead of waiting for its final state snapshot.
+  // So the canvas and transcript grow while the run is still working, instead of waiting for its final state snapshot.
   const mergeLiveRecord = (merge: (state: MissionLoopState) => MissionLoopState) => {
     const combined = combineRepoStates(repoStatesRef.current);
     const next = merge(combined);
@@ -96,8 +79,6 @@ export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<str
     hydrateMissionLoop(combineRepoStates(next));
   };
 
-  // Open one repository into the workspace and remember it for the Recent
-  // list. Shared by the path input, the folder browser, and the Recent picker.
   const openRepoAtPath = async (repoPath: string) => {
     setRefreshingMissionLoop(true);
     setMissionLoopError("");
@@ -134,9 +115,7 @@ export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<str
     }
   };
 
-  // Reopen the workspace the last session had open. A path that no longer
-  // opens (moved/deleted repo) is dropped, not surfaced as an error. If
-  // nothing was open, the app starts with no active repo.
+  // A path that no longer opens (moved/deleted repo) is dropped, not surfaced as an error.
   const reopenLastSession = async () => {
     setRefreshingMissionLoop(true);
     setMissionLoopError("");

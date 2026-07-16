@@ -24,23 +24,17 @@ import { useModels } from "../useModels";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 
-// Which agent staffs a drafted task, picked on the draft card.
 export type DraftWorker = "claude-engineer" | "local-command";
 
-// Actions a node card can fire. All are mission-scoped: the card is the
-// operating surface, the callbacks land in App's existing mission plumbing.
 export type NodeActions = {
   onRunTask: (missionId: string) => void;
   onApprove: (missionId: string) => void;
   onReject: (missionId: string) => void;
   onVerify: (missionId: string) => void;
-  // Draft task card: turn the typed prompt into a real mission (optionally
-  // launching it immediately), or discard the draft. The worker is chosen on
-  // the card itself; tools resolve their own execution and ignore it.
+  // Tools resolve their own execution and ignore the worker param.
   onCreateTask: (text: string, run: boolean, kind: "task" | "tool", worker: DraftWorker, model?: string) => void;
   onCancelDraft: () => void;
-  // Task chains: a drawn task→task edge makes the downstream task wait for the
-  // upstream patch to land; deleting the edge dissolves the dependency.
+  // A drawn task→task edge makes the downstream task wait for the upstream patch to land; deleting the edge dissolves the dependency.
   onLinkTasks: (fromMissionId: string, toMissionId: string) => void;
   onUnlinkTasks: (fromMissionId: string, toMissionId: string) => void;
 };
@@ -65,8 +59,7 @@ type GraphMapProps = {
   actions: NodeActions;
 };
 
-// Edges stay neutral unless they carry meaning: a chain (then) and a block are
-// the only relationships worth a hue.
+// Edges stay neutral unless they carry meaning: a chain (then) and a block are the only relationships worth a hue.
 const EDGE_COLOR: Record<string, string> = {
   blocks: "#e5615c",
   then: "#3fb96f",
@@ -88,16 +81,13 @@ const nodeTypes = { orbital: OrbitalNode };
 export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  // Only nodes the user explicitly dragged are pinned here. Everything else is
-  // re-laid-out fresh on every topology change, so adding a repo never collides
-  // with an existing one's stale coordinates.
+  // Only nodes the user explicitly dragged are pinned here; everything else is re-laid-out fresh on every topology change.
   const manualPositionsRef = useRef<Record<string, NodePosition>>({});
   const actionsRef = useRef(actions);
   useEffect(() => {
     actionsRef.current = actions;
   }, [actions]);
-  // Stable action proxy so node data doesn't hold stale App closures — cards
-  // always call through to the latest handlers.
+  // Stable action proxy so node data doesn't hold stale App closures.
   const stableActions = useMemo<NodeActions>(
     () => ({
       onRunTask: (id) => actionsRef.current.onRunTask(id),
@@ -112,13 +102,10 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     [],
   );
 
-  // Settle-in: each node eases into place once, when it first appears — a batch
-  // (opening a repo) settles staggered, a single node spawned mid-run settles
-  // immediately. Delays are pinned per id so re-layouts never replay the motion.
+  // Delays are pinned per id so re-layouts never replay the settle-in motion.
   const settleDelaysRef = useRef<Record<string, number>>({});
 
-  // Node kinds by id, for validating hand-drawn connections: only task→task
-  // edges mean anything, so only those are allowed to form.
+  // Only task→task edges mean anything, so only those are allowed to form.
   const kindByNodeRef = useRef<Record<string, GraphNodeKind>>({});
   useEffect(() => {
     kindByNodeRef.current = Object.fromEntries(nodes.map((node) => [node.id, node.kind]));
@@ -173,8 +160,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     [stableActions],
   );
 
-  // Re-layout only when the graph's structure changes (nodes or edges added /
-  // removed). Manual drag positions are preserved across data/status updates.
+  // Re-layout only when the graph's structure changes (nodes or edges added / removed); manual drag positions are preserved across data/status updates.
   const topologyKey = useMemo(
     () => `${nodes.map((n) => n.id).sort().join("|")}::${edges.map((e) => e.id).sort().join("|")}`,
     [nodes, edges],
@@ -203,7 +189,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topologyKey]);
 
-  // Patch node data (status/labels) and selection without moving nodes.
   useEffect(() => {
     setRfNodes((current) =>
       current.map((rfNode) => {
@@ -224,8 +209,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     manualPositionsRef.current[node.id] = node.position;
   }, []);
 
-  // Persist positions for every node moved as part of a marquee selection, so a
-  // dragged project lane keeps its new spot across re-layouts.
   const onSelectionDragStop = useCallback((_event: unknown, draggedNodes: Node[]) => {
     draggedNodes.forEach((node) => {
       manualPositionsRef.current[node.id] = node.position;
@@ -239,7 +222,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     [onSelectNode],
   );
 
-  // Clicking empty canvas clears the selection, which closes the task panel.
   const onPaneClick = useCallback(() => onSelectNode(""), [onSelectNode]);
 
   return (
@@ -257,8 +239,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         isValidConnection={isValidConnection}
-        // Forgiving connecting: releasing anywhere near a task card's handle
-        // snaps the chain edge onto it.
+        // Releasing anywhere near a task card's handle snaps the chain edge onto it.
         connectionRadius={48}
         connectionLineStyle={{ stroke: "#3fb96f", strokeWidth: 2 }}
         fitView
@@ -268,9 +249,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         proOptions={{ hideAttribution: true }}
         nodesConnectable
         edgesFocusable={false}
-        // Finder-style marquee: left-drag the canvas draws a selection box;
-        // hold Space (or middle/right mouse) to pan instead. Selected nodes
-        // drag together so a whole project lane moves as one.
+        // Left-drag draws a selection box; hold Space (or middle/right mouse) to pan instead.
         selectionOnDrag
         selectionMode={SelectionMode.Partial}
         panOnDrag={[1, 2]}
@@ -305,8 +284,7 @@ function toRfEdge(
     (fromMission != null && runningMissionIds.has(fromMission)) || (toMission != null && runningMissionIds.has(toMission));
   const color = selected ? "#ececee" : edgeColor(edge.kind);
 
-  // Hand-drawn chain edges stay interactive so they can be selected and
-  // deleted (= unlink); generated pipeline edges are wallpaper.
+  // Hand-drawn chain edges stay interactive so they can be selected and deleted (= unlink); generated pipeline edges are wallpaper.
   const isChain = edge.kind === "then";
 
   return {
@@ -342,9 +320,6 @@ const KIND_LABEL: Record<GraphNodeKind, string> = {
   research: "Research",
 };
 
-// One operable card per pipeline step. The header names the function, the body
-// shows its live state, the footer holds the action that step affords: Run on
-// a task, Approve/Reject on changes, Verify on the ship gate.
 function OrbitalNode({ data, selected }: NodeProps) {
   const node = data as OrbitalNodeData;
   const live = node.meta?.live ?? false;
@@ -353,8 +328,7 @@ function OrbitalNode({ data, selected }: NodeProps) {
     return <DraftTaskNode node={node} selected={selected ?? false} />;
   }
 
-  // Only task, tool, and research cards accept hand-drawn connections: a chain
-  // edge starts the downstream step when the upstream lands.
+  // Only task, tool, and research cards accept hand-drawn connections: a chain edge starts the downstream step when the upstream lands.
   const connectable = node.kind === "task" || node.kind === "tool" || node.kind === "research";
 
   return (
@@ -376,11 +350,7 @@ function OrbitalNode({ data, selected }: NodeProps) {
   );
 }
 
-// DraftTaskNode is a task card in authoring mode: the prompt is typed straight
-// into the node, then Queue adds it to the backlog and Run launches it at once.
-// The draft's text and kind stay local to the card so neither typing nor
-// flipping the Task/Tool switch re-renders the graph. On the Tool side the
-// same field holds a shell command instead of a prompt.
+// Draft text/kind stay local to the card so neither typing nor flipping the Task/Tool switch re-renders the graph.
 function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: boolean }) {
   const [text, setText] = useState("");
   const [kind, setKind] = useState<"task" | "tool">("task");
@@ -625,9 +595,6 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
   );
 }
 
-// Quiet footer chip naming the commit a mission's patch landed as — the
-// mission-node equivalent of TaskPanel's landed-commit line, kept to a short
-// hash so it never competes with the card's real content.
 function CommitChip({ hash }: { hash?: string }) {
   if (!hash) return null;
   return (
@@ -644,8 +611,7 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
   const meta = node.meta;
   const act = node.actions;
 
-  // Interactive controls carry `nodrag` so React Flow lets the click through
-  // instead of starting a card drag. On a failed tool the button is a re-run.
+  // `nodrag` so React Flow lets the click through instead of starting a card drag. On a failed tool the button is a re-run.
   if ((node.kind === "task" || node.kind === "tool" || node.kind === "research") && meta?.launchable) {
     return (
       <div className="node-card-actions">

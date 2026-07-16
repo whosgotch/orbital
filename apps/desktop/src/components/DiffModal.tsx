@@ -1,7 +1,3 @@
-// The wide diff review modal: a left rail of every changed file, a revise box
-// to send another chat turn, and the approve/reject actions — the same gate
-// as the task panel's Changes tab, popped out full-screen with room to
-// navigate a large change set one file at a time.
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, ChevronUp, X } from "lucide-react";
 import { ChangeBadge, DiffView, findFocusFile, parseUnifiedDiff, type DiffFile } from "./DiffView";
@@ -24,8 +20,6 @@ type DiffModalProps = {
   onApprove: () => void;
 };
 
-// Split a path into its muted directory prefix and emphasized basename for
-// the rail — e.g. "src/components/DiffModal.tsx" -> ("src/components/", "DiffModal.tsx").
 function splitPath(path: string): { dir: string; base: string } {
   const slash = path.lastIndexOf("/");
   return slash === -1 ? { dir: "", base: path } : { dir: path.slice(0, slash + 1), base: path.slice(slash + 1) };

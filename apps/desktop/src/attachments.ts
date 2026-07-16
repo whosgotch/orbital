@@ -1,7 +1,4 @@
-// Pasted images: the input-parity piece of the prompt bar and node chats.
-// A pasted screenshot is saved under <repo>/.orbital/attachments and travels
-// as a file path inside the mission/chat text — the agent opens the file from
-// disk to look at it.
+// A pasted screenshot is saved under <repo>/.orbital/attachments and travels as a file path inside the mission/chat text — the agent opens the file from disk to look at it.
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -11,7 +8,6 @@ export async function saveAttachment(repoPath: string, file: Blob, extension: st
 
 const ATTACHMENT_LINE_PREFIX = "Attached image — open and view it: ";
 
-// The lines appended to a prompt so the agent knows to open the images.
 export function attachmentLines(paths: string[]): string {
   if (paths.length === 0) return "";
   return "\n\n" + paths.map((path) => `${ATTACHMENT_LINE_PREFIX}${path}`).join("\n");
@@ -50,8 +46,6 @@ function toBase64(file: Blob): Promise<string> {
   });
 }
 
-// usePastedImages wires a composer's onPaste: images land on disk immediately
-// and show as removable chips; the submit handler collects paths and clears.
 export function usePastedImages(repoPath?: string) {
   const [paths, setPaths] = useState<string[]>([]);
 

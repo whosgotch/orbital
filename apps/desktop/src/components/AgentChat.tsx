@@ -1,7 +1,3 @@
-// A live, two-way conversation with an agent. You steer the agent by sending
-// messages; it keeps its session across turns and its diff evolves in place.
-// Agent replies render as markdown; each reply's reasoning and (for the last
-// reply) its change set are pinned to a quiet footer under that message.
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus, Loader, SendHorizontal } from "lucide-react";
 import { AgentStatus } from "./AgentStatus";
@@ -19,8 +15,6 @@ function ChangeGlyph({ change }: { change: FileChange }) {
   return <FilePen size={13} aria-hidden="true" />;
 }
 
-// The one-line summary that rides under the last reply in chat: "3 files
-// changed +12 −4", read like a PR summary line rather than a file list.
 function changesSummary(files: TouchedFile[]): string {
   const additions = files.reduce((sum, file) => sum + file.added, 0);
   const deletions = files.reduce((sum, file) => sum + file.removed, 0);
@@ -28,8 +22,6 @@ function changesSummary(files: TouchedFile[]): string {
   return `${files.length} file${files.length === 1 ? "" : "s"} changed${counts ? ` ${counts}` : ""}`;
 }
 
-// The glanceable change set: what changed, one click from the file's diff.
-// Used by the Changes tab (chat now shows only the one-line summary above).
 export function ChangesCard({ files, onOpenFile }: { files: TouchedFile[]; onOpenFile: (path: string) => void }) {
   const additions = files.reduce((sum, file) => sum + file.added, 0);
   const deletions = files.reduce((sum, file) => sum + file.removed, 0);
@@ -83,10 +75,8 @@ export function AgentChat({
 }: {
   messages: ChatMessage[];
   statusModel: AgentStatusModel;
-  // The whole mission's transcript — used only by the live/read-only status
-  // block below the thread, for the turn that hasn't landed as a message yet.
+  // Used only by the live/read-only status block below the thread, for the turn that hasn't landed as a message yet.
   transcript: TranscriptEntry[];
-  // Each assistant message's own slice of the transcript, pinned to its footer.
   reasoningByMessage: Record<string, TranscriptEntry[]>;
   // Files changed ride along under the last reply as one link; clicking it
   // switches to the Changes tab instead of opening a diff modal from chat.

@@ -1,6 +1,3 @@
-// The workspace's git history: every landed mission (and any outside commit)
-// as a scannable list. Picking a commit opens its diff in the wide viewer, so
-// "what actually landed" is always one click away.
 import { GitCommitHorizontal, Loader } from "lucide-react";
 import type { RepoCommit } from "../domain";
 

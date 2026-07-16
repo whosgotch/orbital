@@ -1,7 +1,3 @@
-// Renders an agent's stream of consciousness: its reasoning (thoughts) and the
-// edits/commands it ran (actions), grouped under the agent that produced them.
-// This is the read-only foundation for a future two-way chat with the agent.
-
 export type TranscriptKind = "thought" | "action" | "status";
 
 export type TranscriptEntry = {
