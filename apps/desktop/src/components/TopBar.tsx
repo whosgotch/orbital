@@ -12,8 +12,6 @@ type TopBarProps = {
   onCloseRepo: (repositoryId: string) => void;
   onChooseFolder: () => void;
   refreshing: boolean;
-  launchableCount: number;
-  onLaunchAll: () => void;
   draftRepositoryAvailable: boolean;
   onDraftTask: () => void;
   openPanel: null | "mission" | "history";
@@ -31,8 +29,6 @@ export function TopBar({
   onCloseRepo,
   onChooseFolder,
   refreshing,
-  launchableCount,
-  onLaunchAll,
   draftRepositoryAvailable,
   onDraftTask,
   openPanel,
@@ -81,11 +77,6 @@ export function TopBar({
       </div>
 
       <div className="topbar-actions">
-        {launchableCount > 1 ? (
-          <button className="ghost mini-text" type="button" onClick={onLaunchAll} title="Launch every queued task in parallel">
-            Run all
-          </button>
-        ) : null}
         <button
           className="ghost icon-button"
           type="button"

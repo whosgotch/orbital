@@ -218,13 +218,11 @@ export function App() {
     intakeWorkerMode,
     setIntakeWorkerMode,
     runningMissionIds,
-    launchableCount,
     createTaskOnCanvas,
     linkTasks,
     unlinkTasks,
     researchFromPrompt,
     createFromPrompt,
-    launchAllMissions,
     dispatchMission,
     sendAgentChat,
     queueMission,
@@ -342,8 +340,6 @@ export function App() {
         onCloseRepo={closeRepo}
         onChooseFolder={chooseWorkspaceFolder}
         refreshing={refreshingMissionLoop}
-        launchableCount={launchableCount}
-        onLaunchAll={launchAllMissions}
         draftRepositoryAvailable={Boolean(draftRepository)}
         onDraftTask={() => setDraftingTask(true)}
         openPanel={openPanel}

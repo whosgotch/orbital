@@ -212,27 +212,10 @@ export function useMissionActions({
     [workspaceMissions, runtimeByMission],
   );
 
-  const missionIsLaunchable = (missionId: string) => {
-    const status = runtimeByMission[missionId]?.status;
-    if (status === undefined || status === "queued" || status === "draft") return true;
-    // A failed tool's Run is its re-run affordance (mirrors the canvas card).
-    const mission = workspaceMissions.find((item) => item.id === missionId);
-    return status === "blocked" && mission?.kind === "tool";
-  };
-  const launchableCount = workspaceMissions.filter((m) => missionIsLaunchable(m.id)).length;
-
   const repoPathForMission = (missionId: string) => {
     const mission = workspaceMissions.find((item) => item.id === missionId);
     const repository = mission ? repositories.find((repo) => repo.id === mission.repository_id) : undefined;
     return repository?.path ?? activeRepoPath;
-  };
-
-  // Launch every launchable mission at once. Each runs in its own worker
-  // process and git worktree, so the backlog burns down in parallel.
-  const launchAllMissions = () => {
-    workspaceMissions
-      .filter((mission) => missionIsLaunchable(mission.id))
-      .forEach((mission) => void dispatchMission(mission.id));
   };
 
   // dispatchMission starts one mission by id, independent of the current
@@ -549,15 +532,12 @@ export function useMissionActions({
     intakeWorkerMode,
     setIntakeWorkerMode,
     runningMissionIds,
-    launchableCount,
     createTaskOnCanvas,
     linkTasks,
     unlinkTasks,
     researchFromPrompt,
     createFromPrompt,
-    missionIsLaunchable,
     repoPathForMission,
-    launchAllMissions,
     dispatchMission,
     sendAgentChat,
     queueMission,
