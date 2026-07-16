@@ -331,6 +331,29 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [diffModalOpen, openPanel, modelPickerOpen, draftingTask, repoHistory]);
 
+  // Canvas keybinds for the selected mission node: Delete/Backspace removes it
+  // (same confirm-and-call flow as the panel's Trash button), Enter opens its
+  // task panel (same as clicking it). Never while typing — repo/campaign
+  // nodes have no selectedMission, so they're naturally exempt.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing = target != null && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (typing || !selectedMission) return;
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        void deleteMission(selectedMission.id);
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        handleSelectNode(selectedNodeId);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // handleSelectNode is a plain closure, recreated every render — re-subscribing is cheap and correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMission, selectedNodeId, deleteMission]);
+
   return (
     <main className={`canvas-shell${selectedMission ? " panel-open" : ""}`}>
       <TopBar
