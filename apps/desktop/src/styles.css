@@ -138,6 +138,11 @@ h3 {
   color: var(--text);
 }
 
+.brand-logo {
+  display: block;
+  border-radius: 3px;
+}
+
 /* Open repositories as tabs: click activates, x closes. */
 .topbar-repos {
   display: flex;

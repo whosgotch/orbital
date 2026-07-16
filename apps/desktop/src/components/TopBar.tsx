@@ -1,7 +1,8 @@
 // The app's header: brand mark, open-repository tabs, and the panel
 // controls that live in the top-right corner. Purely presentational — every
 // action is a callback prop, every open/closed flag comes in from App state.
-import { CircleDot, FolderOpen, History, Plus, Rocket, X } from "lucide-react";
+import { FolderOpen, History, Plus, Rocket, X } from "lucide-react";
+import logo from "../assets/orbital.png";
 import type { Repository } from "../domain";
 
 type TopBarProps = {
@@ -32,7 +33,7 @@ export function TopBar({
   return (
     <header className="topbar">
       <div className="topbar-brand">
-        <CircleDot size={16} aria-hidden="true" />
+        <img src={logo} className="brand-logo" alt="" width={16} height={16} />
         <span>Orbital</span>
       </div>
 
