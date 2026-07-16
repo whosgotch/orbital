@@ -1,7 +1,7 @@
 // react-markdown does not render raw HTML — deliberate, so this stays safe against anything a repo or prompt might smuggle into a reply.
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { highlightCode, languageForTag } from "../highlight";
+import { highlightCode, languageForTag } from "./highlight";
 
 // react-markdown gives code elements a `className` like "language-ts" for
 // fenced blocks and no className at all for inline code.

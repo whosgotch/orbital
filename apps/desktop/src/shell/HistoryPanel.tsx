@@ -1,5 +1,5 @@
 import { GitCommitHorizontal, Loader } from "lucide-react";
-import type { RepoCommit } from "../domain";
+import type { RepoCommit } from "../workspace/domain";
 
 function relativeTime(iso: string): string {
   const then = Date.parse(iso);

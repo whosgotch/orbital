@@ -1,11 +1,11 @@
-import { attachmentCount, stripAttachmentLines } from "./attachments";
+import { attachmentCount, stripAttachmentLines } from "../intake/attachments";
 import type { Mission, MissionLoopState, PatchStatus as WorkerPatchStatus, VerificationRun, WorkflowEvent } from "./domain";
 import type {
   MissionNodeStatus,
   WorkspaceGraphEdge,
   WorkspaceGraphNode,
   WorkspaceMission,
-} from "./graph";
+} from "../canvas/graph";
 
 export type PatchStatus = Extract<WorkerPatchStatus, "pending" | "approved" | "rejected">;
 

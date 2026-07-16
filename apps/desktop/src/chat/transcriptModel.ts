@@ -1,6 +1,6 @@
-import type { TranscriptEntry } from "./components/AgentTranscript";
-import type { ChatMessage, MissionLoopState, WorkflowEvent } from "./domain";
-import { roleLabel } from "./workspaceAdapter";
+import type { TranscriptEntry } from "./AgentTranscript";
+import type { ChatMessage, MissionLoopState, WorkflowEvent } from "../workspace/domain";
+import { roleLabel } from "../workspace/workspaceAdapter";
 
 // A run's worker name, resolved to its display label; shared by the
 // whole-mission transcript and the per-message slices below.

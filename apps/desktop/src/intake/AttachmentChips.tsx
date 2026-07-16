@@ -1,6 +1,6 @@
 // Pasted images pending on a composer: one removable chip per file.
 import { Image as ImageIcon, X } from "lucide-react";
-import { attachmentName } from "../attachments";
+import { attachmentName } from "./attachments";
 
 export function AttachmentChips({ paths, onRemove }: { paths: string[]; onRemove: (path: string) => void }) {
   if (paths.length === 0) return null;

@@ -18,9 +18,9 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Check, GitBranch, GitCommitHorizontal, Loader, Play, ShieldCheck, X } from "lucide-react";
-import { layoutGraph, type NodePosition } from "../graphLayout";
-import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
-import { useModels } from "../useModels";
+import { layoutGraph, type NodePosition } from "./graphLayout";
+import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "./graph";
+import { useModels } from "../workspace/useModels";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 

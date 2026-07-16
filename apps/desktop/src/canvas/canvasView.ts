@@ -1,9 +1,9 @@
-import { parseDiffFiles } from "./agentStatus";
-import { statusFromRuntime, workerModeFromName, workerModeLabel, type WorkerMode } from "./missionUi";
-import { compactLabel } from "./workspaceAdapter";
-import type { CommitInfo, WorkspaceRuntimeMap } from "./workspaceAdapter";
+import { parseDiffFiles } from "../chat/statusModel";
+import { statusFromRuntime, workerModeFromName, workerModeLabel, type WorkerMode } from "../workspace/missionUi";
+import { compactLabel } from "../workspace/workspaceAdapter";
+import type { CommitInfo, WorkspaceRuntimeMap } from "../workspace/workspaceAdapter";
 import type { MissionNodeStatus, WorkspaceGraphEdge, WorkspaceGraphNode, WorkspaceMission } from "./graph";
-import type { Repository } from "./domain";
+import type { Repository } from "../workspace/domain";
 
 // Mirrors GraphMap's own GraphNode.
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };

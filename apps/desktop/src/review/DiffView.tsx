@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus } from "lucide-react";
-import { escapeHtml, highlightCode, languageForPath } from "../highlight";
+import { escapeHtml, highlightCode, languageForPath } from "../ui/highlight";
 
 export type DiffLineKind = "add" | "del" | "context" | "hunk";
 

@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
 import { Check, CornerDownLeft, CornerDownRight, Cpu, Search, X } from "lucide-react";
 import { AttachmentChips } from "./AttachmentChips";
-import { usePastedImages } from "../attachments";
-import { detectIntent } from "../intent";
-import { useModels } from "../useModels";
+import { usePastedImages } from "./attachments";
+import { detectIntent } from "./intent";
+import { useModels } from "../workspace/useModels";
 
 type PromptBarProps = {
   repoName?: string;

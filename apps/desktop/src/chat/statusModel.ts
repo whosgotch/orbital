@@ -1,5 +1,5 @@
-import type { AgentRun, MissionLoopState, WorkflowEvent } from "./domain";
-import type { WorkspaceRuntime } from "./workspaceAdapter";
+import type { AgentRun, MissionLoopState, WorkflowEvent } from "../workspace/domain";
+import type { WorkspaceRuntime } from "../workspace/workspaceAdapter";
 
 export type AgentPhaseStatus = "done" | "active" | "pending" | "failed";
 export type AgentPhase = { id: string; label: string; status: AgentPhaseStatus };

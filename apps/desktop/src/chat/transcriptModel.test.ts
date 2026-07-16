@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { AgentRun, ChatMessage, MissionLoopState, WorkflowEvent } from "./domain";
-import { sliceTranscriptByMessage } from "./agentTranscript";
+import type { AgentRun, ChatMessage, MissionLoopState, WorkflowEvent } from "../workspace/domain";
+import { sliceTranscriptByMessage } from "./transcriptModel";
 
 function runFixture(overrides: Partial<AgentRun>): AgentRun {
   return {

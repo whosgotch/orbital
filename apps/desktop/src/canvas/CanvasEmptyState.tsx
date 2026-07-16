@@ -1,5 +1,5 @@
 import { FolderOpen } from "lucide-react";
-import { recentRepoPaths, repoNameFromPath } from "../recentRepos";
+import { recentRepoPaths, repoNameFromPath } from "../workspace/recentRepos";
 
 type CanvasEmptyStateProps = {
   hasRepositories: boolean;

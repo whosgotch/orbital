@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentRun, Mission, MissionLoopState, PatchProposal, VerificationRun } from "./domain";
-import type { WorkspaceGraphNode, WorkspaceMission } from "./graph";
+import type { WorkspaceGraphNode, WorkspaceMission } from "../canvas/graph";
 import { compactLabel, followUpTargetFor, roleLabel, workspaceViewFromMissionLoop } from "./workspaceAdapter";
 
 const emptyState: MissionLoopState = {

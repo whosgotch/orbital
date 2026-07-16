@@ -1,14 +1,14 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Check, ChevronDown, GitBranch, ListTree, Loader, Pencil, Terminal, Trash2, X } from "lucide-react";
-import { AgentChat, ChangesCard } from "./AgentChat";
+import { AgentChat, ChangesCard } from "../chat/AgentChat";
 import { DocumentView } from "./DocumentView";
-import { ReviseBox } from "./ReviseBox";
-import type { TranscriptEntry } from "./AgentTranscript";
-import type { AgentStatusModel } from "../agentStatus";
-import { verifyPillClass, verifyPillLabel, verificationOutput } from "../missionUi";
-import type { CommitInfo, WorkspaceRuntime } from "../workspaceAdapter";
-import type { WorkspaceMission } from "../graph";
-import type { ChatMessage, Repository } from "../domain";
+import { ReviseBox } from "../chat/ReviseBox";
+import type { TranscriptEntry } from "../chat/AgentTranscript";
+import type { AgentStatusModel } from "../chat/statusModel";
+import { verifyPillClass, verifyPillLabel, verificationOutput } from "../workspace/missionUi";
+import type { CommitInfo, WorkspaceRuntime } from "../workspace/workspaceAdapter";
+import type { WorkspaceMission } from "../canvas/graph";
+import type { ChatMessage, Repository } from "../workspace/domain";
 
 const PANEL_WIDTH_KEY = "orbital.taskPanelWidth";
 const PANEL_WIDTH_MIN = 320;

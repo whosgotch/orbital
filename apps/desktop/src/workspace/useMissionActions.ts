@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { attachmentLines } from "./attachments";
+import { attachmentLines } from "../intake/attachments";
 import {
   defaultLocalCommand,
   errorMessage,
@@ -10,7 +10,7 @@ import {
 } from "./missionUi";
 import { mergeChatMessage, mergeWorkflowEvent, upsertAgentRun, upsertPatchProposal } from "./repoStates";
 import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
-import type { WorkspaceMission } from "./graph";
+import type { WorkspaceMission } from "../canvas/graph";
 import type { WorkspaceRuntimeMap } from "./workspaceAdapter";
 import {
   approvePatchMissionLoopState,

@@ -1,5 +1,5 @@
-import type { WorkerMode } from "../missionUi";
-import type { Repository } from "../domain";
+import type { WorkerMode } from "../workspace/missionUi";
+import type { Repository } from "../workspace/domain";
 
 type QueueIntakePanelProps = {
   repositories: Repository[];

@@ -1,6 +1,6 @@
 // Shared shapes of the workspace canvas: missions as the UI consumes them, and
 // the graph nodes/edges the canvas renders.
-import type { PatchStatus } from "./domain";
+import type { PatchStatus } from "../workspace/domain";
 
 export type MissionNodeStatus = "draft" | "queued" | "running" | "review" | "approved" | "blocked" | "verified";
 

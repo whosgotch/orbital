@@ -1,6 +1,6 @@
 // Renders an AI-authored document: sanitized HTML when it clearly is one,
 // Markdown otherwise. Used by the research Document tab.
-import { Markdown } from "./Markdown";
+import { Markdown } from "../ui/Markdown";
 
 // AI-authored HTML is trusted-ish (our own prompt, local tool), but repo content
 // could steer it, so strip scripts and inline handlers before rendering.

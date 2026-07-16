@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus, Loader, SendHorizontal } from "lucide-react";
 import { AgentStatus } from "./AgentStatus";
 import { AgentTranscript } from "./AgentTranscript";
-import { AttachmentChips } from "./AttachmentChips";
-import { attachmentLines, usePastedImages } from "../attachments";
-import { Markdown } from "./Markdown";
+import { AttachmentChips } from "../intake/AttachmentChips";
+import { attachmentLines, usePastedImages } from "../intake/attachments";
+import { Markdown } from "../ui/Markdown";
 import type { TranscriptEntry } from "./AgentTranscript";
-import type { AgentStatusModel, FileChange, TouchedFile } from "../agentStatus";
-import type { ChatMessage } from "../domain";
+import type { AgentStatusModel, FileChange, TouchedFile } from "./statusModel";
+import type { ChatMessage } from "../workspace/domain";
 
 function ChangeGlyph({ change }: { change: FileChange }) {
   if (change === "added") return <FilePlus size={13} aria-hidden="true" />;

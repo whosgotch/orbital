@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, ChevronUp, X } from "lucide-react";
 import { ChangeBadge, DiffView, findFocusFile, parseUnifiedDiff, type DiffFile } from "./DiffView";
-import { ReviseBox } from "./ReviseBox";
-import type { WorkspaceRuntime } from "../workspaceAdapter";
-import type { WorkspaceMission } from "../graph";
-import type { Repository } from "../domain";
+import { ReviseBox } from "../chat/ReviseBox";
+import type { WorkspaceRuntime } from "../workspace/workspaceAdapter";
+import type { WorkspaceMission } from "../canvas/graph";
+import type { Repository } from "../workspace/domain";
 
 type DiffModalProps = {
   mission: WorkspaceMission;

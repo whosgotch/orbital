@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { AgentRun, MissionLoopState } from "./domain";
-import { buildAgentStatus, parseDiffFiles } from "./agentStatus";
+import type { AgentRun, MissionLoopState } from "../workspace/domain";
+import { buildAgentStatus, parseDiffFiles } from "./statusModel";
 
 const diff = `diff --git a/src/a.ts b/src/a.ts
 --- a/src/a.ts

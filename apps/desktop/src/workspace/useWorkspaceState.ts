@@ -1,6 +1,6 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { groupChatByMission } from "./agentTranscript";
+import { groupChatByMission } from "../chat/transcriptModel";
 import { errorMessage, workerModeFromName, type WorkerMode } from "./missionUi";
 import { combineRepoStates, emptyMissionLoopState, splitByRepository } from "./repoStates";
 import type { ChatMessage, MissionLoopState } from "./domain";

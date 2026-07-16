@@ -1,5 +1,5 @@
 import { FolderOpen, History, Plus, Rocket, X } from "lucide-react";
-import type { Repository } from "../domain";
+import type { Repository } from "../workspace/domain";
 
 type TopBarProps = {
   repositories: Repository[];

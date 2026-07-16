@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Loader, ChevronRight, ChevronDown } from "lucide-react";
 import { AgentTranscript, type TranscriptEntry } from "./AgentTranscript";
-import type { AgentPhaseStatus, AgentStatusModel } from "../agentStatus";
+import type { AgentPhaseStatus, AgentStatusModel } from "./statusModel";
 
 // Claude Code's state glyphs: ✓ done, ✗ failed, ⏺ active, · not reached.
 function PhaseGlyph({ status }: { status: AgentPhaseStatus }) {
