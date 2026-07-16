@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/whosgotch/orbital/worker/internal/domain"
 )
@@ -66,4 +68,18 @@ type Worker interface {
 	Supports(ctx context.Context, request RunRequest) SupportResult
 	StartRun(ctx context.Context, request RunRequest) (<-chan RunEvent, error)
 	CancelRun(ctx context.Context, runID string) error
+}
+
+// sendCancelledEvent reports a run's cancellation on its event stream; shared
+// by every worker's cancel path.
+func sendCancelledEvent(events chan<- RunEvent, runID string) {
+	events <- RunEvent{
+		WorkflowEvent: &domain.WorkflowEvent{
+			ID:        fmt.Sprintf("event_%d", time.Now().UTC().UnixNano()),
+			RunID:     runID,
+			Type:      domain.WorkflowEventRunCancelled,
+			Message:   "Run cancelled.",
+			CreatedAt: time.Now().UTC(),
+		},
+	}
 }

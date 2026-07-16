@@ -498,8 +498,6 @@ export function roleLabel(workerName: string) {
       return "Researcher";
     case "claude-manager":
       return "AI manager";
-    case "mock":
-      return "Demo agent";
     case "local-command":
       return "Local agent";
     default:

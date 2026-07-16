@@ -31,8 +31,6 @@ function phaseLabel(workerName: string): string {
       return "Plan";
     case "claude-engineer":
       return "Engineer";
-    case "mock":
-      return "Demo";
     case "local-command":
       return "Local";
     default:
@@ -46,8 +44,6 @@ function agentLabelFor(workerName: string): string {
       return "Claude · Manager";
     case "claude-engineer":
       return "Claude · Engineer";
-    case "mock":
-      return "Demo agent";
     case "local-command":
       return "Local agent";
     default:
