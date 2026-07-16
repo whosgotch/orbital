@@ -6,10 +6,11 @@
 // button always offers the other one. Pasted screenshots ride along as
 // attachments.
 import { useRef, useState } from "react";
-import { CornerDownLeft, CornerDownRight, Search, X } from "lucide-react";
+import { Check, CornerDownLeft, CornerDownRight, Cpu, Search, X } from "lucide-react";
 import { AttachmentChips } from "./AttachmentChips";
 import { usePastedImages } from "../attachments";
 import { detectIntent } from "../intent";
+import { useModels } from "../useModels";
 
 type PromptBarProps = {
   // The repository new work lands in; undefined disables the bar.
@@ -21,6 +22,10 @@ type PromptBarProps = {
   onDismissFollowUp: () => void;
   onCreate: (text: string, attachments: string[]) => void;
   onResearch: (text: string, attachments: string[]) => void;
+  claudeModel: string;
+  onPickModel: (model: string) => void;
+  modelPickerOpen: boolean;
+  onToggleModelPicker: () => void;
 };
 
 export function PromptBar({
@@ -30,6 +35,10 @@ export function PromptBar({
   onDismissFollowUp,
   onCreate,
   onResearch,
+  claudeModel,
+  onPickModel,
+  modelPickerOpen,
+  onToggleModelPicker,
 }: PromptBarProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -37,6 +46,8 @@ export function PromptBar({
   const trimmed = text.trim();
   const ready = Boolean(trimmed) && Boolean(repoName);
   const intent = detectIntent(trimmed);
+  const models = useModels();
+  const currentModelName = models.find((model) => model.id === claudeModel)?.name ?? claudeModel;
 
   const submit = (action: (value: string, attachments: string[]) => void) => {
     if (!ready) return;
@@ -78,6 +89,39 @@ export function PromptBar({
         }}
       />
       <div className="prompt-bar-actions">
+        <div className="topbar-model">
+          <button
+            type="button"
+            className={`chip model-trigger ${modelPickerOpen ? "active" : ""}`}
+            title="Model used by every AI run and chat turn"
+            aria-haspopup="listbox"
+            aria-expanded={modelPickerOpen}
+            onClick={onToggleModelPicker}
+          >
+            <Cpu size={14} aria-hidden="true" />
+            <span>{currentModelName}</span>
+          </button>
+          {modelPickerOpen ? (
+            <div className="popover model-popover" role="listbox" aria-label="Claude model">
+              {models.map((model) => (
+                <button
+                  key={model.id}
+                  type="button"
+                  role="option"
+                  aria-selected={claudeModel === model.id}
+                  className={`model-option ${claudeModel === model.id ? "active" : ""}`}
+                  onClick={() => onPickModel(model.id)}
+                >
+                  <span className="model-option-name">
+                    {model.name}
+                    {claudeModel === model.id ? <Check size={12} aria-hidden="true" /> : null}
+                  </span>
+                  <span className="model-option-blurb">{model.blurb}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
         {repoName ? <span className="prompt-bar-target">{repoName}</span> : null}
         {intent === "research" ? (
           <button

@@ -344,13 +344,6 @@ export function App() {
         onDraftTask={() => setDraftingTask(true)}
         openPanel={openPanel}
         onTogglePanel={togglePanel}
-        claudeModel={claudeModel}
-        onPickModel={(model) => {
-          pickClaudeModel(model);
-          setModelPickerOpen(false);
-        }}
-        modelPickerOpen={modelPickerOpen}
-        onToggleModelPicker={() => setModelPickerOpen((open) => !open)}
       />
 
       <div className="canvas-area">
@@ -407,6 +400,13 @@ export function App() {
           onDismissFollowUp={() => setFollowUpDismissedFor(selectedNodeId)}
           onCreate={(text, attachments) => void createFromPrompt(text, attachments)}
           onResearch={(text, attachments) => void researchFromPrompt(text, attachments)}
+          claudeModel={claudeModel}
+          onPickModel={(model) => {
+            pickClaudeModel(model);
+            setModelPickerOpen(false);
+          }}
+          modelPickerOpen={modelPickerOpen}
+          onToggleModelPicker={() => setModelPickerOpen((open) => !open)}
         />
 
         {workspaceMissions.length === 0 ? (

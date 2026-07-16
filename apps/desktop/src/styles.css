@@ -311,12 +311,14 @@ h3 {
   justify-content: flex-start;
 }
 
-/* Wins over the base .popover placement, which is declared later in the file. */
+/* Wins over the base .popover placement, which is declared later in the file.
+   The picker now lives in the bottom-docked prompt bar, so its popover opens
+   upward instead of down. */
 .popover.model-popover {
-  top: 34px;
-  bottom: auto;
-  left: auto;
-  right: 0;
+  top: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: auto;
   width: 300px;
   display: flex;
   flex-direction: column;

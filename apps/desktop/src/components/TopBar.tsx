@@ -1,8 +1,7 @@
-// The app's header: brand mark, open-repository tabs, and the panel/model
+// The app's header: brand mark, open-repository tabs, and the panel
 // controls that live in the top-right corner. Purely presentational — every
 // action is a callback prop, every open/closed flag comes in from App state.
-import { Check, CircleDot, Cpu, FolderOpen, History, Plus, Rocket, X } from "lucide-react";
-import { useModels } from "../useModels";
+import { CircleDot, FolderOpen, History, Plus, Rocket, X } from "lucide-react";
 import type { Repository } from "../domain";
 
 type TopBarProps = {
@@ -16,10 +15,6 @@ type TopBarProps = {
   onDraftTask: () => void;
   openPanel: null | "mission" | "history";
   onTogglePanel: (panel: "mission" | "history") => void;
-  claudeModel: string;
-  onPickModel: (model: string) => void;
-  modelPickerOpen: boolean;
-  onToggleModelPicker: () => void;
 };
 
 export function TopBar({
@@ -33,13 +28,7 @@ export function TopBar({
   onDraftTask,
   openPanel,
   onTogglePanel,
-  claudeModel,
-  onPickModel,
-  modelPickerOpen,
-  onToggleModelPicker,
 }: TopBarProps) {
-  const models = useModels();
-  const currentModelName = models.find((model) => model.id === claudeModel)?.name ?? claudeModel;
   return (
     <header className="topbar">
       <div className="topbar-brand">
@@ -105,39 +94,6 @@ export function TopBar({
         >
           <History size={14} aria-hidden="true" />
         </button>
-        <div className="topbar-model">
-          <button
-            type="button"
-            className={`chip model-trigger ${modelPickerOpen ? "active" : ""}`}
-            title="Model used by every AI run and chat turn"
-            aria-haspopup="listbox"
-            aria-expanded={modelPickerOpen}
-            onClick={onToggleModelPicker}
-          >
-            <Cpu size={14} aria-hidden="true" />
-            <span>{currentModelName}</span>
-          </button>
-          {modelPickerOpen ? (
-            <div className="popover model-popover" role="listbox" aria-label="Claude model">
-              {models.map((model) => (
-                <button
-                  key={model.id}
-                  type="button"
-                  role="option"
-                  aria-selected={claudeModel === model.id}
-                  className={`model-option ${claudeModel === model.id ? "active" : ""}`}
-                  onClick={() => onPickModel(model.id)}
-                >
-                  <span className="model-option-name">
-                    {model.name}
-                    {claudeModel === model.id ? <Check size={12} aria-hidden="true" /> : null}
-                  </span>
-                  <span className="model-option-blurb">{model.blurb}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
       </div>
     </header>
   );
