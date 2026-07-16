@@ -1,8 +1,7 @@
-// The app's header: brand mark, open-repository tabs, and the panel
-// controls that live in the top-right corner. Purely presentational — every
-// action is a callback prop, every open/closed flag comes in from App state.
+// The app's header: open-repository tabs on the left, panel controls in the
+// top-right corner. Purely presentational — every action is a callback prop,
+// every open/closed flag comes in from App state.
 import { FolderOpen, History, Plus, Rocket, X } from "lucide-react";
-import logo from "../assets/orbital.png";
 import type { Repository } from "../domain";
 
 type TopBarProps = {
@@ -32,11 +31,6 @@ export function TopBar({
 }: TopBarProps) {
   return (
     <header className="topbar">
-      <div className="topbar-brand">
-        <img src={logo} className="brand-logo" alt="" width={16} height={16} />
-        <span>Orbital</span>
-      </div>
-
       <div className="topbar-repos">
         {repositories.map((repo) => (
           <span key={repo.id} className={`repo-tab ${repo.path === activeRepoPath ? "active" : ""}`}>

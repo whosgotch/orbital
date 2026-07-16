@@ -129,20 +129,6 @@ h3 {
   border-bottom: 1px solid var(--line);
 }
 
-.topbar-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.brand-logo {
-  display: block;
-  border-radius: 3px;
-}
-
 /* Open repositories as tabs: click activates, x closes. */
 .topbar-repos {
   display: flex;
