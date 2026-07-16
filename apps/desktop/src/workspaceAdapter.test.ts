@@ -79,6 +79,12 @@ describe("workspaceViewFromMissionLoop", () => {
     expect(view.missions[0].prompt).toBe("add a version command to the cli");
   });
 
+  it("carries the repository's live branch onto its repo node", () => {
+    const view = workspaceViewFromMissionLoop(state({ missions: [mission({})] }));
+    const repoNode = view.graphNodes.find((node) => node.kind === "repo");
+    expect(repoNode?.meta?.branch).toBe("main");
+  });
+
   it("grows agent, changes and verify stages once a run proposes a patch", () => {
     const view = workspaceViewFromMissionLoop(
       state({ missions: [mission({ status: "waiting_approval" })], agent_runs: [run], patch_proposals: [pendingPatch] }),
@@ -87,7 +93,7 @@ describe("workspaceViewFromMissionLoop", () => {
     expect(view.graphEdges.map((edge) => edge.kind)).toEqual(["owns", "runs", "proposes", "verifies"]);
     expect(view.runtimeByMission.m1.status).toBe("review");
     expect(view.patchDiffByMission.m1).toBe(pendingPatch.diff);
-    expect(view.commitByMission.m1).toEqual({ hash: "", subject: "" });
+    expect(view.commitByMission.m1).toEqual({ hash: "", subject: "", branch: "" });
   });
 
   it("surfaces the landed commit once a patch's apply recorded one", () => {
@@ -96,11 +102,12 @@ describe("workspaceViewFromMissionLoop", () => {
       status: "applied",
       commit_hash: "abc1234",
       commit_subject: "add a version command to the cli",
+      branch: "main",
     };
     const view = workspaceViewFromMissionLoop(
       state({ missions: [mission({ status: "applied" })], agent_runs: [run], patch_proposals: [appliedPatch] }),
     );
-    expect(view.commitByMission.m1).toEqual({ hash: "abc1234", subject: "add a version command to the cli" });
+    expect(view.commitByMission.m1).toEqual({ hash: "abc1234", subject: "add a version command to the cli", branch: "main" });
   });
 
   it("keeps a tool mission as one node with no pipeline stages", () => {

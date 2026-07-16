@@ -111,6 +111,7 @@ export type PatchProposal = {
   updated_at: string;
   commit_hash?: string;
   commit_subject?: string;
+  branch?: string;
 };
 
 export type VerificationStatus = "queued" | "running" | "passed" | "failed";

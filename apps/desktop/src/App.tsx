@@ -133,7 +133,7 @@ export function App() {
     followUpDismissedFor === selectedNodeId ? undefined : followUpTargetFor(selectedGraphNode, workspaceMissions);
   const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? queuedRuntime;
   const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
-  const selectedCommit = (selectedMission ? commitByMission[selectedMission.id] : undefined) ?? { hash: "", subject: "" };
+  const selectedCommit = (selectedMission ? commitByMission[selectedMission.id] : undefined) ?? { hash: "", subject: "", branch: "" };
   const selectedVerificationOutput = (selectedMission ? verificationOutputByMission[selectedMission.id] : undefined) ?? "";
   const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
   const patchReady = (selectedPatchDiff ?? "") !== "";
@@ -270,6 +270,7 @@ export function App() {
         patchDiffByMission,
         verificationOutputByMission,
         verificationCommandByMission,
+        commitByMission,
       }),
     [
       runtimeByMission,
@@ -280,6 +281,7 @@ export function App() {
       patchDiffByMission,
       verificationOutputByMission,
       verificationCommandByMission,
+      commitByMission,
     ],
   );
 

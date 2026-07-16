@@ -5,7 +5,7 @@
 import { parseDiffFiles } from "./agentStatus";
 import { statusFromRuntime, workerModeFromName, workerModeLabel, type WorkerMode } from "./missionUi";
 import { compactLabel } from "./workspaceAdapter";
-import type { WorkspaceRuntimeMap } from "./workspaceAdapter";
+import type { CommitInfo, WorkspaceRuntimeMap } from "./workspaceAdapter";
 import type { MissionNodeStatus, WorkspaceGraphEdge, WorkspaceGraphNode, WorkspaceMission } from "./graph";
 import type { Repository } from "./domain";
 
@@ -22,6 +22,7 @@ export type EnrichGraphNodesArgs = {
   patchDiffByMission: Record<string, string>;
   verificationOutputByMission: Record<string, string>;
   verificationCommandByMission: Record<string, string>;
+  commitByMission: Record<string, CommitInfo>;
 };
 
 // Enrich each pipeline card with the live data its step operates on: the
@@ -36,6 +37,7 @@ export function enrichGraphNodes({
   patchDiffByMission,
   verificationOutputByMission,
   verificationCommandByMission,
+  commitByMission,
 }: EnrichGraphNodesArgs): GraphNode[] {
   // An upstream has landed when its patch was approved or — for tool steps,
   // which have no patch gate — when its command finished as verified.
@@ -67,6 +69,7 @@ export function enrichGraphNodes({
             worker: workerModeLabel(workerModeByMission[missionId] ?? workerModeFromName(mission?.worker)),
             launchable,
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
+            commitHash: commitByMission[missionId]?.hash || undefined,
           },
         };
       }
@@ -88,6 +91,7 @@ export function enrichGraphNodes({
             live: runtime?.status === "running",
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
             verifyState: status === "verified" ? ("passed" as const) : status === "blocked" ? ("failed" as const) : undefined,
+            commitHash: commitByMission[missionId]?.hash || undefined,
           },
         };
       }
@@ -104,6 +108,7 @@ export function enrichGraphNodes({
             ...node.meta,
             launchable,
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
+            commitHash: commitByMission[missionId]?.hash || undefined,
           },
         };
       }

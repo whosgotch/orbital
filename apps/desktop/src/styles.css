@@ -2419,6 +2419,27 @@ dd {
   color: var(--amber);
 }
 
+/* Quiet git identity chips: the live branch on a repo node/panel header, and
+   the short hash a mission's patch landed as. Restrained on purpose — dev-tool
+   trivia, not a status signal — so no color beyond --muted and no motion. */
+.git-branch-chip,
+.git-commit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(152, 152, 159, 0.14);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.git-commit-chip {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
 .node-card-actions {
   display: flex;
   justify-content: flex-end;

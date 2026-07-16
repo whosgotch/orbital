@@ -2,7 +2,7 @@
 // chat/changes/doc tab switch, and (for changes) the verify bar and
 // approve/reject actions. Props in, callbacks out — App owns all the state.
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, ChevronDown, ListTree, Loader, Pencil, Terminal, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, GitBranch, ListTree, Loader, Pencil, Terminal, Trash2, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "./AgentChat";
 import { DocumentView } from "./DocumentView";
 import { ReviseBox } from "./ReviseBox";
@@ -139,6 +139,7 @@ export function TaskPanel({
           <div>
             <div className="section-label">
               {repository?.name ?? "workspace"} · {mission.kind === "tool" ? "tool" : mission.kind === "research" ? "research" : "task"}
+              {repository?.branch ? ` · ${repository.branch}` : ""}
             </div>
             <h2
               className="work-order-title"
@@ -328,6 +329,12 @@ export function TaskPanel({
 
               {commit.hash ? (
                 <div className="landed-commit">
+                  {commit.branch ? (
+                    <span className="git-branch-chip">
+                      <GitBranch size={12} aria-hidden="true" />
+                      {commit.branch}
+                    </span>
+                  ) : null}
                   <code className="history-hash">{commit.hash}</code>
                   <span>{commit.subject}</span>
                 </div>

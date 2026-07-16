@@ -17,7 +17,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, Loader, Play, ShieldCheck, X } from "lucide-react";
+import { Check, GitBranch, GitCommitHorizontal, Loader, Play, ShieldCheck, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "../graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "../graph";
 import { useModels } from "../useModels";
@@ -540,6 +540,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
             {meta.attachments} image{meta.attachments === 1 ? "" : "s"}
           </span>
         ) : null}
+        <CommitChip hash={meta?.commitHash} />
       </div>
     );
   }
@@ -555,6 +556,21 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
           </span>
         ) : null}
         {node.status === "verified" ? <span className="node-tag ok">findings ready</span> : null}
+        <CommitChip hash={meta?.commitHash} />
+      </div>
+    );
+  }
+
+  if (node.kind === "repo") {
+    return (
+      <div className="node-card-body">
+        <p className="node-card-prompt">{node.detail}</p>
+        {meta?.branch ? (
+          <span className="git-branch-chip">
+            <GitBranch size={12} aria-hidden="true" />
+            {meta.branch}
+          </span>
+        ) : null}
       </div>
     );
   }
@@ -597,6 +613,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         {meta?.waitingFor ? <span className="node-tag wait">after: {meta.waitingFor}</span> : null}
         {meta?.verifyState === "passed" ? <span className="node-tag ok">passed</span> : null}
         {meta?.verifyState === "failed" ? <span className="node-tag bad">failed</span> : null}
+        {node.kind === "tool" ? <CommitChip hash={meta?.commitHash} /> : null}
       </div>
     );
   }
@@ -605,6 +622,19 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
     <div className="node-card-body">
       <p className="node-card-prompt">{node.detail}</p>
     </div>
+  );
+}
+
+// Quiet footer chip naming the commit a mission's patch landed as — the
+// mission-node equivalent of TaskPanel's landed-commit line, kept to a short
+// hash so it never competes with the card's real content.
+function CommitChip({ hash }: { hash?: string }) {
+  if (!hash) return null;
+  return (
+    <span className="git-commit-chip">
+      <GitCommitHorizontal size={11} aria-hidden="true" />
+      {hash.slice(0, 7)}
+    </span>
   );
 }
 

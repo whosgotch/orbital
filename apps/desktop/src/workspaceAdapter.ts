@@ -20,7 +20,7 @@ export type WorkspaceRuntimeMap = Record<string, WorkspaceRuntime>;
 
 // The commit a mission's patch landed as; hash "" means nothing has landed yet
 // (draft, pending, or a re-apply that changed nothing).
-export type CommitInfo = { hash: string; subject: string };
+export type CommitInfo = { hash: string; subject: string; branch: string };
 
 export type WorkspaceView = {
   missions: WorkspaceMission[];
@@ -67,7 +67,10 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
   const commitByMission = Object.fromEntries(
     state.missions.map((mission) => {
       const patch = latestPatchForMission(state, mission.id);
-      return [mission.id, { hash: patch?.commit_hash ?? "", subject: patch?.commit_subject ?? "" }];
+      return [
+        mission.id,
+        { hash: patch?.commit_hash ?? "", subject: patch?.commit_subject ?? "", branch: patch?.branch ?? "" },
+      ];
     }),
   );
   const verificationOutputByMission = Object.fromEntries(
@@ -134,6 +137,7 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
     label: repository.name,
     detail: "repository",
     repository_id: repository.id,
+    meta: repository.branch ? { branch: repository.branch } : undefined,
   }));
 
   // Every mission is a pipeline of operable steps: Task (run it) → Agent(s)

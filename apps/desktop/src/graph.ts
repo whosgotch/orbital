@@ -48,6 +48,8 @@ export type GraphNodeMeta = {
   verifyState?: "idle" | "ready" | "passed" | "failed";
   waitingFor?: string; // task: label of the upstream task it waits on
   attachments?: number; // task/research: pasted images riding in the prompt
+  commitHash?: string; // task/tool/research: short hash of the landed commit
+  branch?: string; // repo: current live branch
 };
 
 export type WorkspaceGraphNode = {
