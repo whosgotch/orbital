@@ -7,4 +7,4 @@ apps/desktop/src-tauri/gen/
 
 .vite/
 apps/desktop/src-tauri/binaries/
-.claude/settings.local.json
+.claude/
