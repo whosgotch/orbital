@@ -1,5 +1,3 @@
-/* Flat, neutral, native: one hairline, one radius, one accent spent sparingly.
-   Shadows exist only on true overlays (popovers, modals). */
 :root {
   color-scheme: dark;
   --bg: #0f0f11;
@@ -24,8 +22,6 @@
   box-sizing: border-box;
 }
 
-/* Scrollbars: thin and quiet everywhere — a hairline thumb that only asks for
-   attention under the cursor, never a chrome-heavy track. */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -105,8 +101,6 @@ h3 {
 }
 
 .canvas-shell {
-  /* Width of the docked task panel on the right edge, and the height of the
-     top operating bar the panel and canvas sit under. */
   --task-panel-width: min(440px, calc(100vw - 560px));
   --topbar-height: 44px;
   position: relative;
@@ -117,8 +111,6 @@ h3 {
   overflow: hidden;
 }
 
-/* The top bar: all operating chrome in one strip — brand, open repos, and the
-   workspace actions. The canvas below stays uncovered. */
 .topbar {
   flex: 0 0 var(--topbar-height);
   display: flex;
@@ -129,7 +121,6 @@ h3 {
   border-bottom: 1px solid var(--line);
 }
 
-/* Open repositories as tabs: click activates, x closes. */
 .topbar-repos {
   display: flex;
   align-items: center;
@@ -186,8 +177,6 @@ h3 {
   min-width: 0;
 }
 
-/* The universal intake: a chat-style prompt bar floating bottom-center over
-   the canvas. It shifts left when the task panel docks on the right. */
 .prompt-bar {
   position: absolute;
   bottom: 16px;
@@ -228,7 +217,6 @@ h3 {
   font-size: 12px;
 }
 
-/* Pasted screenshots pending on a composer: one removable chip per file. */
 .attachment-chips {
   display: flex;
   flex-wrap: wrap;
@@ -267,8 +255,6 @@ h3 {
   color: var(--text);
 }
 
-/* The prompt bar's chain-to-selected-node chip — same shape as an attachment
-   chip, distinguished by its corner-arrow icon rather than color. */
 .follow-up-chip .attachment-chip-name {
   max-width: 260px;
 }
@@ -286,15 +272,12 @@ h3 {
   gap: 6px;
 }
 
-/* The repo new work lands in — quiet, informational only. */
 .prompt-bar-target {
   margin-right: auto;
   font-size: 11px;
   color: var(--muted);
 }
 
-/* Model picker: a curated family with plain-language guidance, opened from
-   the top bar. The trigger shows the current pick's friendly name. */
 .model-trigger {
   display: inline-flex;
   align-items: center;
@@ -302,9 +285,7 @@ h3 {
   justify-content: flex-start;
 }
 
-/* Wins over the base .popover placement, which is declared later in the file.
-   The picker now lives in the bottom-docked prompt bar, so its popover opens
-   upward instead of down. */
+/* Must win specificity over .popover, defined later in this file; opens upward since it's anchored in the bottom-docked prompt bar. */
 .popover.model-popover {
   top: auto;
   bottom: calc(100% + 8px);
@@ -399,7 +380,6 @@ h3 {
   margin-bottom: 10px;
 }
 
-/* Git history popover: recent commits, newest first; click one for its diff. */
 .history-popover {
   width: 420px;
   max-height: min(560px, calc(100vh - 140px));
@@ -479,8 +459,6 @@ h3 {
   font-size: 11px;
 }
 
-/* The task panel docks to the right edge, closed until a node is selected.
-   Fixed chat-sized width; full diff review lives in the expand modal. */
 .inspector {
   position: absolute;
   top: calc(var(--topbar-height) + 1px);
@@ -494,7 +472,6 @@ h3 {
   animation: panel-in 160ms ease-out;
 }
 
-/* Drag strip on the task panel's left edge — the only resizable panel. */
 .task-panel-resize-handle {
   position: absolute;
   left: 0;
@@ -535,7 +512,6 @@ h3 {
   background: var(--panel);
 }
 
-/* One view at a time: underline tabs flip the body below. */
 .task-switch {
   flex: 0 0 auto;
   display: flex;
@@ -603,8 +579,7 @@ h3 {
   overflow: auto;
 }
 
-/* The changed-files card sizes to content but scrolls its list when tall,
-   keeping the verify bar and the approve gate pinned at the bottom. */
+/* flex: 0 1 auto (not 1 1 auto) so this sizes to content but still shrinks to scroll, keeping the verify bar and approve gate pinned at the bottom. */
 .task-changes .chat-changes {
   flex: 0 1 auto;
   min-height: 0;
@@ -617,7 +592,6 @@ h3 {
   overflow-y: auto;
 }
 
-/* One restrained line naming the commit an approved patch landed as. */
 .landed-commit {
   display: flex;
   align-items: center;
@@ -627,8 +601,6 @@ h3 {
   font-size: 11px;
 }
 
-/* The rendered document surface: a research mission's findings (see
-   DocumentView). Lives in the docked panel like the task inspector. */
 .plan-doc {
   flex: 1 1 auto;
   min-height: 0;
@@ -639,8 +611,6 @@ h3 {
   padding: 14px 16px;
 }
 
-/* The "Create tasks" affordance sits above a research document, right-aligned
-   so it reads as an action on the findings rather than part of them. */
 .research-doc-actions {
   display: flex;
   justify-content: flex-end;
@@ -658,9 +628,6 @@ h3 {
 .plan-html table { border-collapse: collapse; }
 .plan-html th, .plan-html td { border: 1px solid var(--line); padding: 4px 8px; }
 
-/* Research documents read longer than a chat reply, so give the markdown a
-   touch more room to breathe than the chat-bubble form — still dense, not a
-   blog: modest heading scale, no oversized top-level type. */
 .plan-doc .markdown {
   font-size: 13px;
   line-height: 1.55;
@@ -679,9 +646,6 @@ h3 {
 .plan-doc .md-heading.level-2 { font-size: 14px; }
 .plan-doc .md-heading.level-3 { font-size: 13.5px; }
 
-/* Talk-to-revise: a one-line composer that sits under the diff so the change
-   set stays part of the conversation. Compact so it never competes with the
-   diff or the approve gate. */
 .revise-box {
   flex: 0 0 auto;
   display: flex;
@@ -793,7 +757,6 @@ h3 {
   flex-direction: column;
 }
 
-/* Live per-agent chat: a scrolling thread over a pinned composer. */
 .agent-chat {
   flex: 1 1 auto;
   min-height: 0;
@@ -806,8 +769,7 @@ h3 {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  /* Long mono lines (paths, commands) must wrap, never grow a horizontal
-     scrollbar under the conversation. */
+  /* Must stay hidden: long mono lines (paths, commands) should wrap, not grow a horizontal scrollbar. */
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
@@ -822,9 +784,6 @@ h3 {
   padding: 12px 2px;
 }
 
-/* Each message plus its pinned footer (reasoning toggle, changes line) moves
-   as one unit — the footer takes over the alignment/width the bubble alone
-   used to own. */
 .chat-msg-group {
   display: flex;
   flex-direction: column;
@@ -862,9 +821,6 @@ h3 {
   border-bottom-left-radius: 4px;
 }
 
-/* The quiet footer under an assistant reply: a "› reasoning" toggle and,
-   under the last reply only, the one-line change summary — both read like
-   secondary metadata, never like UI chrome bolted onto the thread. */
 .chat-msg-footer {
   display: flex;
   align-items: center;
@@ -891,7 +847,6 @@ h3 {
   background: rgba(152, 152, 159, 0.1);
 }
 
-/* Markdown inside assistant bubbles: calm, readable, code-forward. */
 .chat-bubble.assistant {
   white-space: normal;
 }
@@ -913,16 +868,11 @@ h3 {
   gap: 3px;
 }
 
-/* Nested lists sit inside an <li>, which is a flex column sibling of the
-   list's own gap — give it its own breathing room instead of collapsing
-   flush against the parent item's text. */
 .markdown li > ul,
 .markdown li > ol {
   margin-top: 3px;
 }
 
-/* Task lists: the leading checkbox aligns with the item's first line rather
-   than floating baseline. */
 .markdown li:has(> input[type="checkbox"]) {
   list-style: none;
   margin-left: -20px;
@@ -1020,7 +970,6 @@ h3 {
   background: var(--panel-2);
 }
 
-/* The chat-side changes card: what the agent touched, one click from the diff. */
 .chat-changes {
   align-self: stretch;
   border: 1px solid var(--line);
@@ -1098,9 +1047,6 @@ h3 {
   white-space: nowrap;
 }
 
-/* The agent's live work rides the thread as its own card — same rhythm as a
-   chat bubble (full width, quiet background), not a docked status panel. */
-/* Not a card: agent activity reads as quiet system lines in the thread. */
 .chat-activity {
   align-self: stretch;
   padding: 2px 0;
@@ -1149,9 +1095,6 @@ h3 {
   border-radius: 6px;
 }
 
-/* Glanceable agent status while live (or, for read-only tool missions,
-   always): one summary line, phase spine, and the "now" line — plain thread
-   text, not a widget. */
 .agent-status {
   flex: 1 1 auto;
   min-height: 0;
@@ -1274,7 +1217,6 @@ button.mini-text {
   padding-top: 10px;
 }
 
-/* Agent transcript: the agent's thoughts + actions stream. */
 .transcript {
   flex: 1 1 auto;
   min-height: 0;
@@ -1355,7 +1297,6 @@ button.mini-text {
   font-size: 12px;
 }
 
-/* Verification result bar: a compact pass/fail pill that expands the log. */
 .verify-bar {
   display: flex;
   align-items: center;
@@ -1439,20 +1380,17 @@ button.mini-text {
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
-  /* Pack entries from the top; without this the grid stretches its rows to fill
-     the tall panel, leaving huge gaps between log lines. */
+  /* Must stay "start": without it, the grid stretches rows to fill the tall panel, leaving huge gaps between log lines. */
   align-content: start;
   overflow-y: auto;
 }
 
-/* Expand-diff button lives at the right end of the panel tab row. */
 .review-tabs .review-expand {
   margin-left: auto;
   align-self: center;
   margin-bottom: 6px;
 }
 
-/* Worker pickers relocated out of the review surface. */
 .intake-worker {
   display: flex;
   flex-direction: column;
@@ -1499,8 +1437,7 @@ button.mini-text {
   gap: 6px;
   max-width: 320px;
   text-align: center;
-  /* The hint layer swallows clicks; the card itself is interactive — it
-     carries the open/recent-repo affordances when nothing is open. */
+  /* Hint layer has pointer-events: none; this override is needed so the card's own affordances stay clickable. */
   pointer-events: auto;
 }
 
@@ -1674,7 +1611,6 @@ select:focus {
 }
 
 
-/* Campaign target picker in the mission intake popover. */
 .campaign-targets {
   margin-top: 4px;
 }
@@ -1701,8 +1637,6 @@ select:focus {
   margin: 0;
 }
 
-/* Campaign card: a coordinated multi-repo change, slightly elevated to read
-   apart from the repo cards it fans out into. */
 .node-card.campaign {
   border-color: var(--line-strong);
   background: var(--panel-2);
@@ -1791,7 +1725,6 @@ button.ghost.danger:hover {
   color: var(--red);
 }
 
-/* A recent repo row is one whole click target that reopens the repo. */
 .recent-repo {
   flex: 1;
   display: flex;
@@ -1973,19 +1906,15 @@ dd {
 .graph-canvas {
   position: absolute;
   inset: 0;
-  /* Own stacking context: React Flow gives nodes large z-indexes (selected
-     cards get 1000+), which would otherwise paint over the inspector (z 4). */
+  /* React Flow gives nodes large z-indexes (selected cards get 1000+); this stacking context keeps them from painting over the inspector (z 4). */
   z-index: 1;
-  /* A quiet top-of-frame glow keeps the canvas from reading as flat black;
-     the dot grid renders above it. */
   background:
     radial-gradient(1200px 640px at 30% -12%, rgba(255, 255, 255, 0.045), transparent 62%),
     radial-gradient(1000px 700px at 88% 108%, rgba(255, 255, 255, 0.028), transparent 60%),
     var(--bg);
 }
 
-/* Marquee-dragging across the canvas must not trigger the browser's native
-   text-selection highlight (a big blue flicker over the node labels). */
+/* Prevents the browser's native text-selection highlight from flickering over node labels during marquee-drag. */
 .graph-canvas,
 .graph-canvas * {
   user-select: none;
@@ -2011,9 +1940,7 @@ dd {
   pointer-events: none;
 }
 
-/* Edges anchor at the handle CENTER — pin that center exactly on the card
-   border (whatever the handle hit-zone size), so arrows touch the cards
-   instead of stopping a handle-radius short of them. */
+/* Edges anchor at the handle CENTER; pin that center exactly on the card border so arrows touch the card instead of stopping short. */
 .react-flow__handle.react-flow__handle-left {
   left: 0;
   top: 50%;
@@ -2027,11 +1954,7 @@ dd {
   transform: translate(50%, -50%);
 }
 
-/* Connectable handles (task cards) are real grab points for drawing a chain
-   edge, so unlike the decorative ones they must be visible and grabbable.
-   React Flow marks them with .connectionindicator. The element itself is a
-   large transparent hit zone — at canvas zoom a dot-sized target is nearly
-   impossible to grab by hand — with the visible dot drawn inside it. */
+/* React Flow marks connectable handles with .connectionindicator. Hit zone is oversized transparent (a dot-sized target is nearly impossible to grab at canvas zoom); the visible dot is drawn inside it. */
 .react-flow__handle.connectionindicator {
   width: 26px;
   height: 26px;
@@ -2045,9 +1968,7 @@ dd {
   cursor: crosshair;
 }
 
-/* React Flow anchors edges at the handle box OUTER edge, so the hit zone must
-   sit fully inside the card for arrows to touch the border. The visible dot is
-   drawn at that outer edge, riding exactly on the card border. */
+/* React Flow anchors edges at the handle box's OUTER edge, so the hit zone must sit fully inside the card for arrows to touch the border. */
 .react-flow__handle.connectionindicator.react-flow__handle-left {
   left: 0;
   top: 50%;
@@ -2079,7 +2000,6 @@ dd {
     box-shadow 120ms ease;
 }
 
-/* The visible dot rides the box edge that touches the card border. */
 .react-flow__handle-left.connectionindicator::after {
   left: 0;
 }
@@ -2099,15 +2019,13 @@ dd {
   transition: stroke 180ms ease;
 }
 
-/* Marquee box drawn while dragging a selection. */
 .react-flow__selection {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 6px;
 }
 
-/* Bounding box that wraps the selected nodes. React Flow makes it focusable,
-   so kill the bright browser focus outline and use a soft dashed frame. */
+/* React Flow makes this focusable; override the bright default focus outline with a soft dashed frame. */
 .react-flow__nodesselection-rect,
 .react-flow__nodesselection-rect:focus,
 .react-flow__nodesselection-rect:focus-visible {
@@ -2139,9 +2057,7 @@ dd {
   fill: var(--soft);
 }
 
-/* Controls and minimap sit above the prompt bar's strip, so the bar never
-   covers them even on narrow windows. Margins steer the React Flow panels —
-   their own .react-flow__panel.bottom rule pins bottom: 0. */
+/* Margins keep controls/minimap above the prompt bar strip on narrow windows; the .react-flow__panel.bottom rule (below) pins bottom: 0 separately. */
 .react-flow__panel.react-flow__controls {
   margin: 0 0 96px 16px;
 }
@@ -2156,12 +2072,6 @@ dd {
   border-radius: 6px;
 }
 
-/* Pipeline node cards: each canvas node is an operable step — the header
-   names the function, the body shows its live state, the footer carries the
-   action that step affords (Run / Approve / Reject / Verify). */
-/* Settle-in: a card eases into place once, when it first appears. The only
-   motion on the canvas after that is state (glyph/color) flips and the live
-   monospace now-line — never looping animation. */
 @keyframes node-settle {
   from {
     opacity: 0;
@@ -2201,7 +2111,6 @@ dd {
   min-height: 72px;
 }
 
-/* State reads as border + dot, never glow. */
 .node-card:hover {
   border-color: var(--line-strong);
 }
@@ -2218,8 +2127,6 @@ dd {
   border-color: rgba(226, 97, 95, 0.6);
 }
 
-/* Landed work fades into the fabric: still on the canvas, still clickable,
-   but the eye goes to what's moving. Hover or selection brings it forward. */
 .node-card.approved,
 .node-card.verified {
   opacity: 0.55;
@@ -2252,8 +2159,6 @@ dd {
   flex-shrink: 0;
 }
 
-/* Status leads the header: dot first, then the kind label — glanceable state
-   without an icon tile. */
 .node-status-dot {
   width: 6px;
   height: 6px;
@@ -2285,7 +2190,6 @@ dd {
   gap: 6px;
 }
 
-/* Two-line clamp keeps prompts readable without ballooning the card. */
 .node-card-prompt {
   margin: 0;
   color: var(--muted);
@@ -2295,7 +2199,6 @@ dd {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  /* Unbreakable tokens (paths, urls) wrap instead of escaping the card. */
   overflow-wrap: anywhere;
 }
 
@@ -2358,15 +2261,11 @@ dd {
   color: var(--red);
 }
 
-/* A chained task waiting for its upstream patch to land. */
 .node-tag.wait {
   background: rgba(217, 164, 65, 0.16);
   color: var(--amber);
 }
 
-/* Quiet git identity chips: the live branch on a repo node/panel header, and
-   the short hash a mission's patch landed as. Restrained on purpose — dev-tool
-   trivia, not a status signal — so no color beyond --muted and no motion. */
 .git-branch-chip,
 .git-commit-chip {
   display: inline-flex;
@@ -2422,8 +2321,6 @@ dd {
   color: #0b1220;
 }
 
-/* Draft task card: the node in authoring mode. Dashed border reads "not real
-   yet"; the textarea is the card's whole point, so it gets the space. */
 .node-card.task.draft,
 .node-card.tool.draft {
   border-style: dashed;
@@ -2469,7 +2366,6 @@ dd {
   font-size: 11px;
 }
 
-/* The Task/Tool switch in a draft card's header. */
 .node-draft-kind {
   display: inline-flex;
   gap: 2px;
@@ -2479,7 +2375,6 @@ dd {
   border-radius: 6px;
 }
 
-/* Which agent staffs the drafted task — picked right on the card. */
 .node-draft-selects {
   display: flex;
   gap: 6px;
@@ -2624,8 +2519,6 @@ dd {
   line-height: 1.4;
 }
 
-/* Full mission intent now lives in the heading; let it wrap to two lines
-   instead of being clipped to a 3-word label. */
 .work-order-title {
   font-size: 13px;
   font-weight: 600;
@@ -2637,8 +2530,6 @@ dd {
   cursor: pointer;
 }
 
-/* The full prompt, expanded below the header by clicking the clamped title.
-   Reads as quiet body text, never competes with the header row. */
 .prompt-full {
   font-size: 12px;
   line-height: 1.5;
@@ -2659,8 +2550,6 @@ dd {
   margin-top: 14px;
 }
 
-/* Node-centric operation: the action bar and inline prompt editor that let the
-   human run, edit, or remove the selected mission node. */
 .node-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2885,8 +2774,7 @@ button.node-action.danger:hover:not(:disabled) {
   line-height: 1.5;
 }
 
-/* Unified diff renderer (components/DiffView.tsx): git/Cursor-style file blocks
-   with line-number gutters and add/remove coloring. */
+/* Unified diff renderer, see components/DiffView.tsx */
 .diff-view {
   flex: 1 1 auto;
   min-height: 160px;
@@ -2918,8 +2806,7 @@ button.node-action.danger:hover:not(:disabled) {
   border-top: 1px solid var(--line);
 }
 
-/* Each file is a collapsible section; its header sticks under the summary bar
-   so you always know which file you're scrolled into. */
+/* Sticky header per file section; top offset adjusted below when a .diff-summary bar is present. */
 .diff-file-head {
   position: sticky;
   top: 0;
@@ -2978,9 +2865,7 @@ button.node-action.danger:hover:not(:disabled) {
   overflow-x: hidden;
 }
 
-/* Wrap long lines so the whole change is readable at once (no sideways scroll),
-   and top-align the gutters so a wrapped line still reads cleanly. The add/del
-   background then always spans the full width instead of breaking mid-line. */
+/* align-items: flex-start keeps gutters top-aligned when a line wraps, so the add/del background still spans the full width. */
 .diff-line {
   display: flex;
   align-items: flex-start;
@@ -3075,7 +2960,6 @@ button.node-action.danger:hover:not(:disabled) {
   margin: 2px 0 0;
 }
 
-/* Rail (file list) + main pane (selected file's diff), side by side. */
 .diff-modal-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -3097,7 +2981,6 @@ button.node-action.danger:hover:not(:disabled) {
   font-size: 13px;
 }
 
-/* Left rail: every file in the patch, "All files" pinned above the list. */
 .diff-rail {
   flex: 0 0 230px;
   display: flex;
@@ -3198,7 +3081,6 @@ button.node-action.danger:hover:not(:disabled) {
   margin-top: 14px;
 }
 
-/* Change-set summary pinned above the stacked file sections. */
 .diff-summary {
   position: sticky;
   top: 0;
