@@ -106,6 +106,29 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   // Delays are pinned per id so re-layouts never replay the settle-in motion.
   const settleDelaysRef = useRef<Record<string, number>>({});
 
+  // Paint-style modifier: Shift while dragging a connection draws (and keeps) a straight edge.
+  const [shiftHeld, setShiftHeld] = useState(false);
+  const shiftRef = useRef(false);
+  const straightEdgesRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      shiftRef.current = event.shiftKey;
+      setShiftHeld(event.shiftKey);
+    };
+    const onBlur = () => {
+      shiftRef.current = false;
+      setShiftHeld(false);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
+
   // Only task→task edges mean anything, so only those are allowed to form.
   const kindByNodeRef = useRef<Record<string, GraphNodeKind>>({});
   useEffect(() => {
@@ -124,6 +147,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
+      if (shiftRef.current) straightEdgesRef.current.add(`${connection.source}::${connection.target}`);
       stableActions.onLinkTasks(connection.source, connection.target);
     },
     [stableActions],
@@ -186,7 +210,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         style: { "--settle-delay": `${settleDelaysRef.current[node.id]}ms` } as React.CSSProperties,
       })) as Node<OrbitalNodeData>[],
     );
-    setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
+    setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds, straightEdgesRef.current)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topologyKey]);
 
@@ -202,7 +226,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         };
       }),
     );
-    setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
+    setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds, straightEdgesRef.current)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds]);
 
@@ -242,7 +266,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         isValidConnection={isValidConnection}
         // Releasing anywhere near a task card's handle snaps the chain edge onto it.
         connectionRadius={48}
-        connectionLineType={ConnectionLineType.SmoothStep}
+        connectionLineType={shiftHeld ? ConnectionLineType.Straight : ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: "#3fb96f", strokeWidth: 2 }}
         fitView
         fitViewOptions={{ padding: 0.2 }}
@@ -278,6 +302,7 @@ function toRfEdge(
   missionByNode: Record<string, string | undefined>,
   selectedMissionId: string,
   runningMissionIds: Set<string>,
+  straightEdges: Set<string>,
 ): Edge {
   const fromMission = missionByNode[edge.from];
   const toMission = missionByNode[edge.to];
@@ -293,7 +318,7 @@ function toRfEdge(
     id: edge.id,
     source: edge.from,
     target: edge.to,
-    type: "smoothstep",
+    type: straightEdges.has(`${edge.from}::${edge.to}`) ? "straight" : "smoothstep",
     animated: active,
     data: { kind: edge.kind },
     deletable: isChain,
