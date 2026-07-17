@@ -276,7 +276,10 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         nodesConnectable
         edgesFocusable={false}
         // Left-drag draws a selection box; hold Space (or middle/right mouse) to pan instead.
+        // Shift must NOT be the selection key: its pane capture-handler would swallow
+        // handle pointerdowns and break shift-drag straight connections.
         selectionOnDrag
+        selectionKeyCode={null}
         selectionMode={SelectionMode.Partial}
         panOnDrag={[1, 2]}
         panActivationKeyCode="Space"
