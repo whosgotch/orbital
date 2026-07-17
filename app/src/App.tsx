@@ -314,16 +314,25 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [diffModalOpen, openPanel, modelPickerOpen, draftingTask, repoHistory]);
 
-  // Canvas keybinds for the selected mission node: Delete/Backspace removes it
-  // (same confirm-and-call flow as the panel's Trash button), Enter opens its
-  // task panel (same as clicking it). Never while typing — repo/campaign
-  // nodes have no selectedMission, so they're naturally exempt.
+  // Canvas keybinds for the selected node. Delete/Backspace removes it: a
+  // mission node runs the panel's confirm-and-delete flow; a repo node closes
+  // the project (same as its TopBar tab X). Enter opens a mission's task panel.
+  // Never while typing.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const typing = target != null && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
-      if (typing || !selectedMission) return;
-      if (event.key === "Delete" || event.key === "Backspace") {
+      if (typing) return;
+      const deleteKey = event.key === "Delete" || event.key === "Backspace";
+      if (deleteKey && selectedGraphNode?.kind === "repo" && selectedGraphNode.repository_id) {
+        event.preventDefault();
+        if (window.confirm(`Remove "${selectedGraphNode.label}" from the canvas? Its tasks and runs stay on disk.`)) {
+          closeRepo(selectedGraphNode.repository_id);
+        }
+        return;
+      }
+      if (!selectedMission) return;
+      if (deleteKey) {
         event.preventDefault();
         void deleteMission(selectedMission.id);
       } else if (event.key === "Enter") {
@@ -335,7 +344,7 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
     // handleSelectNode is a plain closure, recreated every render — re-subscribing is cheap and correct.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMission, selectedNodeId, deleteMission]);
+  }, [selectedMission, selectedGraphNode, selectedNodeId, deleteMission, closeRepo]);
 
   return (
     <main
