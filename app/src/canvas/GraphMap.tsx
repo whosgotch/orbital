@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
+  BaseEdge,
   ConnectionLineType,
   Controls,
+  getSmoothStepPath,
+  getStraightPath,
   Handle,
   MarkerType,
   MiniMap,
@@ -14,6 +17,7 @@ import {
   useNodesState,
   type Connection,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
@@ -78,6 +82,20 @@ function edgeDash(kind: string) {
 }
 
 const nodeTypes = { orbital: OrbitalNode };
+
+// Near-aligned endpoints collapse to a straight line instead of a few-pixel
+// smoothstep jog; the residual slant is imperceptible at this threshold.
+const STRAIGHT_TOLERANCE = 12;
+
+function OrbitalEdge({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, markerEnd, style }: EdgeProps) {
+  const [path] =
+    Math.abs(sourceY - targetY) <= STRAIGHT_TOLERANCE && targetX > sourceX
+      ? getStraightPath({ sourceX, sourceY, targetX, targetY })
+      : getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+  return <BaseEdge path={path} markerEnd={markerEnd} style={style} />;
+}
+
+const edgeTypes = { orbital: OrbitalEdge };
 
 export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
@@ -264,6 +282,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDrag={onNodeDrag}
@@ -330,7 +349,7 @@ function toRfEdge(
     id: edge.id,
     source: edge.from,
     target: edge.to,
-    type: "smoothstep",
+    type: "orbital",
     animated: active,
     data: { kind: edge.kind },
     deletable: isChain,
