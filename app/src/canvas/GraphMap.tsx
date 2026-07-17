@@ -106,28 +106,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   // Delays are pinned per id so re-layouts never replay the settle-in motion.
   const settleDelaysRef = useRef<Record<string, number>>({});
 
-  // Paint-style modifier: Shift while dragging a connection draws (and keeps) a straight edge.
-  const [shiftHeld, setShiftHeld] = useState(false);
-  const shiftRef = useRef(false);
-  const straightEdgesRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      shiftRef.current = event.shiftKey;
-      setShiftHeld(event.shiftKey);
-    };
-    const onBlur = () => {
-      shiftRef.current = false;
-      setShiftHeld(false);
-    };
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("keyup", onKey);
-    window.addEventListener("blur", onBlur);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("keyup", onKey);
-      window.removeEventListener("blur", onBlur);
-    };
-  }, []);
 
   // Only task→task edges mean anything, so only those are allowed to form.
   const kindByNodeRef = useRef<Record<string, GraphNodeKind>>({});
@@ -147,7 +125,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      if (shiftRef.current) straightEdgesRef.current.add(`${connection.source}::${connection.target}`);
       stableActions.onLinkTasks(connection.source, connection.target);
     },
     [stableActions],
@@ -210,7 +187,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         style: { "--settle-delay": `${settleDelaysRef.current[node.id]}ms` } as React.CSSProperties,
       })) as Node<OrbitalNodeData>[],
     );
-    setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds, straightEdgesRef.current)));
+    setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topologyKey]);
 
@@ -226,13 +203,45 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         };
       }),
     );
-    setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds, straightEdgesRef.current)));
+    setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds]);
 
-  const onNodeDragStop = useCallback((_event: unknown, node: Node) => {
-    manualPositionsRef.current[node.id] = node.position;
-  }, []);
+  // Paint-style modifier: Shift while dragging a node aligns it with its upstream
+  // node (handle centers on one row), so the edge between them pulls dead straight.
+  const alignedPosition = useCallback(
+    (nodeId: string, position: NodePosition): NodePosition | null => {
+      const incoming = edges.filter((edge) => edge.to === nodeId);
+      const upstreamId = (incoming.find((edge) => edge.kind === "then") ?? incoming[0])?.from;
+      const upstream = upstreamId ? rfNodes.find((rfNode) => rfNode.id === upstreamId) : undefined;
+      const self = rfNodes.find((rfNode) => rfNode.id === nodeId);
+      if (!upstream || !self) return null;
+      const upstreamHeight = upstream.measured?.height ?? 0;
+      const selfHeight = self.measured?.height ?? 0;
+      return { x: position.x, y: upstream.position.y + (upstreamHeight - selfHeight) / 2 };
+    },
+    [edges, rfNodes],
+  );
+
+  const snapDraggedNode = useCallback(
+    (event: MouseEvent | TouchEvent, node: Node): NodePosition => {
+      const snapped = "shiftKey" in event && event.shiftKey ? alignedPosition(node.id, node.position) : null;
+      if (snapped) {
+        setRfNodes((current) => current.map((rfNode) => (rfNode.id === node.id ? { ...rfNode, position: snapped } : rfNode)));
+      }
+      return snapped ?? node.position;
+    },
+    [alignedPosition, setRfNodes],
+  );
+
+  const onNodeDrag = useCallback((event: MouseEvent | TouchEvent, node: Node) => void snapDraggedNode(event, node), [snapDraggedNode]);
+
+  const onNodeDragStop = useCallback(
+    (event: MouseEvent | TouchEvent, node: Node) => {
+      manualPositionsRef.current[node.id] = snapDraggedNode(event, node);
+    },
+    [snapDraggedNode],
+  );
 
   const onSelectionDragStop = useCallback((_event: unknown, draggedNodes: Node[]) => {
     draggedNodes.forEach((node) => {
@@ -257,6 +266,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onSelectionDragStop={onSelectionDragStop}
         onNodeClick={onNodeClick}
@@ -266,7 +276,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         isValidConnection={isValidConnection}
         // Releasing anywhere near a task card's handle snaps the chain edge onto it.
         connectionRadius={48}
-        connectionLineType={shiftHeld ? ConnectionLineType.Straight : ConnectionLineType.SmoothStep}
+        connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: "#3fb96f", strokeWidth: 2 }}
         fitView
         fitViewOptions={{ padding: 0.2 }}
@@ -277,7 +287,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         edgesFocusable={false}
         // Left-drag draws a selection box; hold Space (or middle/right mouse) to pan instead.
         // Shift must NOT be the selection key: its pane capture-handler would swallow
-        // handle pointerdowns and break shift-drag straight connections.
+        // node/handle pointerdowns and break the shift-align drag.
         selectionOnDrag
         selectionKeyCode={null}
         selectionMode={SelectionMode.Partial}
@@ -305,7 +315,6 @@ function toRfEdge(
   missionByNode: Record<string, string | undefined>,
   selectedMissionId: string,
   runningMissionIds: Set<string>,
-  straightEdges: Set<string>,
 ): Edge {
   const fromMission = missionByNode[edge.from];
   const toMission = missionByNode[edge.to];
@@ -321,7 +330,7 @@ function toRfEdge(
     id: edge.id,
     source: edge.from,
     target: edge.to,
-    type: straightEdges.has(`${edge.from}::${edge.to}`) ? "straight" : "smoothstep",
+    type: "smoothstep",
     animated: active,
     data: { kind: edge.kind },
     deletable: isChain,
