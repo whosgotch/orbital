@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
+  ConnectionLineType,
   Controls,
   Handle,
   MarkerType,
@@ -241,6 +242,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         isValidConnection={isValidConnection}
         // Releasing anywhere near a task card's handle snaps the chain edge onto it.
         connectionRadius={48}
+        connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: "#3fb96f", strokeWidth: 2 }}
         fitView
         fitViewOptions={{ padding: 0.2 }}
@@ -291,6 +293,7 @@ function toRfEdge(
     id: edge.id,
     source: edge.from,
     target: edge.to,
+    type: "smoothstep",
     animated: active,
     data: { kind: edge.kind },
     deletable: isChain,
