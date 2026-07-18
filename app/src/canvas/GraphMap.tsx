@@ -86,9 +86,13 @@ const nodeTypes = { orbital: OrbitalNode };
 // Port row: handles sit this far below the card top (styles.css pins them; = layout NODE_HEIGHT / 2).
 const PORT_Y = 59;
 
-// Near-aligned endpoints collapse to a straight line instead of a few-pixel
-// smoothstep jog; the residual slant is imperceptible at this threshold.
-const STRAIGHT_TOLERANCE = 12;
+// Level ports (sub-pixel rounding only — never a visible slant) render as one
+// straight line; anything else keeps the squared smoothstep. The drag magnet
+// below makes exact levelness the norm, so no diagonal ever appears.
+const STRAIGHT_TOLERANCE = 1.5;
+
+// Dropping a node this close to a connected neighbor's port row snaps it level.
+const MAGNET_RANGE = 14;
 
 function OrbitalEdge({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, markerEnd, style }: EdgeProps) {
   const [path] =
@@ -99,6 +103,12 @@ function OrbitalEdge({ sourceX, sourceY, sourcePosition, targetX, targetY, targe
 }
 
 const edgeTypes = { orbital: OrbitalEdge };
+
+// Distance from card top to the port row (styles.css pins mission-card handles at PORT_Y; short repo/campaign cards center theirs).
+function portOffsetOf(rfNode: Node): number {
+  const kind = (rfNode.data as OrbitalNodeData).kind;
+  return kind === "repo" || kind === "campaign" ? (rfNode.measured?.height ?? PORT_Y * 2) / 2 : PORT_Y;
+}
 
 export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
@@ -228,27 +238,35 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds]);
 
-  // Paint-style modifier: Shift while dragging a node aligns its port row with its
-  // upstream's, so the edge between them pulls dead straight. Ports sit at a fixed
-  // PORT_Y from the card top (styles.css), except short repo/campaign cards where
-  // the port stays at the measured card center.
+  // Straight lines, paint-style: the nearest connected neighbor's port row is
+  // the snap target — Shift hard-locks the dragged node onto it, and a plain
+  // drop within MAGNET_RANGE snaps level on its own, so edges end up straight,
+  // never almost-straight diagonals.
   const alignedPosition = useCallback(
-    (nodeId: string, position: NodePosition): NodePosition | null => {
-      const incoming = edges.filter((edge) => edge.to === nodeId);
-      const upstreamId = (incoming.find((edge) => edge.kind === "then") ?? incoming[0])?.from;
-      const upstream = upstreamId ? rfNodes.find((rfNode) => rfNode.id === upstreamId) : undefined;
-      if (!upstream) return null;
-      const upstreamKind = (upstream.data as OrbitalNodeData).kind;
-      const upstreamPortY =
-        upstreamKind === "repo" || upstreamKind === "campaign" ? (upstream.measured?.height ?? PORT_Y * 2) / 2 : PORT_Y;
-      return { x: position.x, y: upstream.position.y + upstreamPortY - PORT_Y };
+    (nodeId: string, position: NodePosition): { position: NodePosition; distance: number } | null => {
+      const self = rfNodes.find((rfNode) => rfNode.id === nodeId);
+      if (!self) return null;
+      const selfOffset = portOffsetOf(self);
+      let best: { y: number; distance: number } | null = null;
+      for (const edge of edges) {
+        const neighborId = edge.to === nodeId ? edge.from : edge.from === nodeId ? edge.to : null;
+        if (!neighborId) continue;
+        const neighbor = rfNodes.find((rfNode) => rfNode.id === neighborId);
+        if (!neighbor) continue;
+        const y = neighbor.position.y + portOffsetOf(neighbor) - selfOffset;
+        const distance = Math.abs(y - position.y);
+        if (!best || distance < best.distance) best = { y, distance };
+      }
+      return best ? { position: { x: position.x, y: best.y }, distance: best.distance } : null;
     },
     [edges, rfNodes],
   );
 
   const snapDraggedNode = useCallback(
-    (event: MouseEvent | TouchEvent, node: Node): NodePosition => {
-      const snapped = "shiftKey" in event && event.shiftKey ? alignedPosition(node.id, node.position) : null;
+    (event: MouseEvent | TouchEvent, node: Node, magnet: boolean): NodePosition => {
+      const shift = "shiftKey" in event && event.shiftKey;
+      const aligned = alignedPosition(node.id, node.position);
+      const snapped = aligned && (shift || (magnet && aligned.distance <= MAGNET_RANGE)) ? aligned.position : null;
       if (snapped) {
         setRfNodes((current) => current.map((rfNode) => (rfNode.id === node.id ? { ...rfNode, position: snapped } : rfNode)));
       }
@@ -257,11 +275,14 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     [alignedPosition, setRfNodes],
   );
 
-  const onNodeDrag = useCallback((event: MouseEvent | TouchEvent, node: Node) => void snapDraggedNode(event, node), [snapDraggedNode]);
+  const onNodeDrag = useCallback(
+    (event: MouseEvent | TouchEvent, node: Node) => void snapDraggedNode(event, node, false),
+    [snapDraggedNode],
+  );
 
   const onNodeDragStop = useCallback(
     (event: MouseEvent | TouchEvent, node: Node) => {
-      manualPositionsRef.current[node.id] = snapDraggedNode(event, node);
+      manualPositionsRef.current[node.id] = snapDraggedNode(event, node, true);
     },
     [snapDraggedNode],
   );
