@@ -83,6 +83,9 @@ function edgeDash(kind: string) {
 
 const nodeTypes = { orbital: OrbitalNode };
 
+// Port row: handles sit this far below the card top (styles.css pins them; = layout NODE_HEIGHT / 2).
+const PORT_Y = 59;
+
 // Near-aligned endpoints collapse to a straight line instead of a few-pixel
 // smoothstep jog; the residual slant is imperceptible at this threshold.
 const STRAIGHT_TOLERANCE = 12;
@@ -225,18 +228,20 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds]);
 
-  // Paint-style modifier: Shift while dragging a node aligns it with its upstream
-  // node (handle centers on one row), so the edge between them pulls dead straight.
+  // Paint-style modifier: Shift while dragging a node aligns its port row with its
+  // upstream's, so the edge between them pulls dead straight. Ports sit at a fixed
+  // PORT_Y from the card top (styles.css), except short repo/campaign cards where
+  // the port stays at the measured card center.
   const alignedPosition = useCallback(
     (nodeId: string, position: NodePosition): NodePosition | null => {
       const incoming = edges.filter((edge) => edge.to === nodeId);
       const upstreamId = (incoming.find((edge) => edge.kind === "then") ?? incoming[0])?.from;
       const upstream = upstreamId ? rfNodes.find((rfNode) => rfNode.id === upstreamId) : undefined;
-      const self = rfNodes.find((rfNode) => rfNode.id === nodeId);
-      if (!upstream || !self) return null;
-      const upstreamHeight = upstream.measured?.height ?? 0;
-      const selfHeight = self.measured?.height ?? 0;
-      return { x: position.x, y: upstream.position.y + (upstreamHeight - selfHeight) / 2 };
+      if (!upstream) return null;
+      const upstreamKind = (upstream.data as OrbitalNodeData).kind;
+      const upstreamPortY =
+        upstreamKind === "repo" || upstreamKind === "campaign" ? (upstream.measured?.height ?? PORT_Y * 2) / 2 : PORT_Y;
+      return { x: position.x, y: upstream.position.y + upstreamPortY - PORT_Y };
     },
     [edges, rfNodes],
   );

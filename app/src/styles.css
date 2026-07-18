@@ -1940,17 +1940,20 @@ dd {
   pointer-events: none;
 }
 
-/* Edges anchor at the handle CENTER; pin that center exactly on the card border so arrows touch the card instead of stopping short. */
+/* Edges anchor at the handle CENTER; pin that center exactly on the card border so arrows touch the card instead of stopping short.
+   Vertically the port sits at a FIXED 59px (= layout NODE_HEIGHT/2, graphLayout.ts) from the card top, not at 50% of the card's own
+   height: layout aligns card TOPS in a row, so a shared absolute port row keeps a whole pipeline's edges collinear — one straight
+   line — no matter how tall each card grows. Short wallpaper cards (repo/campaign) recenter below. */
 .react-flow__handle.react-flow__handle-left {
   left: 0;
-  top: 50%;
+  top: 59px;
   transform: translate(-50%, -50%);
 }
 
 .react-flow__handle.react-flow__handle-right {
   right: 0;
   left: auto;
-  top: 50%;
+  top: 59px;
   transform: translate(50%, -50%);
 }
 
@@ -1971,15 +1974,21 @@ dd {
 /* React Flow anchors edges at the handle box's OUTER edge, so the hit zone must sit fully inside the card for arrows to touch the border. */
 .react-flow__handle.connectionindicator.react-flow__handle-left {
   left: 0;
-  top: 50%;
+  top: 59px;
   transform: translateY(-50%);
 }
 
 .react-flow__handle.connectionindicator.react-flow__handle-right {
   left: auto;
   right: 0;
-  top: 50%;
+  top: 59px;
   transform: translateY(-50%);
+}
+
+/* Repo/campaign cards are shorter than the 118px layout footprint; a 59px port would hug their bottom edge. */
+.node-card.repo .react-flow__handle,
+.node-card.campaign .react-flow__handle {
+  top: 50%;
 }
 
 
