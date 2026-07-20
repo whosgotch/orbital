@@ -43,6 +43,10 @@ type streamJSONLine struct {
 func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, effort, prompt string, onStep func(kind, msg string)) (string, string, error) {
 	args := []string{"--print",
 		"--permission-mode", "acceptEdits",
+		// WebSearch/WebFetch sit behind their own permission gate that acceptEdits
+		// doesn't cover; headless runs have no TTY to approve it, so without this
+		// every search silently fails with "you haven't granted it yet".
+		"--allowedTools", "WebSearch,WebFetch",
 		"--output-format", "stream-json", "--verbose"}
 	if resumeSessionID != "" {
 		args = append(args, "--resume", resumeSessionID)
