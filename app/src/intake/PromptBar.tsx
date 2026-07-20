@@ -107,7 +107,6 @@ export function PromptBar({
                     {model.name}
                     {claudeModel === model.id ? <Check size={12} aria-hidden="true" /> : null}
                   </span>
-                  <span className="model-option-blurb">{model.blurb}</span>
                 </button>
               ))}
             </div>

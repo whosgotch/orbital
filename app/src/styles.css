@@ -324,11 +324,6 @@ h3 {
   font-weight: 600;
 }
 
-.model-option-blurb {
-  color: var(--muted);
-  font-size: 11px;
-}
-
 .chip {
   min-height: 28px;
   padding: 0 10px;
