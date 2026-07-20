@@ -157,7 +157,7 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 			// drifts from the index and the next mission's apply dies with
 			// "does not match index" — and new run worktrees would branch from
 			// a stale HEAD that lacks the missions already landed.
-			commitHash, subject, err := commitApplied(repoPath, patch.Diff, state.Missions[missionIndex].Text)
+			commitHash, subject, err := commitApplied(repoPath, patch.Diff, state.Missions[missionIndex].Text, patch.SuggestedSubject)
 			if err != nil {
 				return err
 			}
@@ -306,7 +306,7 @@ func stagePatchPaths(repoPath string, diff string) {
 // work-in-progress is never swept into a mission's commit. Returns two empty
 // strings for non-git scratch dirs (the mock worker) and when the patch
 // changed nothing (a re-apply already matching HEAD).
-func commitApplied(repoPath, diff, missionText string) (hash, subject string, err error) {
+func commitApplied(repoPath, diff, missionText, suggestedSubject string) (hash, subject string, err error) {
 	if !isGitRepo(repoPath) {
 		return "", "", nil
 	}
@@ -332,11 +332,14 @@ func commitApplied(repoPath, diff, missionText string) (hash, subject string, er
 		return "", "", nil
 	}
 
-	subject = commitSubject(missionText)
+	subject = commitSubject(suggestedSubject, missionText)
 	// Committing by pathspec takes exactly these files' current content, so
 	// anything else the user staged stays staged and out of this commit.
+	// Uses the repo's own git identity (the user's) rather than a fixed
+	// "Orbital" author, so landed commits count toward the user's own history —
+	// including GitHub's contribution graph, which only counts commits whose
+	// author email is verified on the account.
 	commit := exec.Command("git", append([]string{
-		"-c", "user.email=orbital@local", "-c", "user.name=Orbital",
 		"commit", "-m", subject, "--"}, paths...)...)
 	commit.Dir = repoPath
 	if output, err := commit.CombinedOutput(); err != nil {
@@ -358,9 +361,21 @@ func isGitRepo(repoPath string) bool {
 	return cmd.Run() == nil
 }
 
-// commitSubject turns a mission's text into a git subject line: first line
-// only, capped so history stays scannable.
-func commitSubject(missionText string) string {
+// commitSubject prefers the engineer's own Conventional Commits subject
+// (see claudeAgentWorker.buildPrompt's <commit> tag); missionText — the raw
+// user prompt, never in that format — is only a fallback for old runs or a
+// worker that didn't produce one.
+func commitSubject(suggestedSubject, missionText string) string {
+	if suggested := strings.TrimSpace(suggestedSubject); suggested != "" {
+		if index := strings.IndexByte(suggested, '\n'); index != -1 {
+			suggested = strings.TrimSpace(suggested[:index])
+		}
+		if len(suggested) > 72 {
+			suggested = suggested[:69] + "..."
+		}
+		return suggested
+	}
+
 	subject := strings.TrimSpace(missionText)
 	if index := strings.IndexByte(subject, '\n'); index != -1 {
 		subject = strings.TrimSpace(subject[:index])

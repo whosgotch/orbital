@@ -35,7 +35,11 @@ func NewClaudeEngineerWorker() *claudeAgentWorker {
 
 Task: %s
 
-Make the necessary code changes directly by editing files. Keep the change focused and minimal. Do not commit. When done, briefly summarize what you changed.`, task)
+Make the necessary code changes directly by editing files. Keep the change focused and minimal. Do not commit.
+
+When done, briefly summarize what you changed, then end your reply with a Conventional Commits subject line for this exact diff, in this exact tag:
+<commit>type(scope): subject</commit>
+One line, imperative mood, no trailing period, no AI attribution. type is feat/fix/refactor/chore/docs/test/style as fits; scope is the touched area (e.g. app, worker).`, task)
 		},
 	}
 }
@@ -187,6 +191,7 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 			}
 		}
 
+		suggestedSubject := ""
 		if strings.TrimSpace(summary) != "" {
 			// A researcher's reply splits in two: a short note stays in the chat,
 			// the full findings document goes to the mission via its own event.
@@ -194,6 +199,17 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 			findings := ""
 			if w.deliversFindings {
 				chatText, findings = splitResearchReply(summary)
+			}
+
+			// An engineer's reply ends with a <commit> tag (see buildPrompt) — pull
+			// it out for the eventual git commit and keep it out of the chat text.
+			if w.capturesPatch {
+				if tagged := strings.TrimSpace(extractTag(chatText, "commit")); tagged != "" {
+					suggestedSubject = tagged
+					if idx := strings.Index(chatText, "<commit>"); idx != -1 {
+						chatText = strings.TrimSpace(chatText[:idx])
+					}
+				}
 			}
 
 			if !sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventCommandExecuted, "⏺ "+truncate(chatText, 200), "", "claude") {
@@ -250,12 +266,13 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 
 			now := time.Now().UTC()
 			patch := domain.PatchProposal{
-				ID:        fmt.Sprintf("patch_%d", now.UnixNano()),
-				RunID:     request.RunID,
-				Status:    domain.PatchStatusPending,
-				Diff:      diff + "\n",
-				CreatedAt: now,
-				UpdatedAt: now,
+				ID:               fmt.Sprintf("patch_%d", now.UnixNano()),
+				RunID:            request.RunID,
+				Status:           domain.PatchStatusPending,
+				Diff:             diff + "\n",
+				SuggestedSubject: suggestedSubject,
+				CreatedAt:        now,
+				UpdatedAt:        now,
 			}
 
 			select {

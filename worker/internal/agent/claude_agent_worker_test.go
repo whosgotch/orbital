@@ -90,3 +90,17 @@ func TestSplitResearchReplyUnclosedFindingsTag(t *testing.T) {
 		t.Fatalf("findings = %q", findings)
 	}
 }
+
+func TestExtractTagPullsEngineerCommitSubject(t *testing.T) {
+	reply := "Renamed the helper and updated its callers.\n\n<commit>refactor(worker): rename helper for clarity</commit>"
+	got := extractTag(reply, "commit")
+	if got != "refactor(worker): rename helper for clarity" {
+		t.Fatalf("commit tag = %q", got)
+	}
+}
+
+func TestExtractTagEmptyWhenEngineerOmitsCommitTag(t *testing.T) {
+	if got := extractTag("just a summary, no tag", "commit"); got != "" {
+		t.Fatalf("commit tag = %q, want empty", got)
+	}
+}

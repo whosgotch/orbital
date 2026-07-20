@@ -23,6 +23,10 @@ type PatchProposal struct {
 	// applying found nothing to commit (e.g. a re-apply already matching HEAD).
 	CommitHash    string `json:"commit_hash,omitempty"`
 	CommitSubject string `json:"commit_subject,omitempty"`
+	// SuggestedSubject is the Conventional Commits subject line the engineer
+	// proposed for its own diff (see claudeAgentWorker.buildPrompt). commitApplied
+	// uses it verbatim when present, instead of deriving one from mission text.
+	SuggestedSubject string `json:"suggested_subject,omitempty"`
 	// Branch is the branch the commit landed on, captured at apply time.
 	Branch string `json:"branch,omitempty"`
 }
