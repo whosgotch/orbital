@@ -10,8 +10,7 @@ let inflight: Promise<CuratedModel[]> | null = null;
 
 async function fetchModels(): Promise<CuratedModel[]> {
   const models = await loadModels();
-  const blurbs = new Map(CURATED_MODELS.map((model) => [model.id, model.blurb]));
-  const fetched = models.map((model) => ({ id: model.id, name: model.display_name, blurb: blurbs.get(model.id) ?? "" }));
+  const fetched = models.map((model) => ({ id: model.id, name: model.display_name }));
   return [CURATED_MODELS[0], ...fetched]; // keep the empty-id "Default" entry first
 }
 
