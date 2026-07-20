@@ -29,6 +29,7 @@ func startAgentRun(ctx context.Context, args []string, stdout io.Writer) error {
 	service := serviceForStartRun(jsonStore, options)
 	service.SetEventOut(stdout)
 	service.SetRunModel(options.model)
+	service.SetRunEffort(options.effort)
 
 	service.RegisterWorker(agent.NewClaudeEngineerWorker())
 	service.RegisterWorker(agent.NewClaudeResearcherWorker())
@@ -61,6 +62,7 @@ type startRunOptions struct {
 	workerName string
 	command    string
 	model      string
+	effort     string
 }
 
 func parseStartRunOptions(args []string) (startRunOptions, error) {
@@ -70,6 +72,7 @@ func parseStartRunOptions(args []string) (startRunOptions, error) {
 	flags.StringVar(&options.workerName, "worker", options.workerName, "worker name")
 	flags.StringVar(&options.command, "command", "", "local command worker command")
 	flags.StringVar(&options.model, "model", "", "claude model alias or id (empty = CLI default)")
+	flags.StringVar(&options.effort, "effort", "", "model thinking level: low/medium/high/xhigh/max (empty = CLI default)")
 
 	if err := flags.Parse(args); err != nil {
 		return options, usageError()

@@ -40,7 +40,7 @@ type streamJSONLine struct {
 // into a live, multi-turn chat. onStep receives each streamed step as
 // ("thought", reasoning text) for Claude's own narration or ("action", tool
 // description) for an edit/command it runs.
-func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, prompt string, onStep func(kind, msg string)) (string, string, error) {
+func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, effort, prompt string, onStep func(kind, msg string)) (string, string, error) {
 	args := []string{"--print",
 		"--permission-mode", "acceptEdits",
 		"--output-format", "stream-json", "--verbose"}
@@ -49,6 +49,9 @@ func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, pr
 	}
 	if model != "" {
 		args = append(args, "--model", model)
+	}
+	if effort != "" {
+		args = append(args, "--effort", effort)
 	}
 	args = append(args, prompt)
 

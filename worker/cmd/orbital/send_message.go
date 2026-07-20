@@ -26,9 +26,11 @@ func sendAgentMessage(ctx context.Context, args []string, stdout io.Writer) erro
 	text := args[4]
 
 	model := ""
+	effort := ""
 	flags := flag.NewFlagSet("send-message", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&model, "model", "", "claude model alias or id (empty = CLI default)")
+	flags.StringVar(&effort, "effort", "", "model thinking level: low/medium/high/xhigh/max (empty = CLI default)")
 	if err := flags.Parse(args[5:]); err != nil || flags.NArg() != 0 {
 		return usageError()
 	}
@@ -37,6 +39,7 @@ func sendAgentMessage(ctx context.Context, args []string, stdout io.Writer) erro
 	service := app.NewService(jsonStore)
 	service.SetEventOut(stdout)
 	service.SetRunModel(model)
+	service.SetRunEffort(effort)
 
 	service.RegisterWorker(agent.NewClaudeEngineerWorker())
 	service.RegisterWorker(agent.NewClaudeResearcherWorker())

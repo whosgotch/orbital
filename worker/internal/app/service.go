@@ -16,6 +16,9 @@ type Service struct {
 	// (one CLI invocation = one run), stamped onto each RunRequest — including
 	// the child runs an AI manager spawns. Empty means the CLI default.
 	runModel string
+	// runEffort is the model's thinking level (--effort) every run this process
+	// starts should use, stamped onto each RunRequest. Empty means the CLI default.
+	runEffort string
 	// streamMu serializes writes to eventOut, and worktreeMu serializes git
 	// worktree creation, so the parallel child agents an AI manager spawns don't
 	// corrupt the NDJSON event stream or race `git worktree add`.
@@ -47,6 +50,10 @@ func (s *Service) SetEventOut(w io.Writer) {
 
 func (s *Service) SetRunModel(model string) {
 	s.runModel = model
+}
+
+func (s *Service) SetRunEffort(effort string) {
+	s.runEffort = effort
 }
 
 func (s *Service) RegisterWorker(w agent.Worker) {

@@ -95,6 +95,7 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		RepoPath:        workdir,
 		MissionText:     missionText,
 		Model:           s.runModel,
+		Effort:          s.runEffort,
 		UpstreamContext: upstreamCtx,
 	}
 
@@ -383,6 +384,7 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 		RepoPath:        workdir,
 		MissionText:     missionText,
 		Model:           s.runModel,
+		Effort:          s.runEffort,
 		UpstreamContext: upstreamCtx,
 	}
 

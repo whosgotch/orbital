@@ -69,7 +69,14 @@ export function App() {
     setClaudeModel(model);
     localStorage.setItem("orbital:model", model);
   };
+  // The model's thinking level (--effort). Empty string means the CLI default.
+  const [claudeEffort, setClaudeEffort] = useState(() => localStorage.getItem("orbital:effort") ?? "");
+  const pickClaudeEffort = (effort: string) => {
+    setClaudeEffort(effort);
+    localStorage.setItem("orbital:effort", effort);
+  };
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [effortPickerOpen, setEffortPickerOpen] = useState(false);
   // Panel width lives here (not in TaskPanel) because the prompt bar centers itself around the panel via the --task-panel-width CSS var on the shell.
   const [taskPanelWidth, setTaskPanelWidth] = useState(loadPanelWidth);
   const [draftingTask, setDraftingTask] = useState(false);
@@ -193,6 +200,7 @@ export function App() {
     mergeLiveRecord,
     setMissionLoopError,
     claudeModel,
+    claudeEffort,
     followUpTarget,
     setDraftingTask,
     setEditingPrompt,
@@ -304,6 +312,10 @@ export function App() {
         setModelPickerOpen(false);
         return;
       }
+      if (effortPickerOpen) {
+        setEffortPickerOpen(false);
+        return;
+      }
       if (draftingTask) {
         setDraftingTask(false);
         return;
@@ -312,7 +324,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [diffModalOpen, openPanel, modelPickerOpen, draftingTask, repoHistory]);
+  }, [diffModalOpen, openPanel, modelPickerOpen, effortPickerOpen, draftingTask, repoHistory]);
 
   // Canvas keybinds for the selected node. Delete/Backspace removes it: a
   // mission node runs the panel's confirm-and-delete flow; a repo node closes
@@ -425,6 +437,13 @@ export function App() {
           }}
           modelPickerOpen={modelPickerOpen}
           onToggleModelPicker={() => setModelPickerOpen((open) => !open)}
+          claudeEffort={claudeEffort}
+          onPickEffort={(effort) => {
+            pickClaudeEffort(effort);
+            setEffortPickerOpen(false);
+          }}
+          effortPickerOpen={effortPickerOpen}
+          onToggleEffortPicker={() => setEffortPickerOpen((open) => !open)}
         />
 
         {workspaceMissions.length === 0 ? (

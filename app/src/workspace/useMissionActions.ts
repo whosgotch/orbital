@@ -45,6 +45,7 @@ export type UseMissionActionsArgs = {
   mergeLiveRecord: (merge: (state: MissionLoopState) => MissionLoopState) => void;
   setMissionLoopError: Dispatch<SetStateAction<string>>;
   claudeModel: string;
+  claudeEffort: string;
   followUpTarget: { id: string; title: string } | undefined;
   setDraftingTask: Dispatch<SetStateAction<boolean>>;
   setEditingPrompt: Dispatch<SetStateAction<boolean>>;
@@ -67,6 +68,7 @@ export function useMissionActions({
   mergeLiveRecord,
   setMissionLoopError,
   claudeModel,
+  claudeEffort,
   followUpTarget,
   setDraftingTask,
   setEditingPrompt,
@@ -227,6 +229,7 @@ export function useMissionActions({
         workerMode,
         workerMode === "local-command" ? localCommand : undefined,
         runModel,
+        claudeEffort,
       );
       applyRepoState(nextMissionLoopState);
       // A tool mission lands the moment its command exits cleanly, with no approve gate to fire the chain from, so downstream tasks release here.
@@ -293,7 +296,7 @@ export function useMissionActions({
     });
 
     try {
-      applyRepoState(await sendAgentMessageLoopState(repoPath, missionId, text, modelByMission[missionId] ?? claudeModel));
+      applyRepoState(await sendAgentMessageLoopState(repoPath, missionId, text, modelByMission[missionId] ?? claudeModel, claudeEffort));
     } catch (error) {
       if (cancelledMissionsRef.current.has(missionId)) return;
       console.error("[orbital] chat failed", error);

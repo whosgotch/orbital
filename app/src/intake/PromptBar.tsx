@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import { Check, CornerDownLeft, CornerDownRight, Cpu, Search, X } from "lucide-react";
+import { Check, CornerDownLeft, CornerDownRight, Cpu, Gauge, Search, X } from "lucide-react";
 import { AttachmentChips } from "./AttachmentChips";
 import { usePastedImages } from "./attachments";
 import { detectIntent } from "./intent";
 import { useModels } from "../workspace/useModels";
+import { EFFORT_LEVELS } from "../workspace/models";
 
 type PromptBarProps = {
   repoName?: string;
@@ -17,6 +18,10 @@ type PromptBarProps = {
   onPickModel: (model: string) => void;
   modelPickerOpen: boolean;
   onToggleModelPicker: () => void;
+  claudeEffort: string;
+  onPickEffort: (effort: string) => void;
+  effortPickerOpen: boolean;
+  onToggleEffortPicker: () => void;
 };
 
 export function PromptBar({
@@ -30,6 +35,10 @@ export function PromptBar({
   onPickModel,
   modelPickerOpen,
   onToggleModelPicker,
+  claudeEffort,
+  onPickEffort,
+  effortPickerOpen,
+  onToggleEffortPicker,
 }: PromptBarProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -39,6 +48,7 @@ export function PromptBar({
   const intent = detectIntent(trimmed);
   const models = useModels();
   const currentModelName = models.find((model) => model.id === claudeModel)?.name ?? claudeModel;
+  const currentEffortName = EFFORT_LEVELS.find((level) => level.id === claudeEffort)?.name ?? claudeEffort;
 
   const submit = (action: (value: string, attachments: string[]) => void) => {
     if (!ready) return;
@@ -106,6 +116,39 @@ export function PromptBar({
                   <span className="model-option-name">
                     {model.name}
                     {claudeModel === model.id ? <Check size={12} aria-hidden="true" /> : null}
+                  </span>
+                  <span className="model-option-blurb">{model.blurb}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <div className="topbar-model">
+          <button
+            type="button"
+            className={`chip model-trigger ${effortPickerOpen ? "active" : ""}`}
+            title="Thinking level (--effort) used by every AI run and chat turn"
+            aria-haspopup="listbox"
+            aria-expanded={effortPickerOpen}
+            onClick={onToggleEffortPicker}
+          >
+            <Gauge size={14} aria-hidden="true" />
+            <span>{currentEffortName}</span>
+          </button>
+          {effortPickerOpen ? (
+            <div className="popover model-popover" role="listbox" aria-label="Thinking level">
+              {EFFORT_LEVELS.map((level) => (
+                <button
+                  key={level.id}
+                  type="button"
+                  role="option"
+                  aria-selected={claudeEffort === level.id}
+                  className={`model-option ${claudeEffort === level.id ? "active" : ""}`}
+                  onClick={() => onPickEffort(level.id)}
+                >
+                  <span className="model-option-name">
+                    {level.name}
+                    {claudeEffort === level.id ? <Check size={12} aria-hidden="true" /> : null}
                   </span>
                 </button>
               ))}
