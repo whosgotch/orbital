@@ -134,6 +134,7 @@ func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text s
 		MissionText:     text,
 		ResumeSessionID: run.SessionID,
 		Model:           s.runModel,
+		Effort:          s.runEffort,
 		UpstreamContext: upstreamCtx,
 	}
 
