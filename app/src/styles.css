@@ -3108,17 +3108,6 @@ button.node-action.danger:hover:not(:disabled) {
   gap: 8px;
 }
 
-/* Word-level change marks inside add/del lines. */
-.diff-mark.add {
-  background: rgba(79, 191, 123, 0.32);
-  border-radius: 6px;
-}
-
-.diff-mark.del {
-  background: rgba(226, 97, 95, 0.34);
-  border-radius: 6px;
-}
-
 .diff-change {
   flex-shrink: 0;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus } from "lucide-react";
-import { escapeHtml, highlightCode, languageForPath } from "../ui/highlight";
+import { highlightCode, languageForPath } from "../ui/highlight";
 
 export type DiffLineKind = "add" | "del" | "context" | "hunk";
 
@@ -9,10 +9,6 @@ export type DiffLine = {
   text: string;
   oldNo?: number;
   newNo?: number;
-  // Word-level change range [start, end) inside `text`, when this line pairs
-  // with its counterpart on the other side of the change.
-  markStart?: number;
-  markEnd?: number;
 };
 
 export type FileChange = "added" | "deleted" | "modified";
@@ -36,51 +32,6 @@ export function findFocusFile(files: DiffFile[], focusPath: string | undefined):
 function stripPrefix(path: string) {
   if (path === "/dev/null") return path;
   return path.replace(/^[ab]\//, "");
-}
-
-// Mark what actually changed inside paired del/add lines: the common prefix
-// and suffix stay plain, the differing middle gets a highlight. Pairs are only
-// made when a run of deletions is followed by an equally long run of additions
-// (the classic "edited these lines" shape); anything else stays line-level.
-function markIntraline(lines: DiffLine[]) {
-  let index = 0;
-  while (index < lines.length) {
-    if (lines[index].kind !== "del") {
-      index += 1;
-      continue;
-    }
-    const delStart = index;
-    while (index < lines.length && lines[index].kind === "del") index += 1;
-    const addStart = index;
-    while (index < lines.length && lines[index].kind === "add") index += 1;
-
-    const delCount = addStart - delStart;
-    const addCount = index - addStart;
-    if (delCount !== addCount) continue;
-
-    for (let offset = 0; offset < delCount; offset += 1) {
-      const del = lines[delStart + offset];
-      const add = lines[addStart + offset];
-      const a = del.text;
-      const b = add.text;
-      let prefix = 0;
-      while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix += 1;
-      let suffix = 0;
-      while (
-        suffix < a.length - prefix &&
-        suffix < b.length - prefix &&
-        a[a.length - 1 - suffix] === b[b.length - 1 - suffix]
-      ) {
-        suffix += 1;
-      }
-      // Entirely different lines gain nothing from a full-width mark.
-      if (prefix === 0 && suffix === 0) continue;
-      del.markStart = prefix;
-      del.markEnd = a.length - suffix;
-      add.markStart = prefix;
-      add.markEnd = b.length - suffix;
-    }
-  }
 }
 
 export function parseUnifiedDiff(diff: string): DiffFile[] {
@@ -149,26 +100,7 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
     }
   }
 
-  for (const file of files) markIntraline(file.lines);
   return files;
-}
-
-// Render one code line: syntax highlighting, with the word-level changed range
-// wrapped in a mark. Segments are highlighted independently — tokens can split
-// at the mark boundary, an acceptable trade for keeping the renderer synchronous.
-function lineHtml(line: DiffLine, language: string | undefined): string {
-  const { markStart, markEnd, text } = line;
-  if (markStart == null || markEnd == null || markStart >= markEnd) {
-    return highlightCode(text, language);
-  }
-  const markClass = line.kind === "add" ? "diff-mark add" : "diff-mark del";
-  return (
-    highlightCode(text.slice(0, markStart), language) +
-    `<span class="${markClass}">` +
-    escapeHtml(text.slice(markStart, markEnd)) +
-    "</span>" +
-    highlightCode(text.slice(markEnd), language)
-  );
 }
 
 export function ChangeBadge({ change }: { change: FileChange }) {
@@ -211,7 +143,7 @@ function FileSection({
                 <>
                   <span className="diff-gutter">{(line.kind === "del" ? line.oldNo : line.newNo) ?? ""}</span>
                   <span className="diff-sign">{line.kind === "add" ? "+" : line.kind === "del" ? "−" : " "}</span>
-                  <span className="diff-code hljs" dangerouslySetInnerHTML={{ __html: lineHtml(line, language) }} />
+                  <span className="diff-code hljs" dangerouslySetInnerHTML={{ __html: highlightCode(line.text, language) }} />
                 </>
               )}
             </div>

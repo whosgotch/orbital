@@ -30,15 +30,6 @@ describe("parseUnifiedDiff", () => {
     expect(add.newNo).toBe(2);
   });
 
-  it("marks only the changed middle of paired edit lines", () => {
-    const [file] = parseUnifiedDiff(modifiedDiff);
-    const del = file.lines.find((line) => line.kind === "del")!;
-    const add = file.lines.find((line) => line.kind === "add")!;
-    // Common prefix `const name = "orbital` and suffix `";` stay unmarked.
-    expect(del.text.slice(del.markStart, del.markEnd)).toBe("");
-    expect(add.text.slice(add.markStart, add.markEnd)).toBe("-app");
-  });
-
   it("detects added and deleted files", () => {
     const diff = `diff --git a/new.txt b/new.txt
 new file mode 100644
