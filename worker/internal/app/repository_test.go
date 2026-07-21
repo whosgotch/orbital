@@ -219,6 +219,9 @@ func initGitRepository(t *testing.T) string {
 
 	repoDir := t.TempDir()
 	runGit(t, repoDir, "init", "-b", "main")
+	// CI runners have no global git identity, so commits need a local one.
+	runGit(t, repoDir, "config", "user.email", "t@t")
+	runGit(t, repoDir, "config", "user.name", "t")
 	return repoDir
 }
 
