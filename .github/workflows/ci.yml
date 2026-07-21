@@ -72,6 +72,20 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
             librsvg2-dev patchelf libssl-dev libxdo-dev
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: worker/go.mod
+
+      # externalBin in tauri.conf.json: the Tauri build script aborts when the
+      # sidecar is missing, so nothing in this job compiles without it.
+      - name: Build worker sidecar
+        run: node scripts/build-worker.mjs
+        working-directory: app
+
       - name: cargo fmt
         run: cargo fmt --check
         working-directory: app/src-tauri
