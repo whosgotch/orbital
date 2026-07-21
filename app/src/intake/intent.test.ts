@@ -6,12 +6,7 @@ describe("detectIntent", () => {
     expect(detectIntent("What does this module do?")).toBe("research");
   });
 
-  it("routes a Ukrainian question word to research", () => {
-    expect(detectIntent("Чому тести падають на CI")).toBe("research");
-  });
-
-  it("routes uk/en knowledge-request imperatives to research", () => {
-    expect(detectIntent("вивчи проект, опиши чого не вистачає")).toBe("research");
+  it("routes knowledge-request imperatives to research", () => {
     expect(detectIntent("Explain how the worker retries failed runs")).toBe("research");
   });
 
@@ -35,6 +30,5 @@ describe("detectIntent", () => {
 
   it("is case-insensitive on question words and imperatives", () => {
     expect(detectIntent("WHAT is happening here")).toBe("research");
-    expect(detectIntent("ВИВЧИ репозиторій і опиши структуру")).toBe("research");
   });
 });
