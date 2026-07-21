@@ -2,6 +2,8 @@
 
 <img alt="Orbital logo" src="/assets/logo.png" width="120"><br>
 <b>Orbital: A canvas for AI coding agents.</b>
+
+<img alt="Orbital canvas" src="/assets/screenshot.png">
 </div>
 
 ## Installation
