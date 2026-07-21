@@ -33,7 +33,7 @@ Very early. Expect bugs.
 
 macOS and Linux only. No Windows build yet.
 
-Not accepting contributions yet.
+Not accepting pull requests yet. Bug reports and issues are welcome.
 
 ## License
 
