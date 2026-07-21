@@ -27,7 +27,7 @@ and git operations.
 ## Conventions
 
 - Conventional Commits, single line: `type(scope): subject`.
-- Comments state constraints the code can't show - no narration.
+- Comment only to prevent a bug or a wrong refactor; prefer better names over prose.
 - Long-running Tauri commands must be `async fn` + `spawn_blocking`, or the UI freezes.
 - React code must pass the React Compiler ESLint rules (no setState-in-effect).
 - The worker CLI prints full JSON state; the frontend consumes it via `status --json`. Field names are Go json tags (snake_case).
