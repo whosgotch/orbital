@@ -31,7 +31,10 @@ The macOS app is unsigned - on first launch, right-click it and choose **Open**.
 
 Very early. Expect bugs.
 
-macOS and Linux only. No Windows build yet.
-
 Not accepting contributions yet.
+
+## License
+
+Source-available under the [Sustainable Use License](LICENSE): free to use and modify
+for your own internal business or personal purposes, no resale or hosting as a service.
 
