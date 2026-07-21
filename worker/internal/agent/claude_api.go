@@ -223,7 +223,7 @@ func ensureGitRepo(ctx context.Context, repoPath string) error {
 	}
 
 	// Keep Orbital's own state out of the baseline so it never appears in diffs.
-	if err := os.WriteFile(filepath.Join(repoPath, ".gitignore"), []byte(".orbital/\n"), 0644); err != nil {
+	if err := appendLineIfMissing(filepath.Join(repoPath, ".gitignore"), ".orbital/"); err != nil {
 		return fmt.Errorf("write .gitignore: %w", err)
 	}
 
@@ -259,22 +259,31 @@ func ensureOrbitalExcluded(ctx context.Context, repoPath string) {
 		excludePath = filepath.Join(repoPath, excludePath)
 	}
 
-	existing, _ := os.ReadFile(excludePath)
-	for _, line := range strings.Split(string(existing), "\n") {
-		if strings.TrimSpace(line) == ".orbital/" {
-			return
-		}
-	}
-
 	if err := os.MkdirAll(filepath.Dir(excludePath), 0755); err != nil {
 		return
 	}
+	_ = appendLineIfMissing(excludePath, ".orbital/")
+}
+
+// appendLineIfMissing adds line to the file at path, creating it if needed and
+// preserving whatever it already held — a folder that is not a repo yet can
+// still carry a .gitignore the user wrote.
+func appendLineIfMissing(path, line string) error {
+	existing, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, existingLine := range strings.Split(string(existing), "\n") {
+		if strings.TrimSpace(existingLine) == line {
+			return nil
+		}
+	}
+
 	content := string(existing)
 	if content != "" && !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
-	content += ".orbital/\n"
-	_ = os.WriteFile(excludePath, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content+line+"\n"), 0644)
 }
 
 // captureGitDiff stages intent-to-add for new files (so they appear in the

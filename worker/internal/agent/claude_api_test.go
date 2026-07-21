@@ -80,3 +80,26 @@ func TestCaptureGitDiffExcludesOrbitalState(t *testing.T) {
 		t.Fatalf("git status mentions .orbital, want it excluded:\n%s", status)
 	}
 }
+
+// A folder that is not a repo yet can still carry a .gitignore the user wrote;
+// initializing the baseline must add to it, never replace it.
+func TestEnsureGitRepoKeepsExistingGitignore(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("node_modules/\n*.log\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ensureGitRepo(context.Background(), dir); err != nil {
+		t.Fatalf("ensureGitRepo() error = %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"node_modules/", "*.log", ".orbital/"} {
+		if !strings.Contains(string(content), want) {
+			t.Fatalf("gitignore lost %q:\n%s", want, content)
+		}
+	}
+}
