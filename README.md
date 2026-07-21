@@ -31,6 +31,8 @@ The macOS app is unsigned - on first launch, right-click it and choose **Open**.
 
 Very early. Expect bugs.
 
+macOS and Linux only. No Windows build yet.
+
 Not accepting contributions yet.
 
 ## License

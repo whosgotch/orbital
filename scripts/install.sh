@@ -65,7 +65,7 @@ case "$os" in
     ;;
 
   MINGW*|MSYS*|CYGWIN*)
-    fail "on Windows, download the .msi installer from https://github.com/$REPO/releases/latest"
+    fail "Windows is not supported yet"
     ;;
 
   *)
