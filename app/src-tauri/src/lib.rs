@@ -146,6 +146,9 @@ fn save_attachment(repo_path: String, extension: String, data: String) -> Result
     Ok(path.to_string_lossy().into_owned())
 }
 
+// Two of the arguments are Tauri-injected; the rest are the IPC payload, so
+// grouping them into a struct would change the shape the frontend sends.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 async fn start_agent_run(
     app: tauri::AppHandle,
