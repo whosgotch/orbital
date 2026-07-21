@@ -22,9 +22,6 @@ jobs:
           - os: ubuntu-22.04
             triple: x86_64-unknown-linux-gnu
             bundles: deb,appimage
-          - os: windows-latest
-            triple: x86_64-pc-windows-msvc
-            bundles: msi
     runs-on: ${{ matrix.os }}
     steps:
       # Full history: the changelog step walks back to the previous tag.
