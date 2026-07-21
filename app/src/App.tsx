@@ -14,6 +14,7 @@ import { buildAgentTranscript, sliceTranscriptByMessage } from "./chat/transcrip
 import { missionStatusFor, queuedRuntime, repositoryFor } from "./workspace/missionUi";
 import { followUpTargetFor } from "./workspace/workspaceAdapter";
 import { buildCanvasEdges, buildCanvasNodes, enrichGraphNodes } from "./canvas/canvasView";
+import { DEFAULT_EFFORT } from "./workspace/models";
 import { useWorkspaceState } from "./workspace/useWorkspaceState";
 import { useMissionActions } from "./workspace/useMissionActions";
 import { useRepoHistory } from "./workspace/useRepoHistory";
@@ -63,14 +64,18 @@ export function App() {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [diffModalOpen, setDiffModalOpen] = useState(false);
   const [focusedDiffFile, setFocusedDiffFile] = useState<string | undefined>(undefined);
-  // Empty string means the claude CLI's own default.
+  // Empty only until the first pick — the picker offers real models only, so
+  // once one is chosen the CLI's own default can never come back.
   const [claudeModel, setClaudeModel] = useState(() => localStorage.getItem("orbital:model") ?? "");
   const pickClaudeModel = (model: string) => {
     setClaudeModel(model);
     localStorage.setItem("orbital:model", model);
   };
-  // The model's thinking level (--effort). Empty string means the CLI default.
-  const [claudeEffort, setClaudeEffort] = useState(() => localStorage.getItem("orbital:effort") ?? "");
+  // The model's thinking level (--effort), always sent. `||` (not `??`) so the
+  // empty string an earlier "Default" pick stored resolves to a real level too.
+  const [claudeEffort, setClaudeEffort] = useState(
+    () => localStorage.getItem("orbital:effort") || DEFAULT_EFFORT,
+  );
   const pickClaudeEffort = (effort: string) => {
     setClaudeEffort(effort);
     localStorage.setItem("orbital:effort", effort);

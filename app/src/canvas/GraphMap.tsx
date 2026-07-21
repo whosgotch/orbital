@@ -538,14 +538,16 @@ function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: bo
             <select
               className="node-draft-worker nodrag"
               aria-label="Model for this task"
-              title="Model for this task (default follows the sidebar pick)"
+              title="Model for this task (falls back to the global pick)"
               value={model}
               onMouseDown={(event) => event.stopPropagation()}
               onChange={(event) => setModel(event.target.value)}
             >
+              {/* Not the CLI's default — this defers to the global pick, which the models list itself no longer carries an entry for. */}
+              <option value="">Same as global</option>
               {models.map((option) => (
                 <option key={option.id} value={option.id}>
-                  {option.id === "" ? "Default model" : option.name}
+                  {option.name}
                 </option>
               ))}
             </select>

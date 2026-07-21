@@ -47,7 +47,10 @@ export function PromptBar({
   const ready = Boolean(trimmed) && Boolean(repoName);
   const intent = detectIntent(trimmed);
   const models = useModels();
-  const currentModelName = models.find((model) => model.id === claudeModel)?.name ?? claudeModel;
+  // The list holds real models only, so an unset model matches nothing — that
+  // is the first-launch state, before any pick has overridden the CLI.
+  const currentModelName =
+    models.find((model) => model.id === claudeModel)?.name ?? (claudeModel || "CLI default");
   const currentEffortName = EFFORT_LEVELS.find((level) => level.id === claudeEffort)?.name ?? claudeEffort;
 
   const submit = (action: (value: string, attachments: string[]) => void) => {

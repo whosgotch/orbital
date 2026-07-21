@@ -10,8 +10,7 @@ let inflight: Promise<CuratedModel[]> | null = null;
 
 async function fetchModels(): Promise<CuratedModel[]> {
   const models = await loadModels();
-  const fetched = models.map((model) => ({ id: model.id, name: model.display_name }));
-  return [CURATED_MODELS[0], ...fetched]; // keep the empty-id "Default" entry first
+  return models.map((model) => ({ id: model.id, name: model.display_name }));
 }
 
 // Every model the CLI supports, for the model pickers in TopBar and GraphMap.
