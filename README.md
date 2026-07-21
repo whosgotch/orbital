@@ -1,9 +1,7 @@
 <div align="center">
 
-<img alt="Orbital logo" src="/assets/logo.png" width="120">
-
-#### Orbital: A canvas for AI coding agents.
-___
+<img alt="Orbital logo" src="/assets/logo.png" width="120"><br>
+<b>Orbital: A canvas for AI coding agents.</b>
 </div>
 
 ## Installation
