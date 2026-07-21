@@ -61,6 +61,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: worker/go.mod
+          cache-dependency-path: worker/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
         with:
