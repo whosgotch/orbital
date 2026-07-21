@@ -27,7 +27,33 @@ jobs:
             bundles: msi
     runs-on: ${{ matrix.os }}
     steps:
+      # Full history: the changelog step walks back to the previous tag.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Every runner computes the same body; whichever job wins the race to
+      # create the release supplies it.
+      - name: Build changelog
+        id: changelog
+        shell: bash
+        run: |
+          previous=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)
+          {
+            echo "body<<CHANGELOG_EOF"
+            if [ -n "$previous" ]; then
+              echo "## What's Changed"
+              echo
+              git log --no-merges --pretty='- %s' "$previous"..HEAD
+              echo
+              echo "**Full changelog**: https://github.com/${{ github.repository }}/compare/$previous...${{ github.ref_name }}"
+            else
+              # Without a previous tag the range is the entire history, which is
+              # not a changelog.
+              echo "Initial release."
+            fi
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -67,7 +93,11 @@ jobs:
           projectPath: app
           tagName: ${{ github.ref_name }}
           releaseName: Orbital ${{ github.ref_name }}
+          releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: false
+          # A semver prerelease tag (v0.1.0-alpha.1) marks the release as such,
+          # which keeps /releases/latest - and so install.sh - on stable builds.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           args: --target ${{ matrix.triple }} --bundles ${{ matrix.bundles }}
 
       # The curl installer wants a plain tarball of the .app: extracting a
