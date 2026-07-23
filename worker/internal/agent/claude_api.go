@@ -11,15 +11,40 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/whosgotch/orbital/worker/internal/domain"
 )
+
+// usageRecord is the `usage` object the claude CLI attaches to assistant
+// messages and the final result line. cache_read/cache_creation count toward
+// the context window and the bill just like plain input tokens do, so any
+// "input" figure has to add them in.
+type usageRecord struct {
+	InputTokens              int `json:"input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+}
+
+// inputTotal is the full prompt size for a request: fresh input plus the cached
+// tokens the model still had to be handed. This is what fills the context window.
+func (u usageRecord) inputTotal() int {
+	return u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens
+}
 
 // streamJSONLine is one line of `claude --output-format stream-json` output.
 type streamJSONLine struct {
-	Type      string `json:"type"`
-	Subtype   string `json:"subtype"`
-	Result    string `json:"result"`
-	SessionID string `json:"session_id"`
-	Message   struct {
+	Type         string  `json:"type"`
+	Subtype      string  `json:"subtype"`
+	Result       string  `json:"result"`
+	SessionID    string  `json:"session_id"`
+	TotalCostUSD float64 `json:"total_cost_usd"`
+	// Usage on the terminal result line is cumulative for the whole turn.
+	Usage   *usageRecord `json:"usage"`
+	Message struct {
+		// Usage on an assistant line is that one API call's usage; the last one
+		// seen reflects the final, fullest context of the turn.
+		Usage   *usageRecord `json:"usage"`
 		Content []struct {
 			Type  string          `json:"type"`
 			Text  string          `json:"text"`
@@ -40,7 +65,7 @@ type streamJSONLine struct {
 // into a live, multi-turn chat. onStep receives each streamed step as
 // ("thought", reasoning text) for Claude's own narration or ("action", tool
 // description) for an edit/command it runs.
-func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, effort, prompt string, onStep func(kind, msg string)) (string, string, error) {
+func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, effort, prompt string, onStep func(kind, msg string)) (string, string, *domain.RunUsage, error) {
 	args := []string{"--print",
 		"--permission-mode", "acceptEdits",
 		// WebSearch/WebFetch sit behind their own permission gate that acceptEdits
@@ -64,30 +89,33 @@ func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, ef
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
-		return "", "", fmt.Errorf("claude CLI start: %w", err)
+		return "", "", nil, fmt.Errorf("claude CLI start: %w", err)
 	}
 
-	summary, sessionID := scanAgenticStream(stdout, onStep)
+	summary, sessionID, usage := scanAgenticStream(stdout, onStep)
 
 	if err := cmd.Wait(); err != nil {
-		return "", "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
+		return "", "", nil, fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
-	return summary, sessionID, nil
+	return summary, sessionID, usage, nil
 }
 
 // scanAgenticStream reads `claude --output-format stream-json` lines, forwarding
 // Claude's narration and tool calls to onStep, and returns the final summary and
 // the session id (captured from whichever line carries it). Kept separate from
 // the exec plumbing so it can be tested against a captured stream fixture.
-func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, sessionID string) {
+func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, sessionID string, usage *domain.RunUsage) {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 1024*1024), 16*1024*1024)
+	// contextFill tracks the fullest input seen so far this turn — the final
+	// assistant call's prompt size, i.e. how much of the window is occupied.
+	contextFill := 0
 	for scanner.Scan() {
 		var line streamJSONLine
 		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
@@ -98,6 +126,11 @@ func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, ses
 		}
 		switch line.Type {
 		case "assistant":
+			if line.Message.Usage != nil {
+				if fill := line.Message.Usage.inputTotal(); fill > contextFill {
+					contextFill = fill
+				}
+			}
 			for _, block := range line.Message.Content {
 				if block.Type == "text" && strings.TrimSpace(block.Text) != "" {
 					// Preserve Claude's full reasoning so the Agent transcript can
@@ -110,9 +143,24 @@ func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, ses
 			}
 		case "result":
 			summary = strings.TrimSpace(line.Result)
+			if line.Usage != nil {
+				input := line.Usage.inputTotal()
+				// No per-message usage arrived (older CLI, or streamed differently):
+				// the result's own input is the best context-fill estimate we have.
+				if contextFill == 0 {
+					contextFill = input
+				}
+				usage = &domain.RunUsage{
+					ContextTokens: contextFill,
+					InputTokens:   input,
+					OutputTokens:  line.Usage.OutputTokens,
+					TotalTokens:   input + line.Usage.OutputTokens,
+					CostUSD:       line.TotalCostUSD,
+				}
+			}
 		}
 	}
-	return summary, sessionID
+	return summary, sessionID, usage
 }
 
 // QueryClaudeInRepoStreaming asks Claude a question it can answer by reading
@@ -148,7 +196,7 @@ func QueryClaudeInRepoStreaming(ctx context.Context, repoPath, model, prompt str
 		return "", fmt.Errorf("claude CLI start: %w", err)
 	}
 
-	result, _ := scanAgenticStream(stdout, onStep)
+	result, _, _ := scanAgenticStream(stdout, onStep)
 
 	if err := cmd.Wait(); err != nil {
 		return "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))

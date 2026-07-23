@@ -192,10 +192,26 @@ h3 {
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   box-shadow: var(--shadow);
+  transition: opacity 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 .canvas-shell.panel-open .prompt-bar {
   left: calc((100% - var(--task-panel-width)) / 2);
+  /* A node is selected, so the right-side chat is the active prompt. Let the
+     center intake recede — dimmer, flatter, a touch narrower — so it reads as
+     secondary without going away. It stays fully usable: hovering or focusing
+     it restores full prominence. Width stays put so interaction never reflows. */
+  width: min(520px, calc(100% - 48px));
+  opacity: 0.5;
+  box-shadow: none;
+  border-color: var(--line);
+}
+
+.canvas-shell.panel-open .prompt-bar:hover,
+.canvas-shell.panel-open .prompt-bar:focus-within {
+  opacity: 1;
+  box-shadow: var(--shadow);
+  border-color: var(--line-strong);
 }
 
 .prompt-bar-input {
@@ -2284,6 +2300,113 @@ dd {
 
 .git-commit-chip {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.usage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(152, 152, 159, 0.14);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.usage-chip .glyph-char {
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.usage-chip .usage-total {
+  color: var(--soft);
+}
+
+/* The side-panel token read-out: a context gauge plus the input/output/total
+   grid, sitting above the tab body so it's visible however the run ended. */
+.usage-details {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-details-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.usage-details-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.usage-context {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.usage-context-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--soft);
+}
+
+.usage-context-figure {
+  color: var(--muted);
+}
+
+.usage-gauge {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.usage-gauge-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0;
+}
+
+.usage-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--panel-2);
+  border-radius: 6px;
+}
+
+.usage-cell dt {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.usage-cell dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .node-card-actions {

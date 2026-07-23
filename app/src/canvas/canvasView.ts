@@ -4,6 +4,7 @@ import { compactLabel } from "../workspace/workspaceAdapter";
 import type { CommitInfo, WorkspaceRuntimeMap } from "../workspace/workspaceAdapter";
 import type { MissionNodeStatus, WorkspaceGraphEdge, WorkspaceGraphNode, WorkspaceMission } from "./graph";
 import type { Repository } from "../workspace/domain";
+import type { MissionUsage } from "../workspace/usage";
 
 // Mirrors GraphMap's own GraphNode.
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
@@ -18,6 +19,7 @@ export type EnrichGraphNodesArgs = {
   verificationOutputByMission: Record<string, string>;
   verificationCommandByMission: Record<string, string>;
   commitByMission: Record<string, CommitInfo>;
+  usageByMission: Record<string, MissionUsage>;
 };
 
 export function enrichGraphNodes({
@@ -30,7 +32,18 @@ export function enrichGraphNodes({
   verificationOutputByMission,
   verificationCommandByMission,
   commitByMission,
+  usageByMission,
 }: EnrichGraphNodesArgs): GraphNode[] {
+  // Fold a mission's token usage into the fields the node badge reads. Absent
+  // usage leaves both undefined, so the node shows no badge rather than "0".
+  const usageMeta = (missionId: string) => {
+    const usage = usageByMission[missionId];
+    if (!usage) return {};
+    return {
+      contextTokens: usage.contextTokens || undefined,
+      totalTokens: usage.totalTokens || undefined,
+    };
+  };
   // An upstream has landed when its patch was approved or — for tool steps,
   // which have no patch gate — when its command finished as verified.
   const upstreamLanded = (id: string) => {
@@ -62,6 +75,7 @@ export function enrichGraphNodes({
             launchable,
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
             commitHash: commitByMission[missionId]?.hash || undefined,
+            ...usageMeta(missionId),
           },
         };
       }
@@ -101,6 +115,7 @@ export function enrichGraphNodes({
             launchable,
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
             commitHash: commitByMission[missionId]?.hash || undefined,
+            ...usageMeta(missionId),
           },
         };
       }
@@ -109,7 +124,12 @@ export function enrichGraphNodes({
         return {
           ...node,
           status,
-          meta: { ...node.meta, live, now: live ? activityByMission[missionId]?.at(-1) : undefined },
+          meta: {
+            ...node.meta,
+            live,
+            now: live ? activityByMission[missionId]?.at(-1) : undefined,
+            ...usageMeta(missionId),
+          },
         };
       }
       case "changes": {

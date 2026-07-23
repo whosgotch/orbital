@@ -1,5 +1,6 @@
 import type { AgentRun, MissionLoopState, WorkflowEvent } from "../workspace/domain";
 import type { WorkspaceRuntime } from "../workspace/workspaceAdapter";
+import { usageByMission, type MissionUsage } from "../workspace/usage";
 
 export type AgentPhaseStatus = "done" | "active" | "pending" | "failed";
 export type AgentPhase = { id: string; label: string; status: AgentPhaseStatus };
@@ -17,6 +18,9 @@ export type AgentStatusModel = {
   steps: number;
   elapsed: string;
   hasActivity: boolean;
+  // Token accounting for this mission, once an agent has reported any; undefined
+  // keeps the panel free of an empty read-out.
+  usage?: MissionUsage;
 };
 
 // Phases name the act (Plan/Engineer), not the actor (AI manager), so the
@@ -188,5 +192,6 @@ export function buildAgentStatus(
     steps,
     elapsed,
     hasActivity: runs.length > 0 || activity.length > 0 || patchDiff.trim() !== "",
+    usage: usageByMission(runs)[missionId],
   };
 }

@@ -144,20 +144,29 @@ func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text s
 	}
 
 	var capturedSession string
+	var turnUsage *domain.RunUsage
 	for event := range events {
 		if event.SessionID != "" {
 			capturedSession = event.SessionID
+		}
+		if event.Usage != nil {
+			turnUsage = event.Usage
 		}
 		if err := s.saveRunEvent(missionID, event); err != nil {
 			return nil, err
 		}
 	}
 
-	// Persist the session so the next turn resumes this conversation.
-	if capturedSession != "" {
+	// Persist the session so the next turn resumes this conversation, and fold this
+	// turn's tokens into the run's running totals so the node's context fill and
+	// total spend keep climbing across the whole conversation.
+	if capturedSession != "" || turnUsage != nil {
 		if _, err := s.store.Update(func(state *store.State) error {
 			if runIndex := findRunIndex(state.AgentRuns, run.ID); runIndex != -1 {
-				state.AgentRuns[runIndex].SessionID = capturedSession
+				if capturedSession != "" {
+					state.AgentRuns[runIndex].SessionID = capturedSession
+				}
+				state.AgentRuns[runIndex].Usage = state.AgentRuns[runIndex].Usage.Merge(turnUsage)
 			}
 			return nil
 		}); err != nil {

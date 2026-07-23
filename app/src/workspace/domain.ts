@@ -54,6 +54,18 @@ export type AgentRun = {
   parent_run_id?: string;
   child_run_ids?: string[];
   session_id?: string;
+  usage?: RunUsage;
+};
+
+// Token accounting for a run. context_tokens is the live context-window fill
+// (the last turn's full input, cache included); the rest accumulate across every
+// turn of the run's session. Mirrors the worker's domain.RunUsage json tags.
+export type RunUsage = {
+  context_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_usd?: number;
 };
 
 export type ChatRole = "user" | "assistant";

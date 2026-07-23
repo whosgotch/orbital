@@ -19,7 +19,7 @@ func TestScanAgenticStreamCapturesSessionAndSteps(t *testing.T) {
 	}, "\n")
 
 	var kinds, msgs []string
-	summary, sessionID := scanAgenticStream(strings.NewReader(stream), func(kind, msg string) {
+	summary, sessionID, _ := scanAgenticStream(strings.NewReader(stream), func(kind, msg string) {
 		kinds = append(kinds, kind)
 		msgs = append(msgs, msg)
 	})
@@ -35,6 +35,48 @@ func TestScanAgenticStreamCapturesSessionAndSteps(t *testing.T) {
 	}
 	if !strings.Contains(msgs[1], "main.go") {
 		t.Errorf("action step should name the edited file: %q", msgs[1])
+	}
+}
+
+// scanAgenticStream must distill the CLI's usage records into a RunUsage:
+// context fill is the fullest assistant input (cache included), and the totals
+// come from the terminal result line.
+func TestScanAgenticStreamCapturesUsage(t *testing.T) {
+	stream := strings.Join([]string{
+		`{"type":"assistant","message":{"usage":{"input_tokens":100,"cache_read_input_tokens":900,"output_tokens":20},"content":[{"type":"text","text":"ok"}]}}`,
+		`{"type":"assistant","message":{"usage":{"input_tokens":200,"cache_read_input_tokens":4800,"output_tokens":50},"content":[{"type":"text","text":"done"}]}}`,
+		`{"type":"result","subtype":"success","result":"Done.","total_cost_usd":0.12,"usage":{"input_tokens":300,"cache_read_input_tokens":5700,"output_tokens":70}}`,
+	}, "\n")
+
+	_, _, usage := scanAgenticStream(strings.NewReader(stream), func(string, string) {})
+	if usage == nil {
+		t.Fatal("usage is nil, want a parsed RunUsage")
+	}
+	// Fullest assistant input: 200 + 4800 = 5000.
+	if usage.ContextTokens != 5000 {
+		t.Errorf("ContextTokens = %d, want 5000", usage.ContextTokens)
+	}
+	// Result input total: 300 + 5700 = 6000.
+	if usage.InputTokens != 6000 {
+		t.Errorf("InputTokens = %d, want 6000", usage.InputTokens)
+	}
+	if usage.OutputTokens != 70 {
+		t.Errorf("OutputTokens = %d, want 70", usage.OutputTokens)
+	}
+	if usage.TotalTokens != 6070 {
+		t.Errorf("TotalTokens = %d, want 6070", usage.TotalTokens)
+	}
+	if usage.CostUSD != 0.12 {
+		t.Errorf("CostUSD = %v, want 0.12", usage.CostUSD)
+	}
+}
+
+// A stream with no usage records at all must not fabricate a zero-valued
+// RunUsage — nil means "unknown", which the UI renders as no badge.
+func TestScanAgenticStreamNoUsage(t *testing.T) {
+	stream := `{"type":"result","subtype":"success","result":"Done."}`
+	if _, _, usage := scanAgenticStream(strings.NewReader(stream), func(string, string) {}); usage != nil {
+		t.Errorf("usage = %+v, want nil when the stream carries no usage", usage)
 	}
 }
 

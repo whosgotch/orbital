@@ -168,7 +168,7 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 
 		// Stream Claude's reasoning (thoughts) and actions (edits, commands) into
 		// the feed, tagged so the Agent transcript can render them distinctly.
-		summary, sessionID, err := callClaudeAgentic(ctx, request.RepoPath, request.ResumeSessionID, request.Model, request.Effort, prompt, func(kind, msg string) {
+		summary, sessionID, usage, err := callClaudeAgentic(ctx, request.RepoPath, request.ResumeSessionID, request.Model, request.Effort, prompt, func(kind, msg string) {
 			eventType := domain.WorkflowEventAgentAction
 			if kind == "thought" {
 				eventType = domain.WorkflowEventAgentThought
@@ -178,6 +178,17 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 		if err != nil {
 			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunFailed, fmt.Sprintf("Claude error: %v", err), "", "")
 			return
+		}
+
+		// Report this turn's token accounting so the service can merge it into the
+		// run's running totals (context fill + cumulative spend).
+		if usage != nil {
+			select {
+			case <-ctx.Done():
+				sendCancelledEvent(events, request.RunID)
+				return
+			case events <- RunEvent{Usage: usage}:
+			}
 		}
 
 		// Persist the captured session so the next turn can resume this exact
