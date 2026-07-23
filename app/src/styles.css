@@ -2325,6 +2325,90 @@ dd {
   color: var(--soft);
 }
 
+/* The side-panel token read-out: a context gauge plus the input/output/total
+   grid, sitting above the tab body so it's visible however the run ended. */
+.usage-details {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-details-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.usage-details-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.usage-context {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.usage-context-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--soft);
+}
+
+.usage-context-figure {
+  color: var(--muted);
+}
+
+.usage-gauge {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.usage-gauge-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0;
+}
+
+.usage-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--panel-2);
+  border-radius: 6px;
+}
+
+.usage-cell dt {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.usage-cell dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .node-card-actions {
   display: flex;
   justify-content: flex-end;

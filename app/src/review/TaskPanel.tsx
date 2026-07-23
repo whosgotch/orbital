@@ -1,6 +1,7 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Check, ChevronDown, GitBranch, ListTree, Loader, Pencil, Terminal, Trash2, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "../chat/AgentChat";
+import { UsageDetails } from "../chat/UsageDetails";
 import { DocumentView } from "./DocumentView";
 import { ReviseBox } from "../chat/ReviseBox";
 import type { TranscriptEntry } from "../chat/AgentTranscript";
@@ -244,6 +245,8 @@ export function TaskPanel({
           ) : null}
           <div className="task-switch-spacer" />
         </div>
+
+        <UsageDetails usage={agentStatus.usage} />
 
         <div className="task-body">
           {taskView === "doc" ? (
