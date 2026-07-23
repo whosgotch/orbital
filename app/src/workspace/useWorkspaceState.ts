@@ -26,6 +26,7 @@ export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<str
   const [commitByMission, setCommitByMission] = useState(initialWorkspaceView.commitByMission);
   const [verificationOutputByMission, setVerificationOutputByMission] = useState(initialWorkspaceView.verificationOutputByMission);
   const [activityByMission, setActivityByMission] = useState(initialWorkspaceView.activityByMission);
+  const [usageByMission, setUsageByMission] = useState(initialWorkspaceView.usageByMission);
   const [verificationCommandByMission, setVerificationCommandByMission] = useState<Record<string, string>>(
     Object.fromEntries(initialWorkspaceView.missions.map((mission) => [mission.id, mission.command])),
   );
@@ -47,6 +48,7 @@ export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<str
     setCommitByMission(nextWorkspaceView.commitByMission);
     setVerificationOutputByMission(nextWorkspaceView.verificationOutputByMission);
     setActivityByMission(nextWorkspaceView.activityByMission);
+    setUsageByMission(nextWorkspaceView.usageByMission);
     setChatByMission(groupChatByMission(nextMissionLoopState.chat_messages));
     setVerificationCommandByMission((current) => ({
       ...Object.fromEntries(nextWorkspaceView.missions.map((mission) => [mission.id, current[mission.id] ?? mission.command])),
@@ -158,6 +160,7 @@ export function useWorkspaceState(setSelectedNodeId: Dispatch<SetStateAction<str
     commitByMission,
     verificationOutputByMission,
     activityByMission,
+    usageByMission,
     verificationCommandByMission,
     setVerificationCommandByMission,
     workerModeByMission,

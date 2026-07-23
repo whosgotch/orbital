@@ -25,6 +25,7 @@ import "@xyflow/react/dist/style.css";
 import { Check, GitBranch, GitCommitHorizontal, Loader, Play, ShieldCheck, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "./graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "./graph";
+import { formatTokens } from "../workspace/usage";
 import { useModels } from "../workspace/useModels";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
@@ -598,6 +599,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
           </span>
         ) : null}
         <CommitChip hash={meta?.commitHash} />
+        <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
       </div>
     );
   }
@@ -614,6 +616,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         ) : null}
         {node.status === "verified" ? <span className="node-tag ok">findings ready</span> : null}
         <CommitChip hash={meta?.commitHash} />
+        <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
       </div>
     );
   }
@@ -638,6 +641,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         <p className={`node-card-now ${meta?.live ? "live" : ""}`}>
           {meta?.now ?? (meta?.live ? "working…" : "idle — open the chat to steer")}
         </p>
+        <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
       </div>
     );
   }
@@ -688,6 +692,20 @@ function CommitChip({ hash }: { hash?: string }) {
     <span className="git-commit-chip">
       <GitCommitHorizontal size={11} aria-hidden="true" />
       {hash.slice(0, 7)}
+    </span>
+  );
+}
+
+// The node's token read-out: context-window fill (the ◐ figure) and, once a run
+// has spent anything, the cumulative total after the dot. Absent until the
+// agent has reported usage, so idle nodes stay clean.
+function UsageChip({ context, total }: { context?: number; total?: number }) {
+  if (!context && !total) return null;
+  return (
+    <span className="usage-chip" title="Context-window fill · total tokens used">
+      <span className="glyph-char" aria-hidden="true">◐</span>
+      {context ? formatTokens(context) : null}
+      {total ? <span className="usage-total">· {formatTokens(total)}</span> : null}
     </span>
   );
 }

@@ -192,10 +192,26 @@ h3 {
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   box-shadow: var(--shadow);
+  transition: opacity 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 .canvas-shell.panel-open .prompt-bar {
   left: calc((100% - var(--task-panel-width)) / 2);
+  /* A node is selected, so the right-side chat is the active prompt. Let the
+     center intake recede — dimmer, flatter, a touch narrower — so it reads as
+     secondary without going away. It stays fully usable: hovering or focusing
+     it restores full prominence. Width stays put so interaction never reflows. */
+  width: min(520px, calc(100% - 48px));
+  opacity: 0.5;
+  box-shadow: none;
+  border-color: var(--line);
+}
+
+.canvas-shell.panel-open .prompt-bar:hover,
+.canvas-shell.panel-open .prompt-bar:focus-within {
+  opacity: 1;
+  box-shadow: var(--shadow);
+  border-color: var(--line-strong);
 }
 
 .prompt-bar-input {
@@ -2284,6 +2300,29 @@ dd {
 
 .git-commit-chip {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.usage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(152, 152, 159, 0.14);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.usage-chip .glyph-char {
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.usage-chip .usage-total {
+  color: var(--soft);
 }
 
 .node-card-actions {

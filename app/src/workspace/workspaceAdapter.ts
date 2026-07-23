@@ -1,4 +1,5 @@
 import { attachmentCount, stripAttachmentLines } from "../intake/attachments";
+import { usageByMission, type MissionUsage } from "./usage";
 import type { Mission, MissionLoopState, PatchStatus as WorkerPatchStatus, VerificationRun, WorkflowEvent } from "./domain";
 import type {
   MissionNodeStatus,
@@ -30,6 +31,7 @@ export type WorkspaceView = {
   commitByMission: Record<string, CommitInfo>;
   verificationOutputByMission: Record<string, string>;
   activityByMission: Record<string, string[]>;
+  usageByMission: Record<string, MissionUsage>;
 };
 
 const emptyWorkspaceView: WorkspaceView = {
@@ -41,6 +43,7 @@ const emptyWorkspaceView: WorkspaceView = {
   commitByMission: {},
   verificationOutputByMission: {},
   activityByMission: {},
+  usageByMission: {},
 };
 
 export function workspaceViewFromMissionLoop(state: MissionLoopState): WorkspaceView {
@@ -94,6 +97,7 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
     commitByMission,
     verificationOutputByMission,
     activityByMission,
+    usageByMission: usageByMission(state.agent_runs),
   };
 }
 

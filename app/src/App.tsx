@@ -41,6 +41,7 @@ export function App() {
     commitByMission,
     verificationOutputByMission,
     activityByMission,
+    usageByMission,
     verificationCommandByMission,
     setVerificationCommandByMission,
     workerModeByMission,
@@ -264,6 +265,7 @@ export function App() {
         verificationOutputByMission,
         verificationCommandByMission,
         commitByMission,
+        usageByMission,
       }),
     [
       runtimeByMission,
@@ -275,6 +277,7 @@ export function App() {
       verificationOutputByMission,
       verificationCommandByMission,
       commitByMission,
+      usageByMission,
     ],
   );
 

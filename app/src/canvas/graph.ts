@@ -50,6 +50,8 @@ export type GraphNodeMeta = {
   attachments?: number; // task/research: pasted images riding in the prompt
   commitHash?: string; // task/tool/research: short hash of the landed commit
   branch?: string; // repo: current live branch
+  contextTokens?: number; // task/research/agent: live context-window fill
+  totalTokens?: number; // task/research/agent: tokens burned across the run
 };
 
 export type WorkspaceGraphNode = {
