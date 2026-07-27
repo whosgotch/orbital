@@ -121,6 +121,7 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		failedAt := time.Now().UTC()
 		run.Status = domain.AgentRunStatusFailed
 		run.CompletedAt = &failedAt
+		run.DurationMs = failedAt.Sub(run.StartedAt).Milliseconds()
 		run.Error = err.Error()
 
 		if _, saveErr := s.store.Update(func(state *store.State) error {
@@ -224,6 +225,7 @@ func (s *Service) finishAgentRun(runID string, missionID string) (*domain.AgentR
 		finalStatus := finalRunStatus(state.WorkflowEvents, runID)
 		state.AgentRuns[runIndex].Status = finalStatus
 		state.AgentRuns[runIndex].CompletedAt = &completedAt
+		state.AgentRuns[runIndex].DurationMs = completedAt.Sub(state.AgentRuns[runIndex].StartedAt).Milliseconds()
 		if finalStatus == domain.AgentRunStatusFailed || finalStatus == domain.AgentRunStatusCancelled {
 			state.Missions[missionIndex].Status = domain.MissionStatusFailed
 			state.Missions[missionIndex].UpdatedAt = completedAt

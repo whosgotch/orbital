@@ -21,9 +21,12 @@ type AgentRun struct {
 	Status      AgentRunStatus `json:"status"`
 	StartedAt   time.Time      `json:"started_at"`
 	CompletedAt *time.Time     `json:"completed_at,omitempty"`
-	Error       string         `json:"error,omitempty"`
-	ParentRunID string         `json:"parent_run_id,omitempty"`
-	ChildRunIDs []string       `json:"child_run_ids,omitempty"`
+	// DurationMs is how long the run took, in milliseconds — captured from
+	// StartedAt to CompletedAt when the run finishes. Zero while still running.
+	DurationMs int64 `json:"duration_ms,omitempty"`
+	Error       string   `json:"error,omitempty"`
+	ParentRunID string   `json:"parent_run_id,omitempty"`
+	ChildRunIDs []string `json:"child_run_ids,omitempty"`
 	// WorktreePath is the isolated git worktree this run works in, so parallel
 	// runs on the same repo don't collide. Empty when the run uses the repo root.
 	WorktreePath string `json:"worktree_path,omitempty"`
