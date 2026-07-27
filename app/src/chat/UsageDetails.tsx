@@ -1,3 +1,4 @@
+import { MetricBadge } from "../ui/MetricBadge";
 import { CONTEXT_WINDOW, contextPercent, formatTokens, type MissionUsage } from "../workspace/usage";
 
 // UsageDetails is the node's full token read-out for the side panel: a context
@@ -30,20 +31,11 @@ export function UsageDetails({ usage }: { usage?: MissionUsage }) {
         </div>
       ) : null}
 
-      <dl className="usage-grid">
-        <div className="usage-cell">
-          <dt>Input</dt>
-          <dd>{formatTokens(usage.inputTokens)}</dd>
-        </div>
-        <div className="usage-cell">
-          <dt>Output</dt>
-          <dd>{formatTokens(usage.outputTokens)}</dd>
-        </div>
-        <div className="usage-cell">
-          <dt>Total</dt>
-          <dd>{formatTokens(usage.totalTokens)}</dd>
-        </div>
-      </dl>
+      <div className="usage-grid">
+        <MetricBadge label="Input" value={formatTokens(usage.inputTokens)} />
+        <MetricBadge label="Output" value={formatTokens(usage.outputTokens)} />
+        <MetricBadge label="Total" value={formatTokens(usage.totalTokens)} />
+      </div>
     </div>
   );
 }

@@ -2388,7 +2388,7 @@ dd {
   margin: 0;
 }
 
-.usage-cell {
+.metric-badge {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2397,13 +2397,12 @@ dd {
   border-radius: 6px;
 }
 
-.usage-cell dt {
+.metric-badge-label {
   font-size: 10.5px;
   color: var(--muted);
 }
 
-.usage-cell dd {
-  margin: 0;
+.metric-badge-value {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
