@@ -1,5 +1,5 @@
 import { MetricBadge } from "../ui/MetricBadge";
-import { CONTEXT_WINDOW, contextPercent, formatTokens, type MissionUsage } from "../workspace/usage";
+import { CONTEXT_WINDOW, contextPercent, formatDuration, formatTokens, type MissionUsage } from "../workspace/usage";
 
 // UsageDetails is the node's full token read-out for the side panel: a context
 // gauge (fill vs. the model's window) plus the cumulative input/output/total
@@ -35,6 +35,7 @@ export function UsageDetails({ usage }: { usage?: MissionUsage }) {
         <MetricBadge label="Input" value={formatTokens(usage.inputTokens)} />
         <MetricBadge label="Output" value={formatTokens(usage.outputTokens)} />
         <MetricBadge label="Total" value={formatTokens(usage.totalTokens)} />
+        {usage.durationMs > 0 ? <MetricBadge label="Duration" value={formatDuration(usage.durationMs)} /> : null}
       </div>
     </div>
   );

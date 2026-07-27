@@ -62,9 +62,12 @@ describe("enrichGraphNodes", () => {
   it("threads the mission's token usage onto the task node's meta", () => {
     const [node] = enrichGraphNodes({
       ...baseArgs,
-      usageByMission: { m1: { contextTokens: 48200, inputTokens: 1_150_000, outputTokens: 52_000, totalTokens: 1_200_000 } },
+      usageByMission: {
+        m1: { contextTokens: 48200, inputTokens: 1_150_000, outputTokens: 52_000, totalTokens: 1_200_000, durationMs: 42_000 },
+      },
     });
     expect(node.meta?.contextTokens).toBe(48200);
     expect(node.meta?.totalTokens).toBe(1_200_000);
+    expect(node.meta?.durationMs).toBe(42_000);
   });
 });

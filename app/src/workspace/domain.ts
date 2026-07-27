@@ -50,6 +50,9 @@ export type AgentRun = {
   status: AgentRunStatus;
   started_at: string;
   completed_at?: string;
+  // Wall-clock span from started_at to completed_at, in milliseconds; absent
+  // (or 0) while the run is still going. Mirrors the worker's duration_ms.
+  duration_ms?: number;
   error?: string;
   parent_run_id?: string;
   child_run_ids?: string[];

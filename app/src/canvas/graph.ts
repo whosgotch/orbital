@@ -52,6 +52,7 @@ export type GraphNodeMeta = {
   branch?: string; // repo: current live branch
   contextTokens?: number; // task/research/agent: live context-window fill
   totalTokens?: number; // task/research/agent: tokens burned across the run
+  durationMs?: number; // task/research/agent: wall-clock time the mission took
 };
 
 export type WorkspaceGraphNode = {

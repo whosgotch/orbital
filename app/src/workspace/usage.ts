@@ -5,15 +5,17 @@ import type { AgentRun } from "./domain";
 // it in practice — so it stays a useful "how full am I" gauge either way.
 export const CONTEXT_WINDOW = 200_000;
 
-// A mission's distilled token accounting, ready to render on its node and in
-// its status panel. contextTokens is the live context-window fill of the
-// mission's active (or last) run; the input/output/total/cost figures sum every
-// run the mission owns, so a mission split across runs shows its full spend.
+// A mission's distilled run stats, ready to render on its node and in its
+// status panel. contextTokens is the live context-window fill of the mission's
+// active (or last) run; the input/output/total figures sum every run the
+// mission owns, so a mission split across runs shows its full spend. durationMs
+// sums the wall-clock time of those runs — how long the mission took.
 export type MissionUsage = {
   contextTokens: number;
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  durationMs: number;
 };
 
 // usageByMission folds each mission's runs into one MissionUsage. Missions with
@@ -24,10 +26,11 @@ export function usageByMission(runs: AgentRun[]): Record<string, MissionUsage> {
 
   for (const run of withUsage) {
     const usage = run.usage!;
-    const acc = byMission[run.mission_id] ?? { contextTokens: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+    const acc = byMission[run.mission_id] ?? { contextTokens: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, durationMs: 0 };
     acc.inputTokens += usage.input_tokens;
     acc.outputTokens += usage.output_tokens;
     acc.totalTokens += usage.total_tokens;
+    acc.durationMs += run.duration_ms ?? 0;
     byMission[run.mission_id] = acc;
   }
 
@@ -51,6 +54,19 @@ export function formatTokens(n: number): string {
   if (n < 10_000) return `${(n / 1000).toFixed(1)}k`;
   if (n < 1_000_000) return `${Math.round(n / 1000)}k`;
   return `${(n / 1_000_000).toFixed(1)}M`;
+}
+
+// formatDuration renders a run's wall-clock span nicely: 4.2s, 1m 03s, 1h 02m.
+// Sub-minute keeps one decimal (4.2s reads finer than a bare "4s"); above a
+// minute the smaller unit is whole and zero-padded.
+export function formatDuration(ms: number): string {
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const wholeSeconds = Math.round(seconds);
+  const minutes = Math.floor(wholeSeconds / 60);
+  if (minutes < 60) return `${minutes}m ${String(wholeSeconds % 60).padStart(2, "0")}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${String(minutes % 60).padStart(2, "0")}m`;
 }
 
 // contextPercent is the share of the context window currently filled, clamped

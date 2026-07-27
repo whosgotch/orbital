@@ -22,10 +22,10 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, GitBranch, GitCommitHorizontal, Loader, Play, ShieldCheck, X } from "lucide-react";
+import { Check, GitBranch, GitCommitHorizontal, Loader, Play, ShieldCheck, Timer, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "./graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "./graph";
-import { formatTokens } from "../workspace/usage";
+import { formatDuration, formatTokens } from "../workspace/usage";
 import { useModels } from "../workspace/useModels";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
@@ -600,6 +600,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         ) : null}
         <CommitChip hash={meta?.commitHash} />
         <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
+        <DurationChip durationMs={meta?.durationMs} />
       </div>
     );
   }
@@ -617,6 +618,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         {node.status === "verified" ? <span className="node-tag ok">findings ready</span> : null}
         <CommitChip hash={meta?.commitHash} />
         <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
+        <DurationChip durationMs={meta?.durationMs} />
       </div>
     );
   }
@@ -642,6 +644,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
           {meta?.now ?? (meta?.live ? "working…" : "idle — open the chat to steer")}
         </p>
         <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
+        <DurationChip durationMs={meta?.durationMs} />
       </div>
     );
   }
@@ -706,6 +709,18 @@ function UsageChip({ context, total }: { context?: number; total?: number }) {
       <span className="glyph-char" aria-hidden="true">◐</span>
       {context ? formatTokens(context) : null}
       {total ? <span className="usage-total">· {formatTokens(total)}</span> : null}
+    </span>
+  );
+}
+
+// How long the mission took, once it has finished a run. Hidden while running
+// (duration is 0 until a run completes), so live nodes stay clean.
+function DurationChip({ durationMs }: { durationMs?: number }) {
+  if (!durationMs) return null;
+  return (
+    <span className="usage-chip" title="Time the mission took">
+      <Timer size={11} aria-hidden="true" />
+      {formatDuration(durationMs)}
     </span>
   );
 }

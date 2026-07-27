@@ -42,6 +42,7 @@ export function enrichGraphNodes({
     return {
       contextTokens: usage.contextTokens || undefined,
       totalTokens: usage.totalTokens || undefined,
+      durationMs: usage.durationMs || undefined,
     };
   };
   // An upstream has landed when its patch was approved or — for tool steps,
