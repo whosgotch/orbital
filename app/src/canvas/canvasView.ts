@@ -83,6 +83,7 @@ export function enrichGraphNodes({
             additions: files.reduce((sum, file) => sum + file.added, 0),
             deletions: files.reduce((sum, file) => sum + file.removed, 0),
             patchState: diff ? runtime?.patchStatus ?? ("pending" as const) : ("none" as const),
+            model: mission?.model,
             ...usageMeta(missionId),
           },
         };
@@ -123,6 +124,7 @@ export function enrichGraphNodes({
             launchable,
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
             commitHash: commitByMission[missionId]?.hash || undefined,
+            model: mission?.model,
             ...usageMeta(missionId),
           },
         };

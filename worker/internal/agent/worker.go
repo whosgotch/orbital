@@ -58,6 +58,9 @@ type RunEvent struct {
 	// SessionID is the claude session this run captured, so the service can
 	// persist it onto the run and resume the same conversation next turn.
 	SessionID string `json:"session_id,omitempty"`
+	// Model is the model the CLI reported actually running this turn — the
+	// resolved id, not necessarily the one requested.
+	Model string `json:"model,omitempty"`
 	// Findings is the full, current findings document a researcher delivered
 	// this turn; the service stores it on the mission. Not streamed — it lands
 	// with the final state snapshot.

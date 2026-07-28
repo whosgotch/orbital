@@ -58,6 +58,9 @@ export type AgentRun = {
   child_run_ids?: string[];
   session_id?: string;
   usage?: RunUsage;
+  // The model that actually did the work, as the CLI resolved it — absent until
+  // the run's first turn reports one.
+  model?: string;
 };
 
 // Token accounting for a run. context_tokens is the live context-window fill

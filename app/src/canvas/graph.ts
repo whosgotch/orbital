@@ -14,6 +14,8 @@ export type WorkspaceMission = {
   prompt: string;
   status: MissionNodeStatus;
   worker: string;
+  // The model that actually ran this mission, as the CLI resolved it.
+  model?: string;
   command: string;
   files: string[];
   step: number;
@@ -54,6 +56,7 @@ export type GraphNodeMeta = {
   contextTokens?: number; // task/research/agent: live context-window fill
   totalTokens?: number; // task/research/agent: tokens burned across the run
   durationMs?: number; // task/research/agent: wall-clock time the mission took
+  model?: string; // task/research: model id that actually did the work
 };
 
 export type WorkspaceGraphNode = {

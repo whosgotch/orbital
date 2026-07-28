@@ -37,6 +37,10 @@ type AgentRun struct {
 	// Usage is the token accounting for this run, distilled from the Claude CLI's
 	// stream-json usage records. Nil until the run's first turn reports usage.
 	Usage *RunUsage `json:"usage,omitempty"`
+	// Model is the model that actually did the work, as the CLI reported it —
+	// so a node shows what ran, not what the picker happened to be set to
+	// afterwards. Empty until the run's first turn reports it.
+	Model string `json:"model,omitempty"`
 }
 
 // RunUsage is a run's token accounting. ContextTokens is the live

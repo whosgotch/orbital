@@ -24,11 +24,12 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, GitBranch, GitCommitHorizontal, Loader, Play, Timer, X } from "lucide-react";
+import { Check, Cpu, GitBranch, GitCommitHorizontal, Loader, Play, Timer, X } from "lucide-react";
 import { layoutGraph, portOffset, type NodePosition } from "./graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "./graph";
 import { formatDuration, formatTokens } from "../workspace/usage";
 import { useModels } from "../workspace/useModels";
+import { findModel } from "../workspace/models";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 
@@ -642,6 +643,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         ) : null}
         {meta?.patchState === "rejected" ? <span className="node-tag bad">rejected</span> : null}
         <CommitChip hash={meta?.commitHash} />
+        <ModelChip model={meta?.model} />
         <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
         <DurationChip durationMs={meta?.durationMs} />
       </div>
@@ -660,6 +662,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         ) : null}
         {node.status === "verified" ? <span className="node-tag ok">findings ready</span> : null}
         <CommitChip hash={meta?.commitHash} />
+        <ModelChip model={meta?.model} />
         <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
         <DurationChip durationMs={meta?.durationMs} />
       </div>
@@ -705,6 +708,21 @@ function CommitChip({ hash }: { hash?: string }) {
     <span className="git-commit-chip">
       <GitCommitHorizontal size={11} aria-hidden="true" />
       {hash.slice(0, 7)}
+    </span>
+  );
+}
+
+// Which model did the work, named as the picker names it. The id is what the
+// CLI resolved, so this is what actually ran — not whatever the picker happens
+// to be set to now. Absent until a run reports one, so idle nodes stay clean.
+function ModelChip({ model }: { model?: string }) {
+  const models = useModels();
+  if (!model) return null;
+  const known = findModel(models, model);
+  return (
+    <span className="usage-chip" title={`Model that ran this mission · ${model}`}>
+      <Cpu size={11} aria-hidden="true" />
+      {known?.name ?? model}
     </span>
   );
 }

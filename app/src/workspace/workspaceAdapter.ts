@@ -119,6 +119,7 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
     prompt,
     status: missionStatus(mission, patch?.status, verification),
     worker: topLevelRun?.worker_name ?? "unassigned",
+    model: topLevelRun?.model,
     command:
       mission.kind === "tool"
         ? mission.tool_command ?? ""

@@ -143,10 +143,14 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 	}
 
 	var capturedSession string
+	var capturedModel string
 	var turnUsage *domain.RunUsage
 	for event := range events {
 		if event.SessionID != "" {
 			capturedSession = event.SessionID
+		}
+		if event.Model != "" {
+			capturedModel = event.Model
 		}
 		if event.Usage != nil {
 			turnUsage = event.Usage
@@ -161,11 +165,14 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 	// of a frozen result you can only approve, reject, or redo from scratch. This
 	// is what makes latestChatRun resume this exact run rather than start a new
 	// session in a new worktree, blind to the change already on screen.
-	if capturedSession != "" || turnUsage != nil {
+	if capturedSession != "" || capturedModel != "" || turnUsage != nil {
 		if _, err := s.store.Update(func(state *store.State) error {
 			if runIndex := findRunIndex(state.AgentRuns, run.ID); runIndex != -1 {
 				if capturedSession != "" {
 					state.AgentRuns[runIndex].SessionID = capturedSession
+				}
+				if capturedModel != "" {
+					state.AgentRuns[runIndex].Model = capturedModel
 				}
 				state.AgentRuns[runIndex].Usage = state.AgentRuns[runIndex].Usage.Merge(turnUsage)
 			}

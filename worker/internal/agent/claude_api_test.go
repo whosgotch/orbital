@@ -19,22 +19,43 @@ func TestScanAgenticStreamCapturesSessionAndSteps(t *testing.T) {
 	}, "\n")
 
 	var kinds, msgs []string
-	summary, sessionID, _ := scanAgenticStream(strings.NewReader(stream), func(kind, msg string) {
+	turn := scanAgenticStream(strings.NewReader(stream), func(kind, msg string) {
 		kinds = append(kinds, kind)
 		msgs = append(msgs, msg)
 	})
 
-	if sessionID != "sess_abc123" {
-		t.Fatalf("sessionID = %q, want sess_abc123", sessionID)
+	if turn.SessionID != "sess_abc123" {
+		t.Fatalf("SessionID = %q, want sess_abc123", turn.SessionID)
 	}
-	if summary != "Added a /health route." {
-		t.Fatalf("summary = %q", summary)
+	if turn.Summary != "Added a /health route." {
+		t.Fatalf("Summary = %q", turn.Summary)
 	}
 	if len(kinds) != 2 || kinds[0] != "thought" || kinds[1] != "action" {
 		t.Fatalf("steps = %v (%v)", kinds, msgs)
 	}
 	if !strings.Contains(msgs[1], "main.go") {
 		t.Errorf("action step should name the edited file: %q", msgs[1])
+	}
+}
+
+// The node shows which model did the work, so the resolved model the CLI
+// reports must be captured — from the init line, or from an assistant line when
+// a resumed turn carries no init.
+func TestScanAgenticStreamCapturesModel(t *testing.T) {
+	withInit := `{"type":"system","subtype":"init","model":"claude-fable-5","session_id":"s1"}` + "\n" +
+		`{"type":"result","subtype":"success","result":"Done."}`
+	if got := scanAgenticStream(strings.NewReader(withInit), func(string, string) {}).Model; got != "claude-fable-5" {
+		t.Errorf("Model = %q, want claude-fable-5", got)
+	}
+
+	resumed := `{"type":"assistant","message":{"model":"claude-opus-5","content":[{"type":"text","text":"ok"}]}}`
+	if got := scanAgenticStream(strings.NewReader(resumed), func(string, string) {}).Model; got != "claude-opus-5" {
+		t.Errorf("Model = %q, want claude-opus-5 from the assistant line", got)
+	}
+
+	noModel := `{"type":"result","subtype":"success","result":"Done."}`
+	if got := scanAgenticStream(strings.NewReader(noModel), func(string, string) {}).Model; got != "" {
+		t.Errorf("Model = %q, want empty when the stream never names one", got)
 	}
 }
 
@@ -48,7 +69,7 @@ func TestScanAgenticStreamCapturesUsage(t *testing.T) {
 		`{"type":"result","subtype":"success","result":"Done.","total_cost_usd":0.12,"usage":{"input_tokens":300,"cache_read_input_tokens":5700,"output_tokens":70}}`,
 	}, "\n")
 
-	_, _, usage := scanAgenticStream(strings.NewReader(stream), func(string, string) {})
+	usage := scanAgenticStream(strings.NewReader(stream), func(string, string) {}).Usage
 	if usage == nil {
 		t.Fatal("usage is nil, want a parsed RunUsage")
 	}
@@ -75,7 +96,7 @@ func TestScanAgenticStreamCapturesUsage(t *testing.T) {
 // RunUsage — nil means "unknown", which the UI renders as no badge.
 func TestScanAgenticStreamNoUsage(t *testing.T) {
 	stream := `{"type":"result","subtype":"success","result":"Done."}`
-	if _, _, usage := scanAgenticStream(strings.NewReader(stream), func(string, string) {}); usage != nil {
+	if usage := scanAgenticStream(strings.NewReader(stream), func(string, string) {}).Usage; usage != nil {
 		t.Errorf("usage = %+v, want nil when the stream carries no usage", usage)
 	}
 }

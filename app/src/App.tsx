@@ -14,7 +14,8 @@ import { buildAgentTranscript, sliceTranscriptByMessage } from "./chat/transcrip
 import { missionStatusFor, queuedRuntime, repositoryFor } from "./workspace/missionUi";
 import { followUpTargetFor } from "./workspace/workspaceAdapter";
 import { buildCanvasEdges, buildCanvasNodes, enrichGraphNodes } from "./canvas/canvasView";
-import { DEFAULT_EFFORT } from "./workspace/models";
+import { findModel, resolveEffort } from "./workspace/models";
+import { useModelCatalog } from "./workspace/useModels";
 import { useWorkspaceState } from "./workspace/useWorkspaceState";
 import { useMissionActions } from "./workspace/useMissionActions";
 import { useRepoHistory } from "./workspace/useRepoHistory";
@@ -65,20 +66,26 @@ export function App() {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [diffModalOpen, setDiffModalOpen] = useState(false);
   const [focusedDiffFile, setFocusedDiffFile] = useState<string | undefined>(undefined);
-  // Empty only until the first pick — the picker offers real models only, so
-  // once one is chosen the CLI's own default can never come back.
-  const [claudeModel, setClaudeModel] = useState(() => localStorage.getItem("orbital:model") ?? "");
+  // Model and effort are derived, not stored: an explicit pick here wins, and
+  // with nothing picked they follow whatever Claude Code itself is configured
+  // to use. Deriving (rather than seeding state in an effect) is what lets the
+  // catalog arrive asynchronously without a setState-in-effect.
+  const modelCatalog = useModelCatalog();
+  const [modelPick, setModelPick] = useState(() => localStorage.getItem("orbital:model") ?? "");
+  const [effortPick, setEffortPick] = useState(() => localStorage.getItem("orbital:effort") ?? "");
+  const claudeModel = modelPick || modelCatalog.defaultModel;
+  // Effort is filtered through the selected model, so a level it doesn't offer
+  // is never sent (Haiku takes none at all, and gets an empty string).
+  const claudeEffort = resolveEffort(
+    effortPick || modelCatalog.defaultEffort,
+    findModel(modelCatalog.models, claudeModel),
+  );
   const pickClaudeModel = (model: string) => {
-    setClaudeModel(model);
+    setModelPick(model);
     localStorage.setItem("orbital:model", model);
   };
-  // The model's thinking level (--effort), always sent. `||` (not `??`) so the
-  // empty string an earlier "Default" pick stored resolves to a real level too.
-  const [claudeEffort, setClaudeEffort] = useState(
-    () => localStorage.getItem("orbital:effort") || DEFAULT_EFFORT,
-  );
   const pickClaudeEffort = (effort: string) => {
-    setClaudeEffort(effort);
+    setEffortPick(effort);
     localStorage.setItem("orbital:effort", effort);
   };
   const [modelPickerOpen, setModelPickerOpen] = useState(false);

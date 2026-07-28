@@ -4,7 +4,7 @@ import { AttachmentChips } from "./AttachmentChips";
 import { usePastedImages } from "./attachments";
 import { detectIntent } from "./intent";
 import { useModels } from "../workspace/useModels";
-import { EFFORT_LEVELS } from "../workspace/models";
+import { effortName, findModel } from "../workspace/models";
 
 type PromptBarProps = {
   repoName?: string;
@@ -47,11 +47,13 @@ export function PromptBar({
   const ready = Boolean(trimmed) && Boolean(repoName);
   const intent = detectIntent(trimmed);
   const models = useModels();
-  // The list holds real models only, so an unset model matches nothing — that
-  // is the first-launch state, before any pick has overridden the CLI.
-  const currentModelName =
-    models.find((model) => model.id === claudeModel)?.name ?? (claudeModel || "CLI default");
-  const currentEffortName = EFFORT_LEVELS.find((level) => level.id === claudeEffort)?.name ?? claudeEffort;
+  const currentModel = findModel(models, claudeModel);
+  // An unset model means the catalog hasn't resolved and Claude Code has no
+  // configured model either — the run then follows the CLI's own default.
+  const currentModelName = currentModel?.name ?? (claudeModel || "CLI default");
+  // Only the levels this model actually accepts; a model with none hides the
+  // picker entirely rather than offering a flag that would be rejected.
+  const effortLevels = currentModel?.effortLevels ?? [];
 
   const submit = (action: (value: string, attachments: string[]) => void) => {
     if (!ready) return;
@@ -112,51 +114,53 @@ export function PromptBar({
                   key={model.id}
                   type="button"
                   role="option"
-                  aria-selected={claudeModel === model.id}
-                  className={`model-option ${claudeModel === model.id ? "active" : ""}`}
+                  aria-selected={currentModel?.id === model.id}
+                  className={`model-option ${currentModel?.id === model.id ? "active" : ""}`}
                   onClick={() => onPickModel(model.id)}
                 >
                   <span className="model-option-name">
                     {model.name}
-                    {claudeModel === model.id ? <Check size={12} aria-hidden="true" /> : null}
+                    {currentModel?.id === model.id ? <Check size={12} aria-hidden="true" /> : null}
                   </span>
                 </button>
               ))}
             </div>
           ) : null}
         </div>
-        <div className="topbar-model">
-          <button
-            type="button"
-            className={`chip model-trigger ${effortPickerOpen ? "active" : ""}`}
-            title="Thinking level (--effort) used by every AI run and chat turn"
-            aria-haspopup="listbox"
-            aria-expanded={effortPickerOpen}
-            onClick={onToggleEffortPicker}
-          >
-            <Gauge size={14} aria-hidden="true" />
-            <span>{currentEffortName}</span>
-          </button>
-          {effortPickerOpen ? (
-            <div className="popover model-popover" role="listbox" aria-label="Thinking level">
-              {EFFORT_LEVELS.map((level) => (
-                <button
-                  key={level.id}
-                  type="button"
-                  role="option"
-                  aria-selected={claudeEffort === level.id}
-                  className={`model-option ${claudeEffort === level.id ? "active" : ""}`}
-                  onClick={() => onPickEffort(level.id)}
-                >
-                  <span className="model-option-name">
-                    {level.name}
-                    {claudeEffort === level.id ? <Check size={12} aria-hidden="true" /> : null}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        {effortLevels.length > 0 ? (
+          <div className="topbar-model">
+            <button
+              type="button"
+              className={`chip model-trigger ${effortPickerOpen ? "active" : ""}`}
+              title="Thinking level (--effort) used by every AI run and chat turn"
+              aria-haspopup="listbox"
+              aria-expanded={effortPickerOpen}
+              onClick={onToggleEffortPicker}
+            >
+              <Gauge size={14} aria-hidden="true" />
+              <span>{effortName(claudeEffort)}</span>
+            </button>
+            {effortPickerOpen ? (
+              <div className="popover model-popover" role="listbox" aria-label="Thinking level">
+                {effortLevels.map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    role="option"
+                    aria-selected={claudeEffort === level}
+                    className={`model-option ${claudeEffort === level ? "active" : ""}`}
+                    onClick={() => onPickEffort(level)}
+                  >
+                    <span className="model-option-name">
+                      {effortName(level)}
+                      {claudeEffort === level ? <Check size={12} aria-hidden="true" /> : null}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {repoName ? <span className="prompt-bar-target">{repoName}</span> : null}
         {intent === "research" ? (
           <button
