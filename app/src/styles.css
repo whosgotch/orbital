@@ -659,16 +659,15 @@ h3 {
 
 .revise-box {
   flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  position: relative;
   margin-top: 10px;
 }
 
 .revise-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 8px 11px;
+  display: block;
+  width: 100%;
+  /* Right padding clears the send button, which sits inside the field. */
+  padding: 8px 42px 8px 11px;
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -684,14 +683,10 @@ h3 {
 }
 
 .revise-send {
-  flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .diff-modal .revise-box {
@@ -1069,15 +1064,15 @@ h3 {
 
 .chat-composer {
   flex: 0 0 auto;
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  position: relative;
 }
 
 .chat-input {
-  flex: 1 1 auto;
+  display: block;
+  width: 100%;
   resize: none;
-  padding: 9px 11px;
+  /* Right padding clears the send button, which sits inside the field. */
+  padding: 9px 46px 9px 11px;
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -1094,14 +1089,25 @@ h3 {
 }
 
 .chat-send {
-  flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+
+/* Both send buttons ride INSIDE their field, so the button lines up by construction
+   instead of by keeping two separate box heights in sync. A circle keeps the arrow
+   optically centered — the old square left it reading off to one side.
+   Tag-qualified to outrank .primary, which is declared later in this file. */
+button.chat-send,
+button.revise-send {
+  width: 30px;
+  height: 30px;
+  min-height: 0;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 999px;
 }
 
 .agent-status {
@@ -1950,9 +1956,9 @@ dd {
 }
 
 /* Edges anchor at the handle CENTER; pin that center exactly on the card border so arrows touch the card instead of stopping short.
-   Vertically the port sits at a FIXED 59px (= layout NODE_HEIGHT/2, graphLayout.ts) from the card top, not at 50% of the card's own
-   height: layout aligns card TOPS in a row, so a shared absolute port row keeps a whole pipeline's edges collinear — one straight
-   line — no matter how tall each card grows. Short wallpaper cards (repo/campaign) recenter below. */
+   Vertically the port sits at a FIXED 59px (= PORT_Y in graphLayout.ts) from the card top, not at 50% of the card's own height:
+   layout hangs each card off its port row, so a shared absolute offset keeps a whole pipeline's edges collinear — one straight
+   line — no matter how tall each card grows. Short wallpaper cards (repo/campaign) use their own fixed offset below. */
 .react-flow__handle.react-flow__handle-left {
   left: 0;
   top: 59px;
@@ -1994,10 +2000,11 @@ dd {
   transform: translateY(-50%);
 }
 
-/* Repo/campaign cards are shorter than the 118px layout footprint; a 59px port would hug their bottom edge. */
+/* Repo/campaign cards are short wallpaper cards with a fixed 100px height (below), so their port sits at a constant 50px —
+   graphLayout.ts's REPO_PORT_Y. A percentage here would move the port whenever a branch chip appeared and slant the edge. */
 .node-card.repo .react-flow__handle,
 .node-card.campaign .react-flow__handle {
-  top: 50%;
+  top: 50px;
 }
 
 
@@ -2123,10 +2130,12 @@ dd {
   transition: border-color 180ms ease;
 }
 
+/* Fixed, not min-height: these carry a variable branch chip, and a card that changes height moves its port row (= graphLayout.ts REPO_HEIGHT). */
 .node-card.repo,
 .node-card.campaign {
   width: 190px;
-  min-height: 72px;
+  height: 100px;
+  overflow: hidden;
 }
 
 .node-card:hover {
@@ -2220,8 +2229,11 @@ dd {
   overflow-wrap: anywhere;
 }
 
+/* Always two lines tall, never one: the "now" line rewrites itself constantly while
+   an agent runs, and a card that changes height re-lays out every lane under it. */
 .node-card-now {
   margin: 0;
+  min-height: 32px;
   color: var(--muted);
   font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
   font-size: 10.5px;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus, Loader, SendHorizontal } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus, Loader } from "lucide-react";
 import { AgentStatus } from "./AgentStatus";
 import { AgentTranscript } from "./AgentTranscript";
 import { AttachmentChips } from "../intake/AttachmentChips";
@@ -211,7 +211,7 @@ export function AgentChat({
           aria-label="Send message"
           title="Send message"
         >
-          {sending ? <Loader size={16} className="spin" aria-hidden="true" /> : <SendHorizontal size={16} aria-hidden="true" />}
+          {sending ? <Loader size={16} className="spin" aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.25} aria-hidden="true" />}
         </button>
       </div>
       </>
