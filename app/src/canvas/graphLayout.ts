@@ -145,7 +145,7 @@ export function layoutGraph(
 
   // Phase A: per-lane dagre pass gives each node's card top relative to its
   // own lane's top, independent of where that lane ends up sitting.
-  type LaneInfo = { height: number; offsets: Map<string, number>; hasPinned: boolean };
+  type LaneInfo = { height: number; offsets: Map<string, number>; pinnedMember?: string };
   const laneInfo = new Map<string, LaneInfo>();
   for (const missionId of laneOrder) {
     const lane = laneNodes.get(missionId)!;
@@ -178,7 +178,7 @@ export function layoutGraph(
     laneInfo.set(missionId, {
       height: maxBottom - minTop,
       offsets,
-      hasPinned: lane.some((node) => node.id in pinned),
+      pinnedMember: lane.find((node) => node.id in pinned)?.id,
     });
   }
 
@@ -190,23 +190,31 @@ export function layoutGraph(
     cursor += laneInfo.get(missionId)!.height + LANE_GAP;
   }
 
-  // Phase C: any lane with no pinned members is pushed down past pinned nodes
-  // it would otherwise overlap; the push cascades to every lane after it so
-  // lane order (and spacing) is preserved. Lanes that themselves hold a pin
-  // are left at their original stacked position — the pin already put a node
-  // there, and GraphMap overrides pinned members' positions regardless.
-  const pinnedRects = Object.entries(pinned).map(([id, pos]) => ({ top: pos.y, bottom: pos.y + heightOf(id) }));
+  // Phase C: a lane holding a pin FOLLOWS that pin — the whole pipeline moves so
+  // the dragged node lands exactly where it was dropped and its lane-mates stay
+  // on its port row, which is the point of dropping it there. Every other lane
+  // is pushed down past the bands it would otherwise overlap; the push cascades
+  // to the lanes after it so lane order (and spacing) is preserved.
+  const blockers = Object.entries(pinned).map(([id, pos]) => ({ top: pos.y, bottom: pos.y + heightOf(id) }));
   const finalTop = new Map<string, number>();
   let shiftSoFar = 0;
   for (const missionId of laneOrder) {
     const info = laneInfo.get(missionId)!;
+    if (info.pinnedMember) {
+      const top = pinned[info.pinnedMember].y - info.offsets.get(info.pinnedMember)!;
+      finalTop.set(missionId, top);
+      // A pinned lane doesn't drag the stack along with it, but it is still
+      // ground the following lanes have to route around.
+      blockers.push({ top, bottom: top + info.height });
+      continue;
+    }
     let top = originalTop.get(missionId)! + shiftSoFar;
-    if (!info.hasPinned && pinnedRects.length > 0) {
+    if (blockers.length > 0) {
       let moved = true;
       let guard = 0;
-      while (moved && guard <= pinnedRects.length) {
+      while (moved && guard <= blockers.length) {
         moved = false;
-        for (const rect of pinnedRects) {
+        for (const rect of blockers) {
           if (rectsOverlapVertically(top, top + info.height, rect.top, rect.bottom)) {
             const candidate = rect.bottom + LANE_GAP;
             if (candidate > top) {

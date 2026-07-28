@@ -204,11 +204,12 @@ describe("pinned nodes", () => {
     expect(overlapChecker(nodes)("m2", "m1", { ...positions, m1: pinned.m1 })).toBe(false);
   });
 
-  it("leaves a lane holding a pinned node at its own stacked slot", () => {
-    const base = layoutGraph(nodes, edges);
-    const pinned = { m1: { x: 900, y: 900 } };
-    const positions = layoutGraph(nodes, edges, pinned);
-    expect(positions.m1).toEqual(base.m1);
+  it("moves a pinned node's whole lane with it, so its pipeline stays level", () => {
+    const laneNodes = [node("r1", "repo"), node("m1", "task", "m1"), node("m1_agent", "agent", "m1")];
+    const laneEdges = [edge("r1", "m1"), edge("m1", "m1_agent")];
+    const positions = layoutGraph(laneNodes, laneEdges, { m1: { x: 900, y: 900 } });
+    expect(positions.m1.y).toBe(900);
+    expect(portRow("m1_agent", laneNodes, positions)).toBeCloseTo(portRow("m1", laneNodes, positions));
   });
 });
 
