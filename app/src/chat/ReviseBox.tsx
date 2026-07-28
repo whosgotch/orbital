@@ -1,6 +1,6 @@
 // Sends one more chat turn to the same session, so the diff revises in place instead of being redone from scratch.
 import { useState } from "react";
-import { Loader, SendHorizontal } from "lucide-react";
+import { ArrowUp, Loader } from "lucide-react";
 
 export function ReviseBox({
   onSend,
@@ -43,7 +43,7 @@ export function ReviseBox({
         aria-label="Send change request"
         title="Send change request"
       >
-        {sending ? <Loader size={14} className="spin" aria-hidden="true" /> : <SendHorizontal size={14} aria-hidden="true" />}
+        {sending ? <Loader size={14} className="spin" aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.25} aria-hidden="true" />}
       </button>
     </div>
   );
