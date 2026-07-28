@@ -72,9 +72,15 @@ export function loadCommitDiff(repoPath: string, hash: string): Promise<string> 
   return invoke<string>("load_commit_diff", { repoPath, hash });
 }
 
-// Every model the CLI's provider makes available (live catalog if
-// ANTHROPIC_API_KEY is set, otherwise the worker's static fallback list).
-export async function loadModels(): Promise<{ id: string; display_name: string }[]> {
-  const models = await invoke<string>("list_models");
-  return JSON.parse(models) as { id: string; display_name: string }[];
+// The model catalog the installed claude CLI carries, plus the model and
+// thinking level the user already configured in Claude Code.
+export type ModelCatalogPayload = {
+  models: { id: string; display_name: string; effort_levels: string[]; default_effort?: string }[];
+  default_model?: string;
+  default_effort?: string;
+};
+
+export async function loadModels(): Promise<ModelCatalogPayload> {
+  const catalog = await invoke<string>("list_models");
+  return JSON.parse(catalog) as ModelCatalogPayload;
 }
