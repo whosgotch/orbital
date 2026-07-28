@@ -168,7 +168,7 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 
 		// Stream Claude's reasoning (thoughts) and actions (edits, commands) into
 		// the feed, tagged so the Agent transcript can render them distinctly.
-		summary, sessionID, usage, err := callClaudeAgentic(ctx, request.RepoPath, request.ResumeSessionID, request.Model, request.Effort, prompt, func(kind, msg string) {
+		turn, err := callClaudeAgentic(ctx, request.RepoPath, request.ResumeSessionID, request.Model, request.Effort, prompt, func(kind, msg string) {
 			eventType := domain.WorkflowEventAgentAction
 			if kind == "thought" {
 				eventType = domain.WorkflowEventAgentThought
@@ -182,34 +182,35 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 
 		// Report this turn's token accounting so the service can merge it into the
 		// run's running totals (context fill + cumulative spend).
-		if usage != nil {
+		if turn.Usage != nil {
 			select {
 			case <-ctx.Done():
 				sendCancelledEvent(events, request.RunID)
 				return
-			case events <- RunEvent{Usage: usage}:
+			case events <- RunEvent{Usage: turn.Usage}:
 			}
 		}
 
 		// Persist the captured session so the next turn can resume this exact
-		// conversation instead of starting a new one.
-		if sessionID != "" {
+		// conversation instead of starting a new one, and the model the CLI
+		// actually ran so the node can show what did the work.
+		if turn.SessionID != "" || turn.Model != "" {
 			select {
 			case <-ctx.Done():
 				sendCancelledEvent(events, request.RunID)
 				return
-			case events <- RunEvent{SessionID: sessionID}:
+			case events <- RunEvent{SessionID: turn.SessionID, Model: turn.Model}:
 			}
 		}
 
 		suggestedSubject := ""
-		if strings.TrimSpace(summary) != "" {
+		if strings.TrimSpace(turn.Summary) != "" {
 			// A researcher's reply splits in two: a short note stays in the chat,
 			// the full findings document goes to the mission via its own event.
-			chatText := strings.TrimSpace(summary)
+			chatText := strings.TrimSpace(turn.Summary)
 			findings := ""
 			if w.deliversFindings {
-				chatText, findings = splitResearchReply(summary)
+				chatText, findings = splitResearchReply(turn.Summary)
 			}
 
 			// An engineer's reply ends with a <commit> tag (see buildPrompt) — pull

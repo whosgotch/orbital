@@ -44,9 +44,20 @@ export function baseModelId(id: string): string {
   return id.replace(/\[.*\]$/, "");
 }
 
+// Matches a model id against the catalog. The id a run reports back is the
+// fully resolved one, which can be a dated snapshot of a catalog entry
+// (`claude-haiku-4-5-20251001` for `claude-haiku-4-5`), so an exact match is
+// tried first and then the longest catalog id the given one extends.
 export function findModel(models: Model[], id: string): Model | undefined {
   const base = baseModelId(id);
-  return models.find((model) => baseModelId(model.id) === base);
+  if (!base) return undefined;
+
+  const exact = models.find((model) => baseModelId(model.id) === base);
+  if (exact) return exact;
+
+  return models
+    .filter((model) => base.startsWith(`${baseModelId(model.id)}-`))
+    .sort((a, b) => b.id.length - a.id.length)[0];
 }
 
 // Resolves the thinking level actually sent to the CLI. A preference that the

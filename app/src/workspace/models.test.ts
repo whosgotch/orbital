@@ -26,6 +26,17 @@ describe("findModel", () => {
     expect(findModel(models, "claude-opus-5[1m]")).toBe(opus);
   });
 
+  // What a run reports back: `--model claude-haiku-4-5` resolves to a dated
+  // snapshot, which must still read as "Haiku 4.5" on the node.
+  it("matches the dated snapshot a run resolves to", () => {
+    expect(findModel(models, "claude-haiku-4-5-20251001")).toBe(haiku);
+    expect(findModel(models, "claude-sonnet-4-6-20251114")).toBe(sonnet46);
+  });
+
+  it("does not match a different model that merely shares a prefix", () => {
+    expect(findModel(models, "claude-opus-50")).toBeUndefined();
+  });
+
   it("returns nothing for an unset or unknown model", () => {
     expect(findModel(models, "")).toBeUndefined();
     expect(findModel(models, "claude-opus-4-1")).toBeUndefined();

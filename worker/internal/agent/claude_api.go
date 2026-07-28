@@ -34,14 +34,18 @@ func (u usageRecord) inputTotal() int {
 
 // streamJSONLine is one line of `claude --output-format stream-json` output.
 type streamJSONLine struct {
-	Type         string  `json:"type"`
-	Subtype      string  `json:"subtype"`
-	Result       string  `json:"result"`
+	Type    string `json:"type"`
+	Subtype string `json:"subtype"`
+	Result  string `json:"result"`
+	// Model on the init line is the model the CLI resolved for this turn.
+	Model        string  `json:"model"`
 	SessionID    string  `json:"session_id"`
 	TotalCostUSD float64 `json:"total_cost_usd"`
 	// Usage on the terminal result line is cumulative for the whole turn.
 	Usage   *usageRecord `json:"usage"`
 	Message struct {
+		// Model on an assistant line names the model that produced it.
+		Model string `json:"model"`
 		// Usage on an assistant line is that one API call's usage; the last one
 		// seen reflects the final, fullest context of the turn.
 		Usage   *usageRecord `json:"usage"`
@@ -65,7 +69,7 @@ type streamJSONLine struct {
 // into a live, multi-turn chat. onStep receives each streamed step as
 // ("thought", reasoning text) for Claude's own narration or ("action", tool
 // description) for an edit/command it runs.
-func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, effort, prompt string, onStep func(kind, msg string)) (string, string, *domain.RunUsage, error) {
+func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, effort, prompt string, onStep func(kind, msg string)) (streamResult, error) {
 	args := []string{"--print",
 		"--permission-mode", "acceptEdits",
 		// WebSearch/WebFetch sit behind their own permission gate that acceptEdits
@@ -89,28 +93,42 @@ func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, ef
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", "", nil, err
+		return streamResult{}, err
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
-		return "", "", nil, fmt.Errorf("claude CLI start: %w", err)
+		return streamResult{}, fmt.Errorf("claude CLI start: %w", err)
 	}
 
-	summary, sessionID, usage := scanAgenticStream(stdout, onStep)
+	result := scanAgenticStream(stdout, onStep)
 
 	if err := cmd.Wait(); err != nil {
-		return "", "", nil, fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
+		return streamResult{}, fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
-	return summary, sessionID, usage, nil
+	return result, nil
+}
+
+// streamResult is everything one `claude` turn yields beyond its streamed steps.
+type streamResult struct {
+	Summary   string
+	SessionID string
+	// Model is the model the CLI actually ran, as it reports on its init line.
+	// It is the resolved id, which need not be what we asked for: an alias
+	// expands, a `[1m]` suffix falls away, and an empty request resolves to
+	// whatever the CLI itself was configured to use.
+	Model string
+	Usage *domain.RunUsage
 }
 
 // scanAgenticStream reads `claude --output-format stream-json` lines, forwarding
-// Claude's narration and tool calls to onStep, and returns the final summary and
-// the session id (captured from whichever line carries it). Kept separate from
-// the exec plumbing so it can be tested against a captured stream fixture.
-func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, sessionID string, usage *domain.RunUsage) {
+// Claude's narration and tool calls to onStep, and returns what the turn yielded
+// (summary, session id, resolved model, usage) — each captured from whichever
+// line carries it. Kept separate from the exec plumbing so it can be tested
+// against a captured stream fixture.
+func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) streamResult {
+	var result streamResult
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 1024*1024), 16*1024*1024)
 	// contextFill tracks the fullest input seen so far this turn — the final
@@ -122,7 +140,14 @@ func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, ses
 			continue
 		}
 		if line.SessionID != "" {
-			sessionID = line.SessionID
+			result.SessionID = line.SessionID
+		}
+		// The init line names the resolved model; an assistant line repeats it,
+		// which is the fallback when a resumed turn skips init.
+		if line.Model != "" {
+			result.Model = line.Model
+		} else if line.Message.Model != "" {
+			result.Model = line.Message.Model
 		}
 		switch line.Type {
 		case "assistant":
@@ -142,7 +167,7 @@ func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, ses
 				}
 			}
 		case "result":
-			summary = strings.TrimSpace(line.Result)
+			result.Summary = strings.TrimSpace(line.Result)
 			if line.Usage != nil {
 				input := line.Usage.inputTotal()
 				// No per-message usage arrived (older CLI, or streamed differently):
@@ -150,7 +175,7 @@ func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, ses
 				if contextFill == 0 {
 					contextFill = input
 				}
-				usage = &domain.RunUsage{
+				result.Usage = &domain.RunUsage{
 					ContextTokens: contextFill,
 					InputTokens:   input,
 					OutputTokens:  line.Usage.OutputTokens,
@@ -160,7 +185,7 @@ func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) (summary, ses
 			}
 		}
 	}
-	return summary, sessionID, usage
+	return result
 }
 
 // QueryClaudeInRepoStreaming asks Claude a question it can answer by reading
@@ -196,7 +221,7 @@ func QueryClaudeInRepoStreaming(ctx context.Context, repoPath, model, prompt str
 		return "", fmt.Errorf("claude CLI start: %w", err)
 	}
 
-	result, _, _ := scanAgenticStream(stdout, onStep)
+	result := scanAgenticStream(stdout, onStep).Summary
 
 	if err := cmd.Wait(); err != nil {
 		return "", fmt.Errorf("claude CLI: %w: %s", err, strings.TrimSpace(stderr.String()))

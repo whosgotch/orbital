@@ -70,4 +70,17 @@ describe("enrichGraphNodes", () => {
     expect(node.meta?.totalTokens).toBe(1_200_000);
     expect(node.meta?.durationMs).toBe(42_000);
   });
+
+  it("threads the model that ran the mission onto the task node's meta", () => {
+    const [node] = enrichGraphNodes({
+      ...baseArgs,
+      workspaceMissions: [mission({ model: "claude-opus-5" })],
+    });
+    expect(node.meta?.model).toBe("claude-opus-5");
+  });
+
+  it("leaves the model unset until a run has reported one", () => {
+    const [node] = enrichGraphNodes(baseArgs);
+    expect(node.meta?.model).toBeUndefined();
+  });
 });
