@@ -23,7 +23,7 @@ type AgentRun struct {
 	CompletedAt *time.Time     `json:"completed_at,omitempty"`
 	// DurationMs is how long the run took, in milliseconds — captured from
 	// StartedAt to CompletedAt when the run finishes. Zero while still running.
-	DurationMs int64 `json:"duration_ms,omitempty"`
+	DurationMs  int64    `json:"duration_ms,omitempty"`
 	Error       string   `json:"error,omitempty"`
 	ParentRunID string   `json:"parent_run_id,omitempty"`
 	ChildRunIDs []string `json:"child_run_ids,omitempty"`
