@@ -659,16 +659,15 @@ h3 {
 
 .revise-box {
   flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  position: relative;
   margin-top: 10px;
 }
 
 .revise-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 8px 11px;
+  display: block;
+  width: 100%;
+  /* Right padding clears the send button, which sits inside the field. */
+  padding: 8px 42px 8px 11px;
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -684,14 +683,10 @@ h3 {
 }
 
 .revise-send {
-  flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .diff-modal .revise-box {
@@ -1069,15 +1064,15 @@ h3 {
 
 .chat-composer {
   flex: 0 0 auto;
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  position: relative;
 }
 
 .chat-input {
-  flex: 1 1 auto;
+  display: block;
+  width: 100%;
   resize: none;
-  padding: 9px 11px;
+  /* Right padding clears the send button, which sits inside the field. */
+  padding: 9px 46px 9px 11px;
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -1094,14 +1089,25 @@ h3 {
 }
 
 .chat-send {
-  flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+
+/* Both send buttons ride INSIDE their field, so the button lines up by construction
+   instead of by keeping two separate box heights in sync. A circle keeps the arrow
+   optically centered — the old square left it reading off to one side.
+   Tag-qualified to outrank .primary, which is declared later in this file. */
+button.chat-send,
+button.revise-send {
+  width: 30px;
+  height: 30px;
+  min-height: 0;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 999px;
 }
 
 .agent-status {
