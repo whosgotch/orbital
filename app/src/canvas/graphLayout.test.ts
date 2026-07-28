@@ -14,15 +14,16 @@ function rectsOverlap(a: { x: number; y: number }, b: { x: number; y: number }):
   return a.x < b.x + NODE_WIDTH && b.x < a.x + NODE_WIDTH && a.y < b.y + NODE_HEIGHT && b.y < a.y + NODE_HEIGHT;
 }
 
+// Two root missions plus one chained off m1 — every mission is a single card,
+// so lanes are one node deep and columns come from chain depth.
 const pipeline: WorkspaceGraphNode[] = [
   node("r1", "repo"),
   node("m1", "task", "m1"),
-  node("m1_agent", "agent", "m1"),
-  node("m1_patch", "changes", "m1"),
   node("m2", "task", "m2"),
+  node("m3", "task", "m3"),
 ];
 
-const pipelineEdges = [edge("r1", "m1"), edge("m1", "m1_agent"), edge("m1_agent", "m1_patch"), edge("r1", "m2")];
+const pipelineEdges = [edge("r1", "m1"), edge("r1", "m2"), thenEdge("m1", "m3")];
 
 describe("layoutGraph", () => {
   it("positions every node on a finite grid", () => {
@@ -37,9 +38,9 @@ describe("layoutGraph", () => {
   it("advances one column per depth step and aligns stages across lanes", () => {
     const positions = layoutGraph(pipeline, pipelineEdges);
     expect(positions.r1.x).toBeLessThan(positions.m1.x);
-    expect(positions.m1.x).toBeLessThan(positions.m1_agent.x);
-    expect(positions.m1_agent.x).toBeLessThan(positions.m1_patch.x);
-    // Both tasks are depth 1 from the repo, so they share a column.
+    // A chained task sits one column right of the task it waits on.
+    expect(positions.m1.x).toBeLessThan(positions.m3.x);
+    // Both chain heads are depth 1 from the repo, so they share a column.
     expect(positions.m2.x).toBe(positions.m1.x);
   });
 
@@ -113,9 +114,6 @@ describe("no overlaps", () => {
       node("r1", "repo"),
       node("r2", "repo"),
       node("m1", "task", "m1"),
-      node("m1_agent", "agent", "m1"),
-      node("m1_patch", "changes", "m1"),
-      node("m1_verify", "verify", "m1"),
       node("m2", "task", "m2"),
       node("m3", "task", "m3"), // chained off m1
       node("m4", "research", "m4"),
@@ -123,9 +121,6 @@ describe("no overlaps", () => {
     ];
     const edges = [
       edge("r1", "m1"),
-      edge("m1", "m1_agent"),
-      edge("m1_agent", "m1_patch"),
-      edge("m1_patch", "m1_verify"),
       edge("r1", "m2"),
       thenEdge("m1", "m3"),
       edge("r1", "m4"),

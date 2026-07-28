@@ -16,8 +16,6 @@ export type EnrichGraphNodesArgs = {
   workerModeByMission: Record<string, WorkerMode>;
   activityByMission: Record<string, string[]>;
   patchDiffByMission: Record<string, string>;
-  verificationOutputByMission: Record<string, string>;
-  verificationCommandByMission: Record<string, string>;
   commitByMission: Record<string, CommitInfo>;
   usageByMission: Record<string, MissionUsage>;
 };
@@ -29,8 +27,6 @@ export function enrichGraphNodes({
   workerModeByMission,
   activityByMission,
   patchDiffByMission,
-  verificationOutputByMission,
-  verificationCommandByMission,
   commitByMission,
   usageByMission,
 }: EnrichGraphNodesArgs): GraphNode[] {
@@ -128,53 +124,6 @@ export function enrichGraphNodes({
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
             commitHash: commitByMission[missionId]?.hash || undefined,
             ...usageMeta(missionId),
-          },
-        };
-      }
-      case "agent": {
-        const live = runtime?.status === "running";
-        return {
-          ...node,
-          status,
-          meta: {
-            ...node.meta,
-            live,
-            now: live ? activityByMission[missionId]?.at(-1) : undefined,
-            ...usageMeta(missionId),
-          },
-        };
-      }
-      case "changes": {
-        const diff = patchDiffByMission[missionId] ?? "";
-        const files = parseDiffFiles(diff);
-        return {
-          ...node,
-          status,
-          meta: {
-            ...node.meta,
-            files: files.length,
-            additions: files.reduce((sum, file) => sum + file.added, 0),
-            deletions: files.reduce((sum, file) => sum + file.removed, 0),
-            patchState: diff ? runtime?.patchStatus ?? ("pending" as const) : ("none" as const),
-          },
-        };
-      }
-      case "verify": {
-        const output = verificationOutputByMission[missionId] ?? "";
-        const verifyState = runtime?.verified
-          ? ("passed" as const)
-          : output
-            ? ("failed" as const)
-            : runtime?.patchStatus === "approved"
-              ? ("ready" as const)
-              : ("idle" as const);
-        return {
-          ...node,
-          status,
-          meta: {
-            ...node.meta,
-            command: verificationCommandByMission[missionId] ?? node.meta?.command,
-            verifyState,
           },
         };
       }

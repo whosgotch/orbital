@@ -22,7 +22,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, GitBranch, GitCommitHorizontal, Loader, Play, ShieldCheck, Timer, X } from "lucide-react";
+import { Check, GitBranch, GitCommitHorizontal, Loader, Play, Timer, X } from "lucide-react";
 import { layoutGraph, type NodePosition } from "./graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "./graph";
 import { formatDuration, formatTokens } from "../workspace/usage";
@@ -36,7 +36,6 @@ export type NodeActions = {
   onRunTask: (missionId: string) => void;
   onApprove: (missionId: string) => void;
   onReject: (missionId: string) => void;
-  onVerify: (missionId: string) => void;
   // Tools resolve their own execution and ignore the worker param.
   onCreateTask: (text: string, run: boolean, kind: "task" | "tool", worker: DraftWorker, model?: string) => void;
   onCancelDraft: () => void;
@@ -65,9 +64,8 @@ type GraphMapProps = {
   actions: NodeActions;
 };
 
-// Edges stay neutral unless they carry meaning: a chain (then) and a block are the only relationships worth a hue.
+// Edges stay neutral unless they carry meaning: a chain (then) is the only relationship worth a hue.
 const EDGE_COLOR: Record<string, string> = {
-  blocks: "#e5615c",
   then: "#3fb96f",
 };
 const NEUTRAL_EDGE = "rgba(152, 152, 159, 0.42)";
@@ -77,9 +75,7 @@ function edgeColor(kind: string) {
 }
 
 function edgeDash(kind: string) {
-  if (kind === "spawns" || kind === "coordinates") return "4 3";
-  if (kind === "blocks") return "5 4";
-  return undefined;
+  return kind === "coordinates" ? "4 3" : undefined;
 }
 
 const nodeTypes = { orbital: OrbitalNode };
@@ -126,7 +122,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       onRunTask: (id) => actionsRef.current.onRunTask(id),
       onApprove: (id) => actionsRef.current.onApprove(id),
       onReject: (id) => actionsRef.current.onReject(id),
-      onVerify: (id) => actionsRef.current.onVerify(id),
       onCreateTask: (text, run, kind, worker, model) => actionsRef.current.onCreateTask(text, run, kind, worker, model),
       onCancelDraft: () => actionsRef.current.onCancelDraft(),
       onLinkTasks: (from, to) => actionsRef.current.onLinkTasks(from, to),
@@ -398,9 +393,6 @@ function miniMapColor(node: Node) {
 const KIND_LABEL: Record<GraphNodeKind, string> = {
   repo: "Repository",
   task: "Task",
-  agent: "Agent",
-  changes: "Changes",
-  verify: "Verify",
   campaign: "Campaign",
   tool: "Tool",
   research: "Research",
@@ -654,47 +646,14 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
     );
   }
 
-  if (node.kind === "agent") {
-    return (
-      <div className="node-card-body">
-        <p className={`node-card-now ${meta?.live ? "live" : ""}`}>
-          {meta?.now ?? (meta?.live ? "working…" : "idle — open the chat to steer")}
-        </p>
-        <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
-        <DurationChip durationMs={meta?.durationMs} />
-      </div>
-    );
-  }
-
-  if (node.kind === "changes") {
-    const files = meta?.files ?? 0;
-    return (
-      <div className="node-card-body">
-        {files > 0 ? (
-          <div className="node-card-stats">
-            <span>
-              {files} file{files === 1 ? "" : "s"}
-            </span>
-            {meta?.additions ? <span className="add">+{meta.additions}</span> : null}
-            {meta?.deletions ? <span className="del">−{meta.deletions}</span> : null}
-          </div>
-        ) : (
-          <p className="node-card-prompt">No change set yet.</p>
-        )}
-        {meta?.patchState === "approved" ? <span className="node-tag ok">approved</span> : null}
-        {meta?.patchState === "rejected" ? <span className="node-tag bad">rejected</span> : null}
-      </div>
-    );
-  }
-
-  if (node.kind === "verify" || node.kind === "tool") {
+  if (node.kind === "tool") {
     return (
       <div className="node-card-body">
         {meta?.command ? <code className="node-card-command">{meta.command}</code> : null}
         {meta?.waitingFor ? <span className="node-tag wait">after: {meta.waitingFor}</span> : null}
         {meta?.verifyState === "passed" ? <span className="node-tag ok">passed</span> : null}
         {meta?.verifyState === "failed" ? <span className="node-tag bad">failed</span> : null}
-        {node.kind === "tool" ? <CommitChip hash={meta?.commitHash} /> : null}
+        <CommitChip hash={meta?.commitHash} />
       </div>
     );
   }
@@ -797,23 +756,6 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
     );
   }
 
-  if (node.kind === "verify" && meta?.verifyState === "ready") {
-    return (
-      <div className="node-card-actions">
-        <button
-          type="button"
-          className="node-btn primary nodrag"
-          onClick={(event) => {
-            event.stopPropagation();
-            act.onVerify(missionId);
-          }}
-        >
-          <ShieldCheck size={12} aria-hidden="true" />
-          Verify
-        </button>
-      </div>
-    );
-  }
 
   return null;
 }
