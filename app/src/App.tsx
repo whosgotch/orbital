@@ -134,18 +134,10 @@ export function App() {
   const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
   const patchReady = (selectedPatchDiff ?? "") !== "";
 
-  // A clicked child agent uses its own run id; the manager node uses the mission's top-level run; otherwise the whole mission's agents are shown together.
-  const selectedAgentRunId = useMemo(() => {
-    if (!selectedGraphNode || selectedGraphNode.kind !== "agent") return undefined;
-    if (selectedGraphNode.id.endsWith("_manager")) {
-      return missionLoopState.agent_runs.filter((run) => run.mission_id === selectedMissionId && !run.parent_run_id).at(-1)?.id;
-    }
-    return selectedGraphNode.id;
-  }, [selectedGraphNode, missionLoopState.agent_runs, selectedMissionId]);
-
+  // The chat is the whole mission's transcript — every run it has had, in order.
   const agentTranscript = useMemo(
-    () => buildAgentTranscript(missionLoopState, selectedMissionId ?? "", selectedAgentRunId),
-    [missionLoopState, selectedMissionId, selectedAgentRunId],
+    () => buildAgentTranscript(missionLoopState, selectedMissionId ?? ""),
+    [missionLoopState, selectedMissionId],
   );
   const selectedActivityKey = selectedMission?.id ?? "";
   const selectedActivity = useMemo(
