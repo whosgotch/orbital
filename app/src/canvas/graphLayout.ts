@@ -1,13 +1,27 @@
 import dagre from "@dagrejs/dagre";
-import type { WorkspaceGraphEdge, WorkspaceGraphNode } from "./graph";
+import type { GraphNodeKind, WorkspaceGraphEdge, WorkspaceGraphNode } from "./graph";
 
 export type NodePosition = { x: number; y: number };
 
-// Dagre is fed a single uniform node footprint. Mixing per-kind sizes makes its
-// rank assignment collapse multiple ranks onto the same coordinate, so layout
-// uses one size for spacing while the rendered nodes keep their real CSS sizes.
 export const NODE_WIDTH = 236;
+// Footprint for a card the canvas has not measured yet. Real heights arrive
+// from React Flow (GraphMap passes them in) because cards grow with their
+// content — a finished task card is nearly twice this tall, and laying it out
+// as 118px is what used to stack lanes on top of each other.
 export const NODE_HEIGHT = 118;
+// Repo/campaign cards are wallpaper: styles.css fixes their height so their
+// port row is a constant, not a function of whether a branch chip is showing.
+export const REPO_HEIGHT = 100;
+
+// Distance from a card's top edge to its handles. styles.css pins the handles
+// at exactly these offsets — edges come out straight only while the two agree.
+const PORT_Y = 59;
+const REPO_PORT_Y = REPO_HEIGHT / 2;
+
+export function portOffset(kind: GraphNodeKind): number {
+  return kind === "repo" || kind === "campaign" ? REPO_PORT_Y : PORT_Y;
+}
+
 const COL_GAP = 72; // horizontal gap between pipeline stages
 const ROW_GAP = 28; // vertical gap between branches inside one lane
 export const LANE_GAP = 64; // vertical gap between mission lanes
@@ -20,16 +34,29 @@ function rectsOverlapVertically(top1: number, bottom1: number, top2: number, bot
 // Aligned swimlanes: every mission is its own lane, and each node snaps to a
 // GLOBAL column (its longest-path depth from the repo) so the same pipeline
 // stage lines up vertically across every lane. Vertical placement within a
-// lane comes from a dagre pass. `pinned` carries the top-left positions of
+// lane comes from a dagre pass run in PORT-ROW space: cards are hung off their
+// port row rather than centered, so a pipeline's ports stay collinear however
+// tall its individual cards grow. `pinned` carries the top-left positions of
 // user-dragged nodes (GraphMap's manualPositionsRef): lanes with no pinned
 // members are pushed clear of them so a freshly spawned lane never lands
-// under a pin. Returns top-left positions keyed by node id.
+// under a pin. `heights` carries measured card heights by node id; anything
+// missing falls back to NODE_HEIGHT. Returns top-left positions keyed by id.
 export function layoutGraph(
   nodes: WorkspaceGraphNode[],
   edges: WorkspaceGraphEdge[],
   pinned: Record<string, NodePosition> = {},
+  heights: Record<string, number> = {},
 ): Record<string, NodePosition> {
   const present = new Set(nodes.map((node) => node.id));
+  const kindById = new Map(nodes.map((node) => [node.id, node.kind]));
+  const portOf = (id: string) => portOffset(kindById.get(id) ?? "task");
+  const heightOf = (id: string) =>
+    heights[id] ?? (kindById.get(id) === "repo" || kindById.get(id) === "campaign" ? REPO_HEIGHT : NODE_HEIGHT);
+  // Dagre centers a node on its rank coordinate, but we hang cards off their
+  // port row. Reserving the taller half on both sides makes dagre's box cover
+  // wherever the card actually lands, so ROW_GAP stays a real gap.
+  const dagreHeightOf = (id: string) => 2 * Math.max(portOf(id), heightOf(id) - portOf(id));
+
   const parents = new Map<string, string[]>();
   nodes.forEach((node) => parents.set(node.id, []));
   edges.forEach((edge) => {
@@ -114,9 +141,9 @@ export function layoutGraph(
     });
   }
 
-  const centers: Record<string, NodePosition> = {};
+  const tops: Record<string, number> = {};
 
-  // Phase A: per-lane dagre pass gives each node's vertical offset from its
+  // Phase A: per-lane dagre pass gives each node's card top relative to its
   // own lane's top, independent of where that lane ends up sitting.
   type LaneInfo = { height: number; offsets: Map<string, number>; hasPinned: boolean };
   const laneInfo = new Map<string, LaneInfo>();
@@ -128,29 +155,28 @@ export function layoutGraph(
     const graph = new dagre.graphlib.Graph();
     graph.setGraph({ rankdir: "LR", nodesep: ROW_GAP, ranksep: COL_GAP, marginx: 0, marginy: 0 });
     graph.setDefaultEdgeLabel(() => ({}));
-    lane.forEach((node) => graph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT }));
+    lane.forEach((node) => graph.setNode(node.id, { width: NODE_WIDTH, height: dagreHeightOf(node.id) }));
     edges.forEach((edge) => {
       if (laneSet.has(edge.from) && laneSet.has(edge.to)) graph.setEdge(edge.from, edge.to);
     });
     dagre.layout(graph);
 
-    let minY = Infinity;
-    let maxY = -Infinity;
+    // The dagre box is symmetric around the port row, so its center IS the
+    // port row: nodes dagre ranked level get collinear ports, whatever their
+    // heights, and the card hangs off that row.
+    const cardTop = (id: string) => graph.node(id).y - portOf(id);
+    let minTop = Infinity;
+    let maxBottom = -Infinity;
     lane.forEach((node) => {
-      const laid = graph.node(node.id);
-      minY = Math.min(minY, laid.y);
-      maxY = Math.max(maxY, laid.y);
+      minTop = Math.min(minTop, cardTop(node.id));
+      maxBottom = Math.max(maxBottom, cardTop(node.id) + heightOf(node.id));
     });
 
     const offsets = new Map<string, number>();
-    lane.forEach((node) => {
-      const laid = graph.node(node.id);
-      offsets.set(node.id, NODE_HEIGHT / 2 + (laid.y - minY));
-      centers[node.id] = { x: columnOf(node.id) * COL_STEP + NODE_WIDTH / 2, y: 0 };
-    });
+    lane.forEach((node) => offsets.set(node.id, cardTop(node.id) - minTop));
 
     laneInfo.set(missionId, {
-      height: maxY - minY + NODE_HEIGHT,
+      height: maxBottom - minTop,
       offsets,
       hasPinned: lane.some((node) => node.id in pinned),
     });
@@ -169,7 +195,7 @@ export function layoutGraph(
   // lane order (and spacing) is preserved. Lanes that themselves hold a pin
   // are left at their original stacked position — the pin already put a node
   // there, and GraphMap overrides pinned members' positions regardless.
-  const pinnedRects = Object.values(pinned).map((pos) => ({ top: pos.y, bottom: pos.y + NODE_HEIGHT }));
+  const pinnedRects = Object.entries(pinned).map(([id, pos]) => ({ top: pos.y, bottom: pos.y + heightOf(id) }));
   const finalTop = new Map<string, number>();
   let shiftSoFar = 0;
   for (const missionId of laneOrder) {
@@ -197,48 +223,51 @@ export function layoutGraph(
   }
 
   // Phase D: place every lane's nodes at their final band, and collect each
-  // repo's mission lane centers for the repo-node average below.
-  const repoMissionYs = new Map<string, number[]>();
+  // repo's mission PORT ROWS for the repo-node average below — averaging port
+  // rows (not card tops) is what makes a single-mission repo edge dead level.
+  const repoPortRows = new Map<string, number[]>();
   for (const missionId of laneOrder) {
     const lane = laneNodes.get(missionId)!;
     const info = laneInfo.get(missionId)!;
     const top = finalTop.get(missionId)!;
     lane.forEach((node) => {
-      centers[node.id].y = top + info.offsets.get(node.id)!;
+      tops[node.id] = top + info.offsets.get(node.id)!;
     });
 
     const missionNode = lane.find((node) => node.kind === "task");
     if (missionNode?.repository_id) {
-      const ys = repoMissionYs.get(missionNode.repository_id) ?? [];
-      ys.push(centers[missionNode.id].y);
-      repoMissionYs.set(missionNode.repository_id, ys);
+      const rows = repoPortRows.get(missionNode.repository_id) ?? [];
+      rows.push(tops[missionNode.id] + portOf(missionNode.id));
+      repoPortRows.set(missionNode.repository_id, rows);
     }
   }
 
-  // Repo y = mean of its missions' lane ys, then spread apart so two repos
-  // whose means land close together never overlap.
-  const repoCenters = repoNodes.map((repo, index) => {
-    const ys = repoMissionYs.get(repo.id);
-    const y = ys && ys.length > 0 ? ys.reduce((sum, value) => sum + value, 0) / ys.length : index * (NODE_HEIGHT + LANE_GAP);
-    return { id: repo.id, y };
+  // Repo port row = mean of its missions' port rows, then spread apart so two
+  // repos whose means land close together never overlap.
+  const repoRows = repoNodes.map((repo, index) => {
+    const rows = repoPortRows.get(repo.id);
+    const row =
+      rows && rows.length > 0
+        ? rows.reduce((sum, value) => sum + value, 0) / rows.length
+        : index * (REPO_HEIGHT + LANE_GAP) + REPO_PORT_Y;
+    return { id: repo.id, row };
   });
-  repoCenters.sort((a, b) => a.y - b.y);
-  const minRepoSeparation = NODE_HEIGHT + LANE_GAP;
-  for (let index = 1; index < repoCenters.length; index++) {
-    const previous = repoCenters[index - 1];
-    const current = repoCenters[index];
-    if (current.y - previous.y < minRepoSeparation) {
-      current.y = previous.y + minRepoSeparation;
+  repoRows.sort((a, b) => a.row - b.row);
+  const minRepoSeparation = REPO_HEIGHT + LANE_GAP;
+  for (let index = 1; index < repoRows.length; index++) {
+    const previous = repoRows[index - 1];
+    const current = repoRows[index];
+    if (current.row - previous.row < minRepoSeparation) {
+      current.row = previous.row + minRepoSeparation;
     }
   }
-  repoCenters.forEach(({ id, y }) => {
-    centers[id] = { x: NODE_WIDTH / 2, y };
+  repoRows.forEach(({ id, row }) => {
+    tops[id] = row - REPO_PORT_Y;
   });
 
   const positions: Record<string, NodePosition> = {};
   for (const node of nodes) {
-    const center = centers[node.id] ?? { x: 0, y: 0 };
-    positions[node.id] = { x: center.x - NODE_WIDTH / 2, y: center.y - NODE_HEIGHT / 2 };
+    positions[node.id] = { x: columnOf(node.id) * COL_STEP, y: tops[node.id] ?? 0 };
   }
   return positions;
 }

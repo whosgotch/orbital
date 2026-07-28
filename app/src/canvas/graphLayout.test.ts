@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspaceGraphEdge, WorkspaceGraphNode } from "./graph";
-import { layoutGraph, NODE_HEIGHT, NODE_WIDTH, LANE_GAP } from "./graphLayout";
+import { layoutGraph, portOffset, NODE_HEIGHT, NODE_WIDTH, LANE_GAP, REPO_HEIGHT } from "./graphLayout";
 
 function node(id: string, kind: WorkspaceGraphNode["kind"], missionId?: string, repositoryId = "r1"): WorkspaceGraphNode {
   return { id, kind, label: id, detail: "", mission_id: missionId, repository_id: repositoryId };
@@ -9,10 +9,22 @@ function node(id: string, kind: WorkspaceGraphNode["kind"], missionId?: string, 
 const edge = (from: string, to: string): WorkspaceGraphEdge => ({ id: `${from}_${to}`, from, to, kind: "owns" });
 const thenEdge = (from: string, to: string): WorkspaceGraphEdge => ({ id: `then_${from}_${to}`, from, to, kind: "then" });
 
-// Top-left rect intersection, using the layout's fixed node footprint.
-function rectsOverlap(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
-  return a.x < b.x + NODE_WIDTH && b.x < a.x + NODE_WIDTH && a.y < b.y + NODE_HEIGHT && b.y < a.y + NODE_HEIGHT;
+// Top-left rect intersection at the heights the layout was told about.
+function overlapChecker(nodes: WorkspaceGraphNode[], heights: Record<string, number> = {}) {
+  const heightOf = (id: string) =>
+    heights[id] ?? (nodes.find((n) => n.id === id)?.kind === "repo" ? REPO_HEIGHT : NODE_HEIGHT);
+  return (aId: string, bId: string, positions: Record<string, { x: number; y: number }>) => {
+    const a = positions[aId];
+    const b = positions[bId];
+    return (
+      a.x < b.x + NODE_WIDTH && b.x < a.x + NODE_WIDTH && a.y < b.y + heightOf(bId) && b.y < a.y + heightOf(aId)
+    );
+  };
 }
+
+// Absolute y of a node's handles — the thing an edge actually anchors to.
+const portRow = (id: string, nodes: WorkspaceGraphNode[], positions: Record<string, { x: number; y: number }>) =>
+  positions[id].y + portOffset(nodes.find((n) => n.id === id)!.kind);
 
 const pipeline: WorkspaceGraphNode[] = [
   node("r1", "repo"),
@@ -46,6 +58,22 @@ describe("layoutGraph", () => {
   it("gives each mission its own lane", () => {
     const positions = layoutGraph(pipeline, pipelineEdges);
     expect(positions.m1.y).not.toBe(positions.m2.y);
+  });
+
+  it("puts a whole pipeline's ports on one row, whatever each card measures", () => {
+    // The heights a real canvas reports: a finished task card is far taller
+    // than the fallback footprint, and every stage differs.
+    const heights = { r1: 100, m1: 201, m1_agent: 122, m1_patch: 114, m2: 155 };
+    const positions = layoutGraph(pipeline, pipelineEdges, {}, heights);
+    const row = portRow("m1", pipeline, positions);
+    expect(portRow("m1_agent", pipeline, positions)).toBeCloseTo(row);
+    expect(portRow("m1_patch", pipeline, positions)).toBeCloseTo(row);
+  });
+
+  it("levels a single-mission repo with the task it owns", () => {
+    const nodes = [node("r1", "repo"), node("m1", "task", "m1")];
+    const positions = layoutGraph(nodes, [edge("r1", "m1")], {}, { r1: 100, m1: 201 });
+    expect(portRow("r1", nodes, positions)).toBeCloseTo(portRow("m1", nodes, positions));
   });
 
   it("survives an accidental cycle without hanging", () => {
@@ -132,10 +160,33 @@ describe("no overlaps", () => {
       edge("r2", "m5"),
     ];
     const positions = layoutGraph(nodes, edges);
+    const overlaps = overlapChecker(nodes);
     const ids = Object.keys(positions);
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < ids.length; j++) {
-        expect(rectsOverlap(positions[ids[i]], positions[ids[j]])).toBe(false);
+        expect(overlaps(ids[i], ids[j], positions)).toBe(false);
+      }
+    }
+  });
+
+  it("keeps lanes clear when cards measure far taller than the fallback footprint", () => {
+    const nodes = [
+      node("r1", "repo"),
+      node("m1", "task", "m1"),
+      node("m1_agent", "agent", "m1"),
+      node("m2", "task", "m2"),
+      node("m3", "task", "m3"),
+    ];
+    const edges = [edge("r1", "m1"), edge("m1", "m1_agent"), edge("r1", "m2"), edge("r1", "m3")];
+    // Finished task cards run ~201px — well past NODE_HEIGHT + LANE_GAP, the
+    // pitch the old fixed-footprint layout stacked lanes at.
+    const heights = { r1: 100, m1: 201, m1_agent: 122, m2: 201, m3: 201 };
+    const positions = layoutGraph(nodes, edges, {}, heights);
+    const overlaps = overlapChecker(nodes, heights);
+    const ids = Object.keys(positions);
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        expect(overlaps(ids[i], ids[j], positions)).toBe(false);
       }
     }
   });
@@ -150,7 +201,7 @@ describe("pinned nodes", () => {
     // Pretend the user dragged m1 down into the spot m2 would naturally land.
     const pinned = { m1: basePositions.m2 };
     const positions = layoutGraph(nodes, edges, pinned);
-    expect(rectsOverlap(positions.m2, pinned.m1)).toBe(false);
+    expect(overlapChecker(nodes)("m2", "m1", { ...positions, m1: pinned.m1 })).toBe(false);
   });
 
   it("leaves a lane holding a pinned node at its own stacked slot", () => {
@@ -162,7 +213,7 @@ describe("pinned nodes", () => {
 });
 
 describe("repo separation", () => {
-  it("keeps two repo nodes with close average lane ys at least NODE_HEIGHT + LANE_GAP apart", () => {
+  it("keeps two repo nodes with close average lane ys at least a repo card + LANE_GAP apart", () => {
     const nodes = [
       node("r1", "repo"),
       node("r2", "repo"), // no missions of its own yet: falls back to an index-based y
@@ -170,6 +221,6 @@ describe("repo separation", () => {
     ];
     const edges = [edge("r1", "m1")];
     const positions = layoutGraph(nodes, edges);
-    expect(Math.abs(positions.r2.y - positions.r1.y)).toBeGreaterThanOrEqual(NODE_HEIGHT + LANE_GAP);
+    expect(Math.abs(positions.r2.y - positions.r1.y)).toBeGreaterThanOrEqual(REPO_HEIGHT + LANE_GAP);
   });
 });

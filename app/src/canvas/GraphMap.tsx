@@ -19,11 +19,13 @@ import {
   type Edge,
   type EdgeProps,
   type Node,
+  type NodeChange,
   type NodeProps,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Check, GitBranch, GitCommitHorizontal, Loader, Play, ShieldCheck, Timer, X } from "lucide-react";
-import { layoutGraph, type NodePosition } from "./graphLayout";
+import { layoutGraph, portOffset, type NodePosition } from "./graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "./graph";
 import { formatDuration, formatTokens } from "../workspace/usage";
 import { useModels } from "../workspace/useModels";
@@ -84,9 +86,6 @@ function edgeDash(kind: string) {
 
 const nodeTypes = { orbital: OrbitalNode };
 
-// Port row: handles sit this far below the card top (styles.css pins them; = layout NODE_HEIGHT / 2).
-const PORT_Y = 59;
-
 // Level ports (sub-pixel rounding only — never a visible slant) render as one
 // straight line; anything else keeps the squared smoothstep. The drag magnet
 // below makes exact levelness the norm, so no diagonal ever appears.
@@ -105,10 +104,10 @@ function OrbitalEdge({ sourceX, sourceY, sourcePosition, targetX, targetY, targe
 
 const edgeTypes = { orbital: OrbitalEdge };
 
-// Distance from card top to the port row (styles.css pins mission-card handles at PORT_Y; short repo/campaign cards center theirs).
+// Distance from card top to the port row. Same constants the layout hangs cards
+// off, so a magnet/Shift snap lands on exactly the row the layout would have.
 function portOffsetOf(rfNode: Node): number {
-  const kind = (rfNode.data as OrbitalNodeData).kind;
-  return kind === "repo" || kind === "campaign" ? (rfNode.measured?.height ?? PORT_Y * 2) / 2 : PORT_Y;
+  return portOffset((rfNode.data as OrbitalNodeData).kind);
 }
 
 export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions }: GraphMapProps) {
@@ -116,6 +115,15 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // Only nodes the user explicitly dragged are pinned here; everything else is re-laid-out fresh on every topology change.
   const manualPositionsRef = useRef<Record<string, NodePosition>>({});
+  // Cards grow with their content (chips land when a run finishes), so the
+  // layout is fed the heights React Flow actually measured rather than one
+  // assumed footprint — otherwise a tall lane runs into the one below it.
+  const measuredHeightsRef = useRef<Record<string, number>>({});
+  const [heightEpoch, setHeightEpoch] = useState(0);
+  // The mount-time `fitView` frames the guessed layout; once the first real
+  // heights land the graph is a different size, so it gets one honest re-fit.
+  const flowRef = useRef<ReactFlowInstance<Node<OrbitalNodeData>, Edge> | null>(null);
+  const refittedRef = useRef(false);
   const actionsRef = useRef(actions);
   useEffect(() => {
     actionsRef.current = actions;
@@ -200,8 +208,27 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     [nodes, edges],
   );
 
+  // React Flow reports a card's real size through dimension changes; a card
+  // that resized invalidates the layout, so record it and re-run the pass.
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<Node<OrbitalNodeData>>[]) => {
+      onNodesChange(changes);
+      let resized = false;
+      for (const change of changes) {
+        if (change.type !== "dimensions" || !change.dimensions) continue;
+        const height = Math.round(change.dimensions.height);
+        if (height > 0 && measuredHeightsRef.current[change.id] !== height) {
+          measuredHeightsRef.current[change.id] = height;
+          resized = true;
+        }
+      }
+      if (resized) setHeightEpoch((epoch) => epoch + 1);
+    },
+    [onNodesChange],
+  );
+
   useEffect(() => {
-    const laidOut = layoutGraph(nodes, edges, manualPositionsRef.current);
+    const laidOut = layoutGraph(nodes, edges, manualPositionsRef.current, measuredHeightsRef.current);
     let appearIndex = 0;
     nodes.forEach((node) => {
       if (!(node.id in settleDelaysRef.current)) {
@@ -220,8 +247,12 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       })) as Node<OrbitalNodeData>[],
     );
     setRfEdges(edges.map((edge) => toRfEdge(edge, missionByNode, selectedMissionId, runningMissionIds)));
+    if (!refittedRef.current && heightEpoch > 0) {
+      refittedRef.current = true;
+      requestAnimationFrame(() => void flowRef.current?.fitView({ padding: 0.2 }));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topologyKey]);
+  }, [topologyKey, heightEpoch]);
 
   useEffect(() => {
     setRfNodes((current) =>
@@ -310,13 +341,16 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
         edges={rfEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        onNodesChange={onNodesChange}
+        onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onSelectionDragStop={onSelectionDragStop}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onInit={(instance) => {
+          flowRef.current = instance;
+        }}
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         isValidConnection={isValidConnection}
