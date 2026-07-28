@@ -588,9 +588,16 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
   const meta = node.meta;
 
   if (node.kind === "task") {
+    const files = meta?.files ?? 0;
     return (
       <div className="node-card-body">
-        <p className="node-card-prompt">{meta?.prompt ?? node.detail}</p>
+        {/* While the agent works its live line replaces the prompt — the card
+            says what is happening now, not what was asked. */}
+        {meta?.live ? (
+          <p className="node-card-now live">{meta.now ?? "working…"}</p>
+        ) : (
+          <p className="node-card-prompt">{meta?.prompt ?? node.detail}</p>
+        )}
         {meta?.waitingFor ? <span className="node-tag wait">after: {meta.waitingFor}</span> : null}
         {meta?.worker ? <span className="node-tag">{meta.worker}</span> : null}
         {meta?.attachments ? (
@@ -598,6 +605,16 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
             {meta.attachments} image{meta.attachments === 1 ? "" : "s"}
           </span>
         ) : null}
+        {files > 0 ? (
+          <div className="node-card-stats">
+            <span>
+              {files} file{files === 1 ? "" : "s"}
+            </span>
+            {meta?.additions ? <span className="add">+{meta.additions}</span> : null}
+            {meta?.deletions ? <span className="del">−{meta.deletions}</span> : null}
+          </div>
+        ) : null}
+        {meta?.patchState === "rejected" ? <span className="node-tag bad">rejected</span> : null}
         <CommitChip hash={meta?.commitHash} />
         <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
         <DurationChip durationMs={meta?.durationMs} />
@@ -750,7 +767,8 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
     );
   }
 
-  if (node.kind === "changes" && meta?.patchState === "pending" && (meta?.files ?? 0) > 0) {
+  // The change set is gated on the mission's own card: no separate review node.
+  if (node.kind === "task" && meta?.patchState === "pending" && (meta?.files ?? 0) > 0) {
     return (
       <div className="node-card-actions">
         <button

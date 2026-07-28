@@ -67,6 +67,11 @@ export function enrichGraphNodes({
         const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
         const launchable =
           (!runtime || runtime.status === "queued" || runtime.status === "draft") && pendingUpstreams.length === 0;
+        const live = runtime?.status === "running";
+        // The task card carries its own change set: the counts it shows and the
+        // Approve/Reject gate it offers are this mission's proposed patch.
+        const diff = patchDiffByMission[missionId] ?? "";
+        const files = parseDiffFiles(diff);
         return {
           ...node,
           status,
@@ -74,8 +79,14 @@ export function enrichGraphNodes({
             ...node.meta,
             worker: workerModeLabel(workerModeByMission[missionId] ?? workerModeFromName(mission?.worker)),
             launchable,
+            live,
+            now: live ? activityByMission[missionId]?.at(-1) : undefined,
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
             commitHash: commitByMission[missionId]?.hash || undefined,
+            files: files.length,
+            additions: files.reduce((sum, file) => sum + file.added, 0),
+            deletions: files.reduce((sum, file) => sum + file.removed, 0),
+            patchState: diff ? runtime?.patchStatus ?? ("pending" as const) : ("none" as const),
             ...usageMeta(missionId),
           },
         };
