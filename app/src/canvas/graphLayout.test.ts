@@ -26,15 +26,16 @@ function overlapChecker(nodes: WorkspaceGraphNode[], heights: Record<string, num
 const portRow = (id: string, nodes: WorkspaceGraphNode[], positions: Record<string, { x: number; y: number }>) =>
   positions[id].y + portOffset(nodes.find((n) => n.id === id)!.kind);
 
+// Two root missions plus one chained off m1 — every mission is a single card,
+// so lanes are one node deep and columns come from chain depth.
 const pipeline: WorkspaceGraphNode[] = [
   node("r1", "repo"),
   node("m1", "task", "m1"),
-  node("m1_agent", "agent", "m1"),
-  node("m1_patch", "changes", "m1"),
   node("m2", "task", "m2"),
+  node("m3", "task", "m3"),
 ];
 
-const pipelineEdges = [edge("r1", "m1"), edge("m1", "m1_agent"), edge("m1_agent", "m1_patch"), edge("r1", "m2")];
+const pipelineEdges = [edge("r1", "m1"), edge("r1", "m2"), thenEdge("m1", "m3")];
 
 describe("layoutGraph", () => {
   it("positions every node on a finite grid", () => {
@@ -49,25 +50,15 @@ describe("layoutGraph", () => {
   it("advances one column per depth step and aligns stages across lanes", () => {
     const positions = layoutGraph(pipeline, pipelineEdges);
     expect(positions.r1.x).toBeLessThan(positions.m1.x);
-    expect(positions.m1.x).toBeLessThan(positions.m1_agent.x);
-    expect(positions.m1_agent.x).toBeLessThan(positions.m1_patch.x);
-    // Both tasks are depth 1 from the repo, so they share a column.
+    // A chained task sits one column right of the task it waits on.
+    expect(positions.m1.x).toBeLessThan(positions.m3.x);
+    // Both chain heads are depth 1 from the repo, so they share a column.
     expect(positions.m2.x).toBe(positions.m1.x);
   });
 
   it("gives each mission its own lane", () => {
     const positions = layoutGraph(pipeline, pipelineEdges);
     expect(positions.m1.y).not.toBe(positions.m2.y);
-  });
-
-  it("puts a whole pipeline's ports on one row, whatever each card measures", () => {
-    // The heights a real canvas reports: a finished task card is far taller
-    // than the fallback footprint, and every stage differs.
-    const heights = { r1: 100, m1: 201, m1_agent: 122, m1_patch: 114, m2: 155 };
-    const positions = layoutGraph(pipeline, pipelineEdges, {}, heights);
-    const row = portRow("m1", pipeline, positions);
-    expect(portRow("m1_agent", pipeline, positions)).toBeCloseTo(row);
-    expect(portRow("m1_patch", pipeline, positions)).toBeCloseTo(row);
   });
 
   it("levels a single-mission repo with the task it owns", () => {
@@ -141,9 +132,6 @@ describe("no overlaps", () => {
       node("r1", "repo"),
       node("r2", "repo"),
       node("m1", "task", "m1"),
-      node("m1_agent", "agent", "m1"),
-      node("m1_patch", "changes", "m1"),
-      node("m1_verify", "verify", "m1"),
       node("m2", "task", "m2"),
       node("m3", "task", "m3"), // chained off m1
       node("m4", "research", "m4"),
@@ -151,9 +139,6 @@ describe("no overlaps", () => {
     ];
     const edges = [
       edge("r1", "m1"),
-      edge("m1", "m1_agent"),
-      edge("m1_agent", "m1_patch"),
-      edge("m1_patch", "m1_verify"),
       edge("r1", "m2"),
       thenEdge("m1", "m3"),
       edge("r1", "m4"),
@@ -173,14 +158,13 @@ describe("no overlaps", () => {
     const nodes = [
       node("r1", "repo"),
       node("m1", "task", "m1"),
-      node("m1_agent", "agent", "m1"),
       node("m2", "task", "m2"),
       node("m3", "task", "m3"),
     ];
-    const edges = [edge("r1", "m1"), edge("m1", "m1_agent"), edge("r1", "m2"), edge("r1", "m3")];
+    const edges = [edge("r1", "m1"), edge("r1", "m2"), edge("r1", "m3")];
     // Finished task cards run ~201px — well past NODE_HEIGHT + LANE_GAP, the
     // pitch the old fixed-footprint layout stacked lanes at.
-    const heights = { r1: 100, m1: 201, m1_agent: 122, m2: 201, m3: 201 };
+    const heights = { r1: 100, m1: 201, m2: 201, m3: 201 };
     const positions = layoutGraph(nodes, edges, {}, heights);
     const overlaps = overlapChecker(nodes, heights);
     const ids = Object.keys(positions);

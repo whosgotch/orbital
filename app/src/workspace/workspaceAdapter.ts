@@ -91,7 +91,7 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
   return {
     missions,
     graphNodes: [...graphNodesFromState(state, missions), ...campaignNodes(campaigns)],
-    graphEdges: [...graphEdgesFromState(missions, state), ...campaignEdges(campaigns)],
+    graphEdges: [...graphEdgesFromState(missions), ...campaignEdges(campaigns)],
     runtimeByMission,
     patchDiffByMission,
     commitByMission,
@@ -143,115 +143,56 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
     meta: repository.branch ? { branch: repository.branch } : undefined,
   }));
 
-  // Every mission is a pipeline of operable steps: Task → Agent(s) → Changes → Verify. Agent and gate nodes appear once their step is real; the Task node always exists.
+  // One card per mission, whatever its kind: the mission node IS the mission.
+  // Its run — the agent's chat, the change set, verification — lives in that
+  // node's panel, never as extra cards the canvas has to place.
   // Pasted-image counts come from the raw mission text; the titles the nodes wear have the attachment lines stripped already.
   const attachmentsByMission = new Map(state.missions.map((mission) => [mission.id, attachmentCount(mission.text)]));
 
-  const missionNodes = missions.flatMap((mission) => {
+  const missionNodes = missions.map((mission): WorkspaceGraphNode => {
     const attachments = attachmentsByMission.get(mission.id) || undefined;
-    const topLevelRun = state.agent_runs.filter((run) => run.mission_id === mission.id && !run.parent_run_id).at(-1);
-    const childRuns = topLevelRun
-      ? state.agent_runs.filter((run) => run.parent_run_id === topLevelRun.id)
-      : [];
-    const hasPatch = Boolean(latestPatchForMission(state, mission.id));
-    const hasVerify = Boolean(latestVerification(state, mission.id));
     const base = { mission_id: mission.id, repository_id: mission.repository_id };
 
-    // A tool step is one card: the command IS the whole pipeline, so no
-    // agent/changes/verify stages ever grow behind it.
     if (mission.kind === "tool") {
-      return [
-        {
-          id: mission.id,
-          kind: "tool" as const,
-          label: compactLabel(mission.title),
-          detail: mission.command,
-          meta: { prompt: mission.prompt, command: mission.command, attachments },
-          ...base,
-        },
-      ];
-    }
-
-    // Research is one card too: the findings document lives in the node's
-    // panel, and there is never a change set or verify gate behind it.
-    if (mission.kind === "research") {
-      return [
-        {
-          id: mission.id,
-          kind: "research" as const,
-          label: compactLabel(mission.title),
-          detail: "research",
-          meta: { prompt: mission.prompt, attachments },
-          ...base,
-        },
-      ];
-    }
-
-    const nodes: WorkspaceGraphNode[] = [
-      {
+      return {
         id: mission.id,
-        kind: "task",
+        kind: "tool" as const,
         label: compactLabel(mission.title),
-        detail: mission.status === "blocked" ? "blocked" : "task",
+        detail: mission.command,
+        meta: { prompt: mission.prompt, command: mission.command, attachments },
+        ...base,
+      };
+    }
+
+    if (mission.kind === "research") {
+      return {
+        id: mission.id,
+        kind: "research" as const,
+        label: compactLabel(mission.title),
+        detail: "research",
         meta: { prompt: mission.prompt, attachments },
         ...base,
-      },
-    ];
-
-    if (topLevelRun) {
-      nodes.push({
-        id: `${mission.id}_manager`,
-        kind: "agent",
-        label: childRuns.length > 0 ? "AI manager" : roleLabel(topLevelRun.worker_name),
-        detail: topLevelRun.worker_name,
-        meta: { worker: topLevelRun.worker_name },
-        ...base,
-      });
-
-      childRuns.forEach((child) => {
-        nodes.push({
-          id: child.id,
-          kind: "agent",
-          label: roleLabel(child.worker_name),
-          detail: child.status,
-          meta: { worker: child.worker_name },
-          ...base,
-        });
-      });
+      };
     }
 
-    if (hasPatch || hasVerify) {
-      nodes.push({
-        id: `${mission.id}_patch`,
-        kind: "changes",
-        label: "Changes",
-        detail: "review gate",
-        ...base,
-      });
-      nodes.push({
-        id: `${mission.id}_verify`,
-        kind: "verify",
-        label: "Verify",
-        detail: mission.command,
-        meta: { command: mission.command },
-        ...base,
-      });
-    }
-
-    return nodes;
+    return {
+      id: mission.id,
+      kind: "task" as const,
+      label: compactLabel(mission.title),
+      detail: mission.status === "blocked" ? "blocked" : "task",
+      meta: { prompt: mission.prompt, attachments },
+      ...base,
+    };
   });
 
   return [...repoNodes, ...missionNodes];
 }
 
-// Edges connect only the nodes that actually exist (see graphNodesFromState),
-// so the graph never draws a line to a stage that hasn't happened yet.
-function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopState): WorkspaceGraphEdge[] {
+// One card per mission means the only edges are ownership (repo → chain head)
+// and the chains the user draws between missions.
+function graphEdgesFromState(missions: WorkspaceMission[]): WorkspaceGraphEdge[] {
   const present = new Set(missions.map((mission) => mission.id));
   return missions.flatMap((mission) => {
-    const managerID = `${mission.id}_manager`;
-    const patchID = `${mission.id}_patch`;
-    const verifyID = `${mission.id}_verify`;
     const edges: WorkspaceGraphEdge[] = [];
 
     // Task chains: an upstream task's card feeds this task's card, so the
@@ -265,36 +206,6 @@ function graphEdgesFromState(missions: WorkspaceMission[], state: MissionLoopSta
     upstreams.forEach((upstreamId) => {
       edges.push({ id: `then_${upstreamId}_${mission.id}`, from: upstreamId, to: mission.id, kind: "then" });
     });
-
-    // Tool and research missions render as a single card, so there are no
-    // pipeline stages to wire behind them.
-    if (mission.kind === "tool" || mission.kind === "research") {
-      return edges;
-    }
-
-    const topLevelRun = state.agent_runs.filter((run) => run.mission_id === mission.id && !run.parent_run_id).at(-1);
-    const childRuns = topLevelRun
-      ? state.agent_runs.filter((run) => run.parent_run_id === topLevelRun.id)
-      : [];
-    const hasGates = Boolean(latestPatchForMission(state, mission.id)) || Boolean(latestVerification(state, mission.id));
-
-    // The node the change set hangs off: the child agents if any, else the
-    // manager, else the task itself.
-    const patchSources = childRuns.length > 0 ? childRuns.map((child) => child.id) : topLevelRun ? [managerID] : [mission.id];
-
-    if (topLevelRun) {
-      edges.push({ id: `${mission.id}_manager`, from: mission.id, to: managerID, kind: "runs" });
-      childRuns.forEach((child) => {
-        edges.push({ id: `${managerID}_${child.id}`, from: managerID, to: child.id, kind: "spawns" });
-      });
-    }
-
-    if (hasGates) {
-      patchSources.forEach((source) => {
-        edges.push({ id: `${source}_patch`, from: source, to: patchID, kind: "proposes" });
-      });
-      edges.push({ id: `${mission.id}_verify`, from: patchID, to: verifyID, kind: "verifies" });
-    }
 
     return edges;
   });
@@ -475,8 +386,7 @@ export function compactLabel(title: string) {
 
 // A selected node is a valid follow-up target only when it's a mission that
 // can hand off a summary/diff/findings at run time — a task or a research
-// card. Repo and pipeline-stage nodes (agent/changes/verify/tool/campaign)
-// never qualify.
+// card. Repo, tool and campaign nodes never qualify.
 export function followUpTargetFor(
   node: WorkspaceGraphNode | undefined,
   missions: WorkspaceMission[],

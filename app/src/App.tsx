@@ -98,18 +98,10 @@ export function App() {
     const node = workspaceGraphNodes.find((item) => item.id === nodeId);
     if (!node) return;
     switch (node.kind) {
-      case "changes":
-        setTaskView("changes");
-        break;
-      case "verify":
-        setTaskView("changes");
-        setVerifyOpen(true);
-        break;
       case "research":
         setTaskView("doc");
         break;
       case "task":
-      case "agent":
       case "tool":
         setTaskView("chat");
         break;
@@ -134,18 +126,10 @@ export function App() {
   const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
   const patchReady = (selectedPatchDiff ?? "") !== "";
 
-  // A clicked child agent uses its own run id; the manager node uses the mission's top-level run; otherwise the whole mission's agents are shown together.
-  const selectedAgentRunId = useMemo(() => {
-    if (!selectedGraphNode || selectedGraphNode.kind !== "agent") return undefined;
-    if (selectedGraphNode.id.endsWith("_manager")) {
-      return missionLoopState.agent_runs.filter((run) => run.mission_id === selectedMissionId && !run.parent_run_id).at(-1)?.id;
-    }
-    return selectedGraphNode.id;
-  }, [selectedGraphNode, missionLoopState.agent_runs, selectedMissionId]);
-
+  // The mission is one card, so its chat is the whole mission's transcript — every run it has had, in order.
   const agentTranscript = useMemo(
-    () => buildAgentTranscript(missionLoopState, selectedMissionId ?? "", selectedAgentRunId),
-    [missionLoopState, selectedMissionId, selectedAgentRunId],
+    () => buildAgentTranscript(missionLoopState, selectedMissionId ?? ""),
+    [missionLoopState, selectedMissionId],
   );
   const selectedActivityKey = selectedMission?.id ?? "";
   const selectedActivity = useMemo(
@@ -262,8 +246,6 @@ export function App() {
         workerModeByMission,
         activityByMission,
         patchDiffByMission,
-        verificationOutputByMission,
-        verificationCommandByMission,
         commitByMission,
         usageByMission,
       }),
@@ -274,8 +256,6 @@ export function App() {
       workerModeByMission,
       activityByMission,
       patchDiffByMission,
-      verificationOutputByMission,
-      verificationCommandByMission,
       commitByMission,
       usageByMission,
     ],
@@ -396,7 +376,6 @@ export function App() {
             onRunTask: (missionId) => void dispatchMission(missionId),
             onApprove: (missionId) => void approveMission(missionId),
             onReject: (missionId) => void rejectMission(missionId),
-            onVerify: (missionId) => void runVerificationFor(missionId),
             onCreateTask: (text, run, kind, worker, model) => void createTaskOnCanvas(text, run, kind, worker, model),
             onCancelDraft: () => setDraftingTask(false),
             onLinkTasks: (from, to) => void linkTasks(from, to),

@@ -85,12 +85,12 @@ describe("workspaceViewFromMissionLoop", () => {
     expect(repoNode?.meta?.branch).toBe("main");
   });
 
-  it("grows agent, changes and verify stages once a run proposes a patch", () => {
+  it("keeps a mission on one card when a run proposes a patch", () => {
     const view = workspaceViewFromMissionLoop(
       state({ missions: [mission({ status: "waiting_approval" })], agent_runs: [run], patch_proposals: [pendingPatch] }),
     );
-    expect(view.graphNodes.map((node) => node.kind)).toEqual(["repo", "task", "agent", "changes", "verify"]);
-    expect(view.graphEdges.map((edge) => edge.kind)).toEqual(["owns", "runs", "proposes", "verifies"]);
+    expect(view.graphNodes.map((node) => node.kind)).toEqual(["repo", "task"]);
+    expect(view.graphEdges.map((edge) => edge.kind)).toEqual(["owns"]);
     expect(view.runtimeByMission.m1.status).toBe("review");
     expect(view.patchDiffByMission.m1).toBe(pendingPatch.diff);
     expect(view.commitByMission.m1).toEqual({ hash: "", subject: "", branch: "" });

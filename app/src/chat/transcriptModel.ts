@@ -25,8 +25,8 @@ function eventToEntry(event: WorkflowEvent, labelForRun: (rid: string | undefine
   return { id: event.id, kind, text: event.message, agent: labelForRun(event.run_id) } as TranscriptEntry;
 }
 
-// Scoped to one run when a specific agent is selected, otherwise the whole mission's agents in order.
-export function buildAgentTranscript(state: MissionLoopState, missionId: string, runId: string | undefined): TranscriptEntry[] {
+// The whole mission's agents, in order.
+export function buildAgentTranscript(state: MissionLoopState, missionId: string): TranscriptEntry[] {
   const labelForRun = labelForRunFactory(state);
   // Cluster each agent's events together by ordering on when its run started,
   // then chronologically within the run — so the mission-wide view reads
@@ -35,10 +35,7 @@ export function buildAgentTranscript(state: MissionLoopState, missionId: string,
   const runStart = (rid: string | undefined) => (rid ? runById.get(rid)?.started_at ?? "" : "");
 
   return state.workflow_events
-    .filter((event) => {
-      if (runId) return event.run_id === runId;
-      return event.mission_id === missionId;
-    })
+    .filter((event) => event.mission_id === missionId)
     .slice()
     .sort((a, b) => runStart(a.run_id).localeCompare(runStart(b.run_id)) || a.created_at.localeCompare(b.created_at))
     .map((event) => eventToEntry(event, labelForRun))

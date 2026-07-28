@@ -27,25 +27,26 @@ export type WorkspaceMission = {
   kind?: "task" | "tool" | "research";
 };
 
-// Every node is a step you operate, not a picture of state: a task you run, an
-// agent you talk to, a change set you gate, a verification you fire, a
-// research whose findings you read and question.
-export type GraphNodeKind = "repo" | "task" | "agent" | "changes" | "verify" | "campaign" | "tool" | "research";
+// Every node is a step you operate, not a picture of state: a task you run and
+// talk to, a tool you fire, a research whose findings you read and question.
+// A mission is exactly one card — its agent, change set and verification are
+// the panel behind that card, never cards of their own.
+export type GraphNodeKind = "repo" | "task" | "campaign" | "tool" | "research";
 
 // Per-kind payload that makes a node card operable and glanceable.
 export type GraphNodeMeta = {
   draft?: boolean; // task: an unsaved canvas draft still being typed
   prompt?: string; // task: the full instruction
-  worker?: string; // task/agent: assigned worker label
+  worker?: string; // task: assigned worker label
   launchable?: boolean; // task: Run is available
-  now?: string; // agent: live "doing X" line
-  live?: boolean; // agent: currently running
-  files?: number; // changes: touched file count
+  now?: string; // task: live "doing X" line
+  live?: boolean; // task/tool: currently running
+  files?: number; // task: touched file count in the proposed change set
   additions?: number;
   deletions?: number;
   patchState?: "none" | "pending" | "approved" | "rejected";
-  command?: string; // verify: the verification command
-  verifyState?: "idle" | "ready" | "passed" | "failed";
+  command?: string; // tool: the command it runs
+  verifyState?: "passed" | "failed"; // tool: how the command exited
   waitingFor?: string; // task: label of the upstream task it waits on
   attachments?: number; // task/research: pasted images riding in the prompt
   commitHash?: string; // task/tool/research: short hash of the landed commit
@@ -69,5 +70,5 @@ export type WorkspaceGraphEdge = {
   id: string;
   from: string;
   to: string;
-  kind: "owns" | "reads" | "runs" | "proposes" | "verifies" | "blocks" | "spawns" | "coordinates" | "then";
+  kind: "owns" | "coordinates" | "then";
 };
