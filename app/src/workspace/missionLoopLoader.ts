@@ -16,8 +16,11 @@ export function queueMissionLoopState(
   campaignId?: string,
   toolCommand?: string,
   research?: boolean,
+  // The model this mission runs on, chosen at creation and persisted with it so
+  // a reload can't swap it for whatever the global picker happens to say.
+  model?: string,
 ) {
-  return invokeState("queue_mission", { repoPath, missionText, campaignId, toolCommand, research });
+  return invokeState("queue_mission", { repoPath, missionText, campaignId, toolCommand, research, model });
 }
 
 export function updateMissionTextLoopState(repoPath: string, missionId: string, text: string) {
@@ -50,10 +53,6 @@ export function approvePatchMissionLoopState(repoPath: string, missionId: string
 
 export function rejectPatchMissionLoopState(repoPath: string, missionId: string) {
   return invokeState("reject_patch", { repoPath, missionId });
-}
-
-export function verifyMissionLoopState(repoPath: string, missionId: string, command: string) {
-  return invokeState("verify_mission", { repoPath, missionId, command });
 }
 
 // Turn a research mission's findings document into draft tasks chained after

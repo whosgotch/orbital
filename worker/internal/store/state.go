@@ -3,13 +3,12 @@ package store
 import "github.com/whosgotch/orbital/worker/internal/domain"
 
 type State struct {
-	Repositories     []domain.Repository      `json:"repositories"`
-	Missions         []domain.Mission         `json:"missions"`
-	AgentRuns        []domain.AgentRun        `json:"agent_runs"`
-	WorkflowEvents   []domain.WorkflowEvent   `json:"workflow_events"`
-	PatchProposals   []domain.PatchProposal   `json:"patch_proposals"`
-	VerificationRuns []domain.VerificationRun `json:"verification_runs"`
-	ChatMessages     []domain.ChatMessage     `json:"chat_messages"`
+	Repositories   []domain.Repository    `json:"repositories"`
+	Missions       []domain.Mission       `json:"missions"`
+	AgentRuns      []domain.AgentRun      `json:"agent_runs"`
+	WorkflowEvents []domain.WorkflowEvent `json:"workflow_events"`
+	PatchProposals []domain.PatchProposal `json:"patch_proposals"`
+	ChatMessages   []domain.ChatMessage   `json:"chat_messages"`
 }
 
 func (s *State) Normalize() {
@@ -27,9 +26,6 @@ func (s *State) Normalize() {
 	}
 	if s.PatchProposals == nil {
 		s.PatchProposals = []domain.PatchProposal{}
-	}
-	if s.VerificationRuns == nil {
-		s.VerificationRuns = []domain.VerificationRun{}
 	}
 	if s.ChatMessages == nil {
 		s.ChatMessages = []domain.ChatMessage{}

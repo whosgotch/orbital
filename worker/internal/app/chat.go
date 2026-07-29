@@ -111,8 +111,11 @@ func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text s
 		workdir = run.WorktreePath
 	} else {
 		s.worktreeMu.Lock()
-		worktreePath := createRunWorktree(ctx, repoPath, run.ID)
+		worktreePath, err := createRunWorktree(ctx, repoPath, run.ID)
 		s.worktreeMu.Unlock()
+		if err != nil {
+			return nil, s.failRun(run, missionID, repoPath, err)
+		}
 		if worktreePath != "" {
 			workdir = worktreePath
 			run.WorktreePath = worktreePath

@@ -3,7 +3,6 @@ export type Repository = {
   path: string;
   name: string;
   branch: string;
-  verification_command?: string;
   created_at: string;
 };
 
@@ -33,12 +32,15 @@ export type Mission = {
   campaign_id?: string;
   depends_on?: string[];
   // Absent kind reads as "task"; a tool mission runs tool_command instead of
-  // an AI agent and lands as verified/failed on the command's exit code.
+  // an AI agent and lands as verified/failed on the command's exit code
+  // ("verified" is the worker's terminal status for a mission with no patch).
   kind?: MissionKind;
   // A research mission's findings — the full current document, rewritten by
   // the researcher on every chat turn.
   document?: string;
   tool_command?: string;
+  // The model chosen for this mission when it was created.
+  model?: string;
 };
 
 export type AgentRunStatus = "queued" | "running" | "waiting_for_children" | "aggregating" | "completed" | "failed" | "cancelled";
@@ -96,9 +98,6 @@ export type WorkflowEventType =
   | "patch_approved"
   | "patch_rejected"
   | "patch_applied"
-  | "verification_run"
-  | "verification_passed"
-  | "verification_failed"
   | "run_completed"
   | "run_failed"
   | "run_cancelled"
@@ -132,20 +131,6 @@ export type PatchProposal = {
   branch?: string;
 };
 
-export type VerificationStatus = "queued" | "running" | "passed" | "failed";
-
-export type VerificationRun = {
-  id: string;
-  mission_id: string;
-  repository_id: string;
-  command: string;
-  status: VerificationStatus;
-  exit_code?: number;
-  output: string;
-  started_at: string;
-  completed_at?: string;
-};
-
 export type RepoCommit = {
   hash: string;
   short_hash: string;
@@ -160,6 +145,5 @@ export type MissionLoopState = {
   agent_runs: AgentRun[];
   workflow_events: WorkflowEvent[];
   patch_proposals: PatchProposal[];
-  verification_runs: VerificationRun[];
   chat_messages: ChatMessage[];
 };

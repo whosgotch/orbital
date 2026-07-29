@@ -29,10 +29,6 @@ func TestOpenRepositorySavesRepository(t *testing.T) {
 		t.Fatalf("repository name = %q, want %q", repository.Name, filepath.Base(repoDir))
 	}
 
-	if repository.VerificationCommand != "true" {
-		t.Fatalf("verification command = %q, want %q", repository.VerificationCommand, "true")
-	}
-
 	state, err := store.NewJSONStore(stateDir).Load()
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -40,42 +36,6 @@ func TestOpenRepositorySavesRepository(t *testing.T) {
 
 	if len(state.Repositories) != 1 {
 		t.Fatalf("expected 1 repository, got %d", len(state.Repositories))
-	}
-}
-
-func TestOpenRepositorySetsNodeVerificationCommand(t *testing.T) {
-	repoDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(repoDir, "package.json"), []byte(`{"scripts":{"test":"vitest run"}}`), 0644); err != nil {
-		t.Fatalf("WriteFile(package.json) error = %v", err)
-	}
-
-	svc := NewService(store.NewJSONStore(t.TempDir()))
-
-	repository, err := svc.OpenRepository(repoDir)
-	if err != nil {
-		t.Fatalf("OpenRepository() error = %v", err)
-	}
-
-	if repository.VerificationCommand != "npm test" {
-		t.Fatalf("verification command = %q, want %q", repository.VerificationCommand, "npm test")
-	}
-}
-
-func TestOpenRepositorySetsGoVerificationCommand(t *testing.T) {
-	repoDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(repoDir, "go.mod"), []byte("module example.com/demo\n"), 0644); err != nil {
-		t.Fatalf("WriteFile(go.mod) error = %v", err)
-	}
-
-	svc := NewService(store.NewJSONStore(t.TempDir()))
-
-	repository, err := svc.OpenRepository(repoDir)
-	if err != nil {
-		t.Fatalf("OpenRepository() error = %v", err)
-	}
-
-	if repository.VerificationCommand != "go test ./..." {
-		t.Fatalf("verification command = %q, want %q", repository.VerificationCommand, "go test ./...")
 	}
 }
 
@@ -128,10 +88,9 @@ func TestOpenRepositoryBackfillsMissingBranch(t *testing.T) {
 	if err := jsonStore.Save(&store.State{
 		Repositories: []domain.Repository{
 			{
-				ID:                  "repo_1",
-				Path:                repoDir,
-				Name:                "demo",
-				VerificationCommand: "go test ./...",
+				ID:   "repo_1",
+				Path: repoDir,
+				Name: "demo",
 			},
 		},
 	}); err != nil {
@@ -156,46 +115,6 @@ func TestOpenRepositoryBackfillsMissingBranch(t *testing.T) {
 
 	if state.Repositories[0].Branch != "main" {
 		t.Fatalf("saved repository branch = %q, want %q", state.Repositories[0].Branch, "main")
-	}
-}
-
-func TestOpenRepositoryBackfillsMissingVerificationCommand(t *testing.T) {
-	repoDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(repoDir, "go.mod"), []byte("module example.com/demo\n"), 0644); err != nil {
-		t.Fatalf("WriteFile(go.mod) error = %v", err)
-	}
-
-	jsonStore := store.NewJSONStore(t.TempDir())
-	if err := jsonStore.Save(&store.State{
-		Repositories: []domain.Repository{
-			{
-				ID:   "repo_1",
-				Path: repoDir,
-				Name: "demo",
-			},
-		},
-	}); err != nil {
-		t.Fatalf("Save() error = %v", err)
-	}
-
-	svc := NewService(jsonStore)
-
-	repository, err := svc.OpenRepository(repoDir)
-	if err != nil {
-		t.Fatalf("OpenRepository() error = %v", err)
-	}
-
-	if repository.VerificationCommand != "go test ./..." {
-		t.Fatalf("verification command = %q, want %q", repository.VerificationCommand, "go test ./...")
-	}
-
-	state, err := jsonStore.Load()
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-
-	if state.Repositories[0].VerificationCommand != "go test ./..." {
-		t.Fatalf("saved verification command = %q, want %q", state.Repositories[0].VerificationCommand, "go test ./...")
 	}
 }
 

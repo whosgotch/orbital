@@ -5,7 +5,7 @@ import type { MissionNodeStatus, WorkspaceMission } from "../canvas/graph";
 import type { WorkspaceRuntime } from "./workspaceAdapter";
 
 // The runtime a mission has before its first run touches it.
-export const queuedRuntime: WorkspaceRuntime = { step: -1, patchStatus: "pending", verified: false, status: "queued" };
+export const queuedRuntime: WorkspaceRuntime = { step: -1, patchStatus: "pending", status: "queued" };
 
 export type WorkerMode = "local-command" | "claude-engineer";
 
@@ -28,14 +28,11 @@ export function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus 
   if (runtime.status === "blocked") {
     return "blocked";
   }
-  if (runtime.status === "verified") {
-    return "verified";
-  }
-  if (runtime.verified) {
-    return "verified";
+  if (runtime.status === "done") {
+    return "done";
   }
   if (runtime.patchStatus === "approved") {
-    return "approved";
+    return "done";
   }
   if (runtime.patchStatus === "rejected") {
     return "blocked";
@@ -55,11 +52,10 @@ export function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus 
 
 export function missionStatusFor(runtime: WorkspaceRuntime, patchReady: boolean) {
   const status = statusFromRuntime(runtime);
-  if (status === "verified") {
-    return { label: "Verified", className: "done" };
-  }
-  if (status === "approved") {
-    return { label: "Approved", className: "active" };
+  if (status === "done") {
+    // Approve + apply is the last step a patch has, so say what happened to it.
+    // Tool and research missions never produce one — they just finish.
+    return { label: patchReady ? "Applied" : "Done", className: "done" };
   }
   if (status === "blocked") {
     return { label: "Blocked", className: "rejected" };
@@ -76,36 +72,6 @@ export function missionStatusFor(runtime: WorkspaceRuntime, patchReady: boolean)
 
 export function defaultLocalCommand() {
   return `printf 'diff --git a/orbital-local-worker.txt b/orbital-local-worker.txt\nnew file mode 100644\n--- /dev/null\n+++ b/orbital-local-worker.txt\n@@ -0,0 +1 @@\n+local worker completed\n' > "$ORBITAL_PATCH_PATH"`;
-}
-
-export function verifyPillLabel(runtime: WorkspaceRuntime) {
-  if (runtime.verified) return "Verification passed";
-  if (runtime.status === "blocked") return "Verification failed";
-  if (runtime.patchStatus === "approved") return "Not verified yet";
-  return "Awaiting verification";
-}
-
-export function verifyPillClass(runtime: WorkspaceRuntime) {
-  if (runtime.verified) return "passed";
-  if (runtime.status === "blocked") return "failed";
-  if (runtime.patchStatus === "approved") return "ready";
-  return "pending";
-}
-
-export function verificationOutput(runtime: WorkspaceRuntime, output: string) {
-  if (runtime.verified) {
-    return output || "Verification passed.";
-  }
-  if (runtime.status === "blocked") {
-    return output || "Mission blocked before verification completed.";
-  }
-  if (runtime.patchStatus === "approved") {
-    return "Patch approved. Verification command is armed.";
-  }
-  if (runtime.patchStatus === "rejected") {
-    return "Patch rejected. Mission stopped before file changes.";
-  }
-  return "Waiting for approved patch.";
 }
 
 export function errorMessage(error: unknown, fallback: string) {

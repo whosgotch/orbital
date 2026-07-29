@@ -26,9 +26,6 @@ const combined: MissionLoopState = {
     { id: "e2", mission_id: "m2", type: "run_started", message: "", created_at: "t" },
   ],
   patch_proposals: [{ id: "p1", run_id: "run1", status: "pending", diff: "", created_at: "t", updated_at: "t" }],
-  verification_runs: [
-    { id: "v1", mission_id: "m1", repository_id: "r1", command: "true", status: "passed", output: "", started_at: "t" },
-  ],
   chat_messages: [{ id: "c1", mission_id: "m1", run_id: "run1", role: "user", text: "hi", created_at: "t" }],
 };
 
@@ -42,7 +39,6 @@ describe("splitByRepository / combineRepoStates", () => {
     expect(r1.agent_runs.map((r) => r.id)).toEqual(["run1"]);
     expect(r1.workflow_events.map((e) => e.id)).toEqual(["e1"]);
     expect(r1.patch_proposals.map((p) => p.id)).toEqual(["p1"]);
-    expect(r1.verification_runs.map((v) => v.id)).toEqual(["v1"]);
     expect(r1.chat_messages.map((c) => c.id)).toEqual(["c1"]);
 
     const r2 = slices.r2;

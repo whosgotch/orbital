@@ -50,8 +50,7 @@ function stateFixture(runs: AgentRun[]): MissionLoopState {
     agent_runs: runs,
     workflow_events: [],
     patch_proposals: [],
-    verification_runs: [],
-    chat_messages: [],
+      chat_messages: [],
   };
 }
 
@@ -64,7 +63,6 @@ describe("buildAgentStatus", () => {
     const model = buildAgentStatus(stateFixture(runs), "m1", "", [], {
       step: 3,
       patchStatus: "pending",
-      verified: false,
       status: "review",
     });
     expect(model.phases.map((phase) => phase.label)).toEqual(["Plan", "Engineer", "Patch"]);
@@ -72,12 +70,11 @@ describe("buildAgentStatus", () => {
     expect(model.elapsed).toBe("5m00s");
   });
 
-  it("marks the patch phase done once the mission verifies", () => {
+  it("marks the patch phase done once the patch is applied", () => {
     const model = buildAgentStatus(stateFixture([runFixture({})]), "m1", "", [], {
       step: 3,
       patchStatus: "approved",
-      verified: true,
-      status: "verified",
+      status: "done",
     });
     expect(model.phases.at(-1)).toEqual({ id: "patch", label: "Patch", status: "done" });
     expect(model.isLive).toBe(false);
@@ -88,7 +85,7 @@ describe("buildAgentStatus", () => {
     const model = buildAgentStatus(stateFixture([runFixture({ status: "running", completed_at: undefined })]), "m1", "", [
       "reading src/App.tsx",
       "editing src/App.tsx",
-    ], { step: 1, patchStatus: "pending", verified: false, status: "running" });
+    ], { step: 1, patchStatus: "pending", status: "running" });
     expect(model.now).toBe("editing src/App.tsx");
     expect(model.isLive).toBe(true);
     expect(model.agentLabel).toBe("Claude · Manager");

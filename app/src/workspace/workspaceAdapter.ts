@@ -1,6 +1,6 @@
 import { attachmentCount, stripAttachmentLines } from "../intake/attachments";
 import { usageByMission, type MissionUsage } from "./usage";
-import type { Mission, MissionLoopState, PatchStatus as WorkerPatchStatus, VerificationRun, WorkflowEvent } from "./domain";
+import type { Mission, MissionLoopState, PatchStatus as WorkerPatchStatus, WorkflowEvent } from "./domain";
 import type {
   MissionNodeStatus,
   WorkspaceGraphEdge,
@@ -13,7 +13,6 @@ export type PatchStatus = Extract<WorkerPatchStatus, "pending" | "approved" | "r
 export type WorkspaceRuntime = {
   step: number;
   patchStatus: PatchStatus;
-  verified: boolean;
   status: MissionNodeStatus;
 };
 
@@ -29,7 +28,6 @@ export type WorkspaceView = {
   runtimeByMission: WorkspaceRuntimeMap;
   patchDiffByMission: Record<string, string>;
   commitByMission: Record<string, CommitInfo>;
-  verificationOutputByMission: Record<string, string>;
   activityByMission: Record<string, string[]>;
   usageByMission: Record<string, MissionUsage>;
 };
@@ -41,7 +39,6 @@ const emptyWorkspaceView: WorkspaceView = {
   runtimeByMission: {},
   patchDiffByMission: {},
   commitByMission: {},
-  verificationOutputByMission: {},
   activityByMission: {},
   usageByMission: {},
 };
@@ -58,7 +55,6 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
       {
         step: mission.step,
         patchStatus: mission.patch_status,
-        verified: mission.verified,
         status: mission.status,
       },
     ]),
@@ -74,9 +70,6 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
         { hash: patch?.commit_hash ?? "", subject: patch?.commit_subject ?? "", branch: patch?.branch ?? "" },
       ];
     }),
-  );
-  const verificationOutputByMission = Object.fromEntries(
-    state.missions.map((mission) => [mission.id, latestVerification(state, mission.id)?.output ?? ""]),
   );
   const activityByMission = Object.fromEntries(
     state.missions.map((mission) => {
@@ -95,7 +88,6 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
     runtimeByMission,
     patchDiffByMission,
     commitByMission,
-    verificationOutputByMission,
     activityByMission,
     usageByMission: usageByMission(state.agent_runs),
   };
@@ -106,7 +98,6 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
   const latestRun = runs.at(-1);
   const topLevelRun = runs.filter((run) => !run.parent_run_id).at(-1) ?? latestRun;
   const patch = latestPatchForMission(state, mission.id);
-  const verification = latestVerification(state, mission.id);
   const events = state.workflow_events.filter((event) => event.mission_id === mission.id || event.run_id === latestRun?.id);
 
   // Attachment paths are agent plumbing — everything the UI shows strips them.
@@ -117,17 +108,14 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
     // An extracted task's own short title, else the full prompt.
     title: mission.title?.trim() || prompt,
     prompt,
-    status: missionStatus(mission, patch?.status, verification),
+    status: missionStatus(mission, patch?.status),
     worker: topLevelRun?.worker_name ?? "unassigned",
-    model: topLevelRun?.model,
-    command:
-      mission.kind === "tool"
-        ? mission.tool_command ?? ""
-        : verification?.command ?? commandFromEvents(state, mission.id) ?? defaultVerificationCommand(state, mission),
+    // What ran, if it has; otherwise the choice made when the task was created.
+    model: topLevelRun?.model || mission.model,
+    command: mission.kind === "tool" ? mission.tool_command ?? "" : "",
     files: Array.from(new Set(events.map((event) => event.file_path).filter((path): path is string => Boolean(path)))),
     step: Math.max(events.length - 1, -1),
     patch_status: patchStatus(patch?.status),
-    verified: verification?.status === "passed",
     map_position: ["north", "east", "south", "west", "center"][index % 5] as WorkspaceMission["map_position"],
     depends_on: mission.depends_on,
     kind: mission.kind,
@@ -145,8 +133,8 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
   }));
 
   // One card per mission, whatever its kind: the mission node IS the mission.
-  // Its run — the agent's chat, the change set, verification — lives in that
-  // node's panel, never as extra cards the canvas has to place.
+  // Its run — the agent's chat, the change set — lives in that node's panel,
+  // never as extra cards the canvas has to place.
   // Pasted-image counts come from the raw mission text; the titles the nodes wear have the attachment lines stripped already.
   const attachmentsByMission = new Map(state.missions.map((mission) => [mission.id, attachmentCount(mission.text)]));
 
@@ -236,7 +224,7 @@ function campaignGroups(state: MissionLoopState, missions: WorkspaceMission[]): 
 
 function campaignNodes(campaigns: CampaignGroup[]): WorkspaceGraphNode[] {
   return campaigns.map((campaign) => {
-    const landed = campaign.members.filter((m) => m.status === "verified" || m.status === "approved").length;
+    const landed = campaign.members.filter((m) => m.status === "done").length;
     return {
       id: `campaign:${campaign.id}`,
       kind: "campaign" as const,
@@ -260,21 +248,18 @@ function campaignEdges(campaigns: CampaignGroup[]): WorkspaceGraphEdge[] {
   );
 }
 
-function missionStatus(
-  mission: Mission,
-  patchStatusValue: WorkerPatchStatus | undefined,
-  verification: VerificationRun | undefined,
-): MissionNodeStatus {
-  // A mission can be verified with no verification run: a tool step lands as
-  // verified when its command exits cleanly.
-  if (verification?.status === "passed" || mission.status === "verified") {
-    return "verified";
+function missionStatus(mission: Mission, patchStatusValue: WorkerPatchStatus | undefined): MissionNodeStatus {
+  // Approve + apply is the last step, so an applied patch is a finished task.
+  // "verified" is the worker's terminal status for missions with no patch to
+  // approve: a tool whose command exited clean, a research that delivered.
+  if (patchStatusValue === "approved" || patchStatusValue === "applied") {
+    return "done";
   }
-  if (verification?.status === "failed" || mission.status === "failed" || mission.status === "rejected") {
+  if (mission.status === "verified" || mission.status === "approved" || mission.status === "applied") {
+    return "done";
+  }
+  if (mission.status === "failed" || mission.status === "rejected") {
     return "blocked";
-  }
-  if (patchStatusValue === "approved" || patchStatusValue === "applied" || mission.status === "approved" || mission.status === "applied") {
-    return "approved";
   }
   if (patchStatusValue === "pending" || mission.status === "waiting_approval") {
     return "review";
@@ -309,19 +294,6 @@ function latestPatchForMission(state: MissionLoopState, missionId: string) {
   return undefined;
 }
 
-function latestVerification(state: MissionLoopState, missionId: string) {
-  return state.verification_runs.filter((verification) => verification.mission_id === missionId).at(-1);
-}
-
-function commandFromEvents(state: MissionLoopState, missionId: string) {
-  return state.workflow_events.find((event) => event.mission_id === missionId && event.command)?.command;
-}
-
-function defaultVerificationCommand(state: MissionLoopState, mission: Mission) {
-  const repository = state.repositories.find((item) => item.id === mission.repository_id);
-  return repository?.verification_command || "true";
-}
-
 function stationActivityFromEvents(events: WorkflowEvent[]) {
   if (events.length === 0) {
     return ["Mission order waiting in intake."];
@@ -348,12 +320,6 @@ function stationActivityFromEvents(events: WorkflowEvent[]) {
         return "Human CEO rejected the patch and stopped the line.";
       case "patch_applied":
         return "Engineer applied the approved patch.";
-      case "verification_run":
-        return "QA started the verification gate.";
-      case "verification_passed":
-        return "QA cleared the mission for shipping.";
-      case "verification_failed":
-        return "QA blocked the mission at the test gate.";
       case "run_completed":
         return "AI manager moved the mission to human review.";
       case "run_failed":

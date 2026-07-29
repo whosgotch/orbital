@@ -32,10 +32,6 @@ func TestScopedQueriesReturnMatchingRecords(t *testing.T) {
 			{ID: "patch_1", RunID: "run_1"},
 			{ID: "patch_2", RunID: "run_2"},
 		},
-		VerificationRuns: []domain.VerificationRun{
-			{ID: "verification_1", MissionID: "mission_1"},
-			{ID: "verification_2", MissionID: "mission_2"},
-		},
 	}); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
@@ -86,14 +82,6 @@ func TestScopedQueriesReturnMatchingRecords(t *testing.T) {
 	}
 	if len(patches) != 1 || patches[0].ID != "patch_1" {
 		t.Fatalf("patches = %+v, want only patch_1", patches)
-	}
-
-	verifications, err := svc.ListVerificationsByMission("mission_1")
-	if err != nil {
-		t.Fatalf("ListVerificationsByMission() error = %v", err)
-	}
-	if len(verifications) != 1 || verifications[0].ID != "verification_1" {
-		t.Fatalf("verifications = %+v, want only verification_1", verifications)
 	}
 }
 

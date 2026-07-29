@@ -90,6 +90,7 @@ fn queue_mission(
     campaign_id: Option<String>,
     tool_command: Option<String>,
     research: Option<bool>,
+    model: Option<String>,
 ) -> Result<String, String> {
     let mut args = vec!["queue", repo_path.trim(), mission_text.trim()];
     if let Some(id) = campaign_id
@@ -108,6 +109,9 @@ fn queue_mission(
     }
     if research.unwrap_or(false) {
         args.push("--research");
+    }
+    if let Some(model) = model.as_deref().map(str::trim).filter(|m| !m.is_empty()) {
+        args.extend(["--model", model]);
     }
     run_worker(&args)
 }
@@ -343,20 +347,6 @@ fn reject_patch(repo_path: String, mission_id: String) -> Result<String, String>
     run_worker(&["reject", repo_path.trim(), mission_id.trim()])
 }
 
-#[tauri::command]
-fn verify_mission(
-    repo_path: String,
-    mission_id: String,
-    command: String,
-) -> Result<String, String> {
-    run_worker(&[
-        "verify",
-        repo_path.trim(),
-        mission_id.trim(),
-        command.trim(),
-    ])
-}
-
 // Extraction is a full model call (tens of seconds); must stay async + spawn_blocking or the UI thread freezes.
 #[tauri::command]
 async fn extract_tasks(
@@ -530,7 +520,6 @@ pub fn run() {
             unlink_missions,
             approve_patch,
             reject_patch,
-            verify_mission,
             extract_tasks,
             load_repo_history,
             load_commit_diff,
