@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findFocusFile, parseUnifiedDiff } from "./DiffView";
+import { findFocusFile, highlightDiffLines, parseUnifiedDiff, type DiffLine } from "./DiffView";
 
 const modifiedDiff = `diff --git a/src/main.ts b/src/main.ts
 index 1111111..2222222 100644
@@ -20,9 +20,9 @@ describe("parseUnifiedDiff", () => {
     expect(file.additions).toBe(1);
     expect(file.deletions).toBe(1);
 
-    // The trailing newline in the diff yields a final empty context line.
     const kinds = file.lines.map((line) => line.kind);
-    expect(kinds).toEqual(["hunk", "context", "del", "add", "context", "context"]);
+    expect(kinds).toEqual(["hunk", "context", "del", "add", "context"]);
+    expect(file.lines[0].range).toBe("@@ -1,3 +1,3 @@");
 
     const del = file.lines.find((line) => line.kind === "del")!;
     const add = file.lines.find((line) => line.kind === "add")!;
@@ -69,9 +69,8 @@ rename to new.txt
     expect(files[0].change).toBe("modified");
     expect(files[0].additions).toBe(0);
     expect(files[0].deletions).toBe(0);
-    // No hunks at all for a content-free rename — just the trailing-newline
-    // artifact context line, same quirk noted on the modified-file test above.
-    expect(files[0].lines.map((line) => line.kind)).toEqual(["context"]);
+    // No hunks at all for a content-free rename, so no lines either.
+    expect(files[0].lines).toEqual([]);
   });
 
   it("keeps a rename-with-edit's diff --git header as the section boundary against the next file", () => {
@@ -99,6 +98,37 @@ index 3333333..4444444 100644
     expect(files[0].deletions).toBe(1);
     expect(files[1].additions).toBe(1);
     expect(files[1].deletions).toBe(1);
+  });
+});
+
+describe("highlightDiffLines", () => {
+  it("keeps code after a multi-line comment out of the comment colour", () => {
+    const lines: DiffLine[] = [
+      { kind: "hunk", text: "", range: "@@ -1,3 +1,3 @@" },
+      { kind: "context", text: "/* a block", oldNo: 1, newNo: 1 },
+      { kind: "context", text: "   comment */", oldNo: 2, newNo: 2 },
+      { kind: "add", text: "const a = 1;", newNo: 3 },
+    ];
+    const html = highlightDiffLines(lines, "typescript");
+    expect(html[0]).toBe("");
+    expect(html[1]).toContain("hljs-comment");
+    expect(html[3]).toContain("hljs-keyword");
+    expect(html[3]).not.toContain("hljs-comment");
+  });
+
+  it("highlights each side against its own file", () => {
+    const lines: DiffLine[] = [
+      { kind: "del", text: "const gone = 1;", oldNo: 1 },
+      { kind: "add", text: "const kept = 2;", newNo: 1 },
+    ];
+    const html = highlightDiffLines(lines, "typescript");
+    expect(html[0]).toContain("gone");
+    expect(html[1]).toContain("kept");
+  });
+
+  it("escapes text when the language is unknown", () => {
+    const lines: DiffLine[] = [{ kind: "add", text: "<script>", newNo: 1 }];
+    expect(highlightDiffLines(lines, undefined)).toEqual(["&lt;script&gt;"]);
   });
 });
 
