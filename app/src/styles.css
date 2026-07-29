@@ -2968,14 +2968,15 @@ button.node-action.danger:hover:not(:disabled) {
   background: rgba(248, 81, 73, 0.12);
 }
 
+/* Changed rows tint the gutter a shade deeper than the row, but the numbers
+   themselves stay the same muted grey everywhere — they are a reference, not
+   part of the change. */
 .diff-line.add .diff-gutter {
-  background: rgba(46, 160, 67, 0.2);
-  color: rgba(209, 233, 216, 0.6);
+  background: rgba(46, 160, 67, 0.12);
 }
 
 .diff-line.del .diff-gutter {
-  background: rgba(248, 81, 73, 0.18);
-  color: rgba(240, 208, 206, 0.6);
+  background: rgba(248, 81, 73, 0.1);
 }
 
 .diff-line.hunk {
@@ -3004,12 +3005,17 @@ button.node-action.danger:hover:not(:disabled) {
 
 .diff-gutter {
   flex-shrink: 0;
-  width: 44px;
-  padding: 0 8px;
+  width: 46px;
+  padding: 0 10px 0 6px;
   text-align: right;
-  color: rgba(152, 152, 159, 0.45);
+  font-variant-numeric: tabular-nums;
+  color: rgba(152, 152, 159, 0.42);
   background: rgba(255, 255, 255, 0.02);
   user-select: none;
+}
+
+.diff-line.hunk .diff-gutter {
+  background: transparent;
 }
 
 .diff-gutter-new {
