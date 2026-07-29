@@ -45,8 +45,7 @@ function stateFixture(runs: AgentRun[], events: WorkflowEvent[]): MissionLoopSta
     agent_runs: runs,
     workflow_events: events,
     patch_proposals: [],
-    verification_runs: [],
-    chat_messages: [],
+      chat_messages: [],
   };
 }
 

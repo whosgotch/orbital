@@ -435,59 +435,6 @@ func TestRejectMissionPatchRejectsPendingPatch(t *testing.T) {
 	}
 }
 
-func TestVerifyMissionRunsCommandAndMarksMissionVerified(t *testing.T) {
-	repoDir, missionID := prepareAppliedDemoMission(t)
-
-	var output bytes.Buffer
-	err := run(context.Background(), []string{"orbital", "verify", repoDir, missionID, "printf verified"}, &output)
-	if err != nil {
-		t.Fatalf("verify run() error = %v", err)
-	}
-
-	var state store.State
-	if err := json.Unmarshal(output.Bytes(), &state); err != nil {
-		t.Fatalf("Unmarshal(verify JSON) error = %v; output = %q", err, output.String())
-	}
-
-	if state.Missions[0].Status != domain.MissionStatusVerified {
-		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusVerified)
-	}
-	if len(state.VerificationRuns) != 1 {
-		t.Fatalf("expected 1 verification run, got %d", len(state.VerificationRuns))
-	}
-	if state.VerificationRuns[0].Status != domain.VerificationStatusPassed {
-		t.Fatalf("verification status = %q, want %q", state.VerificationRuns[0].Status, domain.VerificationStatusPassed)
-	}
-	if state.VerificationRuns[0].Output != "verified" {
-		t.Fatalf("verification output = %q, want %q", state.VerificationRuns[0].Output, "verified")
-	}
-}
-
-func TestVerifyMissionFailureMarksMissionFailed(t *testing.T) {
-	repoDir, missionID := prepareAppliedDemoMission(t)
-
-	var output bytes.Buffer
-	err := run(context.Background(), []string{"orbital", "verify", repoDir, missionID, "printf failed && exit 3"}, &output)
-	if err != nil {
-		t.Fatalf("verify run() error = %v", err)
-	}
-
-	var state store.State
-	if err := json.Unmarshal(output.Bytes(), &state); err != nil {
-		t.Fatalf("Unmarshal(verify JSON) error = %v; output = %q", err, output.String())
-	}
-
-	if state.Missions[0].Status != domain.MissionStatusFailed {
-		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusFailed)
-	}
-	if state.VerificationRuns[0].Status != domain.VerificationStatusFailed {
-		t.Fatalf("verification status = %q, want %q", state.VerificationRuns[0].Status, domain.VerificationStatusFailed)
-	}
-	if state.VerificationRuns[0].ExitCode == nil || *state.VerificationRuns[0].ExitCode != 3 {
-		t.Fatalf("verification exit code = %v, want 3", state.VerificationRuns[0].ExitCode)
-	}
-}
-
 func TestStatusPrintsSavedWorkflowState(t *testing.T) {
 	repoDir := t.TempDir()
 	jsonStore := store.NewJSONStore(filepath.Join(repoDir, ".orbital"))
@@ -504,15 +451,12 @@ func TestStatusPrintsSavedWorkflowState(t *testing.T) {
 		PatchProposals: []domain.PatchProposal{
 			{ID: "patch_1", RunID: "run_1", Status: domain.PatchStatusApplied},
 		},
-		VerificationRuns: []domain.VerificationRun{
-			{ID: "verification_1", MissionID: "mission_1", Status: domain.VerificationStatusPassed},
-		},
 		WorkflowEvents: []domain.WorkflowEvent{
 			{
 				ID:        "event_1",
 				MissionID: "mission_1",
-				Type:      domain.WorkflowEventVerificationPassed,
-				Message:   "Verification passed.",
+				Type:      domain.WorkflowEventPatchApplied,
+				Message:   "Patch applied.",
 			},
 		},
 	}); err != nil {
@@ -529,9 +473,8 @@ func TestStatusPrintsSavedWorkflowState(t *testing.T) {
 		"mission: mission_1 (verified)\n" +
 		"  run: run_1 (completed)\n" +
 		"    patch: patch_1 (applied)\n" +
-		"  verification: verification_1 (passed)\n" +
 		"timeline:\n" +
-		"- verification_passed: Verification passed.\n"
+		"- patch_applied: Patch applied.\n"
 	if output.String() != want {
 		t.Fatalf("status output = %q, want %q", output.String(), want)
 	}
@@ -581,17 +524,6 @@ func prepareStartedDemoMission(t *testing.T) (string, string) {
 	return repoDir, queuedState.Missions[0].ID
 }
 
-func prepareAppliedDemoMission(t *testing.T) (string, string) {
-	t.Helper()
-
-	repoDir, missionID := prepareStartedDemoMission(t)
-	if err := run(context.Background(), []string{"orbital", "approve", repoDir, missionID}, &bytes.Buffer{}); err != nil {
-		t.Fatalf("approve run() error = %v", err)
-	}
-
-	return repoDir, missionID
-}
-
 func TestStatusPrintsSavedWorkflowStateAsJSON(t *testing.T) {
 	repoDir := t.TempDir()
 	jsonStore := store.NewJSONStore(filepath.Join(repoDir, ".orbital"))
@@ -608,15 +540,12 @@ func TestStatusPrintsSavedWorkflowStateAsJSON(t *testing.T) {
 		PatchProposals: []domain.PatchProposal{
 			{ID: "patch_1", RunID: "run_1", Status: domain.PatchStatusApplied},
 		},
-		VerificationRuns: []domain.VerificationRun{
-			{ID: "verification_1", MissionID: "mission_1", Status: domain.VerificationStatusPassed},
-		},
 		WorkflowEvents: []domain.WorkflowEvent{
 			{
 				ID:        "event_1",
 				MissionID: "mission_1",
-				Type:      domain.WorkflowEventVerificationPassed,
-				Message:   "Verification passed.",
+				Type:      domain.WorkflowEventPatchApplied,
+				Message:   "Patch applied.",
 			},
 		},
 	}); err != nil {
@@ -645,9 +574,6 @@ func TestStatusPrintsSavedWorkflowStateAsJSON(t *testing.T) {
 	}
 	if len(state.PatchProposals) != 1 || state.PatchProposals[0].ID != "patch_1" {
 		t.Fatalf("patch proposals = %#v, want patch_1", state.PatchProposals)
-	}
-	if len(state.VerificationRuns) != 1 || state.VerificationRuns[0].ID != "verification_1" {
-		t.Fatalf("verification runs = %#v, want verification_1", state.VerificationRuns)
 	}
 	if len(state.WorkflowEvents) != 1 || state.WorkflowEvents[0].ID != "event_1" {
 		t.Fatalf("workflow events = %#v, want event_1", state.WorkflowEvents)

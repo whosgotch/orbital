@@ -40,11 +40,8 @@ export function App() {
     setRuntimeByMission,
     patchDiffByMission,
     commitByMission,
-    verificationOutputByMission,
     activityByMission,
     usageByMission,
-    verificationCommandByMission,
-    setVerificationCommandByMission,
     workerModeByMission,
     setWorkerModeByMission,
     chatByMission,
@@ -63,7 +60,6 @@ export function App() {
   const [followUpDismissedFor, setFollowUpDismissedFor] = useState("");
   // Research missions show "doc" (the findings document) instead of "changes".
   const [taskView, setTaskView] = useState<"chat" | "changes" | "doc">("chat");
-  const [verifyOpen, setVerifyOpen] = useState(false);
   const [diffModalOpen, setDiffModalOpen] = useState(false);
   const [focusedDiffFile, setFocusedDiffFile] = useState<string | undefined>(undefined);
   // Model and effort are derived, not stored: an explicit pick here wins, and
@@ -129,8 +125,6 @@ export function App() {
   const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? queuedRuntime;
   const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
   const selectedCommit = (selectedMission ? commitByMission[selectedMission.id] : undefined) ?? { hash: "", subject: "", branch: "" };
-  const selectedVerificationOutput = (selectedMission ? verificationOutputByMission[selectedMission.id] : undefined) ?? "";
-  const selectedVerificationCommand = (selectedMission ? verificationCommandByMission[selectedMission.id] : undefined) ?? selectedMission?.command ?? "";
   const patchReady = (selectedPatchDiff ?? "") !== "";
 
   // The mission is one card, so its chat is the whole mission's transcript — every run it has had, in order.
@@ -190,7 +184,6 @@ export function App() {
     setRuntimeByMission,
     workerModeByMission,
     setWorkerModeByMission,
-    verificationCommandByMission,
     setChatByMission,
     setChatSendingByMission,
     applyRepoState,
@@ -223,7 +216,6 @@ export function App() {
     rejectMission,
     deleteMission,
     saveMissionPrompt,
-    runVerificationFor,
     extractingByMission,
     extractTasks,
   } = missionActions;
@@ -482,14 +474,6 @@ export function App() {
             setDiffModalOpen(true);
           }}
           onSendChat={(text) => void sendAgentChat(selectedMission.id, text)}
-          verifyOpen={verifyOpen}
-          onToggleVerifyOpen={() => setVerifyOpen((open) => !open)}
-          verificationCommand={selectedVerificationCommand}
-          onChangeVerificationCommand={(command) =>
-            setVerificationCommandByMission((current) => ({ ...current, [selectedMission.id]: command }))
-          }
-          verificationOutputText={selectedVerificationOutput}
-          onRunVerification={() => void runVerificationFor(selectedMission.id)}
           onReject={() => void rejectMission(selectedMission.id)}
           onApprove={() => void approveMission(selectedMission.id)}
         />

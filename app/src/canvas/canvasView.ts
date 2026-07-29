@@ -41,11 +41,11 @@ export function enrichGraphNodes({
       durationMs: usage.durationMs || undefined,
     };
   };
-  // An upstream has landed when its patch was approved or — for tool steps,
-  // which have no patch gate — when its command finished as verified.
+  // An upstream has landed when its patch was approved and applied or — for
+  // tool steps, which have no patch gate — when its command finished clean.
   const upstreamLanded = (id: string) => {
     const upstream = runtimeByMission[id];
-    return upstream?.patchStatus === "approved" || upstream?.status === "approved" || upstream?.status === "verified";
+    return upstream?.patchStatus === "approved" || upstream?.status === "done";
   };
 
   return workspaceGraphNodes.map((node) => {
@@ -105,7 +105,7 @@ export function enrichGraphNodes({
             launchable,
             live: runtime?.status === "running",
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
-            verifyState: status === "verified" ? ("passed" as const) : status === "blocked" ? ("failed" as const) : undefined,
+            toolState: status === "done" ? ("passed" as const) : status === "blocked" ? ("failed" as const) : undefined,
             commitHash: commitByMission[missionId]?.hash || undefined,
           },
         };

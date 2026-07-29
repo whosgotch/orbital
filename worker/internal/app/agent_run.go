@@ -72,11 +72,14 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		s.streamRunEvent(agent.RunEvent{WorkflowEvent: &handoff})
 	}
 
-	// Give this mission its own git worktree so it can run alongside others
-	// without sharing a working tree. Fall back to the repo root if the repo
-	// can't host a worktree.
+	// Give this mission its own git worktree: the agent works there, so the
+	// user's repo stays untouched until the patch is approved and applied.
 	workdir := repoPath
-	if worktreePath := createRunWorktree(ctx, repoPath, run.ID); worktreePath != "" {
+	worktreePath, err := createRunWorktree(ctx, repoPath, run.ID)
+	if err != nil {
+		return nil, s.failRun(run, missionID, repoPath, err)
+	}
+	if worktreePath != "" {
 		workdir = worktreePath
 		run.WorktreePath = worktreePath
 		if _, err := s.store.Update(func(state *store.State) error {
@@ -118,28 +121,7 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 
 	events, err := worker.StartRun(ctx, runRequest)
 	if err != nil {
-		failedAt := time.Now().UTC()
-		run.Status = domain.AgentRunStatusFailed
-		run.CompletedAt = &failedAt
-		run.DurationMs = failedAt.Sub(run.StartedAt).Milliseconds()
-		run.Error = err.Error()
-
-		if _, saveErr := s.store.Update(func(state *store.State) error {
-			if runIndex := findRunIndex(state.AgentRuns, run.ID); runIndex != -1 {
-				state.AgentRuns[runIndex] = run
-			}
-			if missionIndex := findMissionIndex(state.Missions, missionID); missionIndex != -1 {
-				state.Missions[missionIndex].Status = domain.MissionStatusFailed
-				state.Missions[missionIndex].UpdatedAt = failedAt
-			}
-			return nil
-		}); saveErr != nil {
-			return nil, saveErr
-		}
-
-		removeRunWorktree(repoPath, run)
-		s.streamAgentRun(run)
-		return &run, err
+		return &run, s.failRun(run, missionID, repoPath, err)
 	}
 
 	var capturedSession string
@@ -183,6 +165,47 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 	}
 
 	return s.finishAgentRun(run.ID, missionID)
+}
+
+// failRun lands a run that never got to work: the reason reaches the feed as a
+// run_failed event, then the run and its mission are marked failed and any
+// worktree is torn down. It returns the original cause, so callers surface the
+// same error the UI shows.
+func (s *Service) failRun(run domain.AgentRun, missionID string, repoPath string, cause error) error {
+	if saveErr := s.saveRunEvent(missionID, agent.RunEvent{
+		WorkflowEvent: &domain.WorkflowEvent{
+			ID:        fmt.Sprintf("event_%d", time.Now().UTC().UnixNano()),
+			RunID:     run.ID,
+			Type:      domain.WorkflowEventRunFailed,
+			Message:   cause.Error(),
+			CreatedAt: time.Now().UTC(),
+		},
+	}); saveErr != nil {
+		return saveErr
+	}
+
+	failedAt := time.Now().UTC()
+	run.Status = domain.AgentRunStatusFailed
+	run.CompletedAt = &failedAt
+	run.DurationMs = failedAt.Sub(run.StartedAt).Milliseconds()
+	run.Error = cause.Error()
+
+	if _, saveErr := s.store.Update(func(state *store.State) error {
+		if runIndex := findRunIndex(state.AgentRuns, run.ID); runIndex != -1 {
+			state.AgentRuns[runIndex] = run
+		}
+		if missionIndex := findMissionIndex(state.Missions, missionID); missionIndex != -1 {
+			state.Missions[missionIndex].Status = domain.MissionStatusFailed
+			state.Missions[missionIndex].UpdatedAt = failedAt
+		}
+		return nil
+	}); saveErr != nil {
+		return saveErr
+	}
+
+	removeRunWorktree(repoPath, run)
+	s.streamAgentRun(run)
+	return cause
 }
 
 func (s *Service) resolveWorker(missionID string, workerName string) (agent.Worker, string, error) {
@@ -379,8 +402,11 @@ func (s *Service) SpawnChildRun(ctx context.Context, parentRunID string, workerN
 	// `git worktree add` isn't safe to race, so serialize creation; the agents
 	// then run in parallel in their separate trees. Fall back to the repo root.
 	s.worktreeMu.Lock()
-	worktreePath := createRunWorktree(ctx, repoPath, childRun.ID)
+	worktreePath, err := createRunWorktree(ctx, repoPath, childRun.ID)
 	s.worktreeMu.Unlock()
+	if err != nil {
+		return nil, s.failRun(childRun, missionID, repoPath, err)
+	}
 	if worktreePath != "" {
 		workdir = worktreePath
 		childRun.WorktreePath = worktreePath

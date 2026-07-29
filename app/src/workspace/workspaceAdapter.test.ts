@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentRun, Mission, MissionLoopState, PatchProposal, VerificationRun } from "./domain";
+import type { AgentRun, Mission, MissionLoopState, PatchProposal } from "./domain";
 import type { WorkspaceGraphNode, WorkspaceMission } from "../canvas/graph";
 import { compactLabel, followUpTargetFor, roleLabel, workspaceViewFromMissionLoop } from "./workspaceAdapter";
 
@@ -9,7 +9,6 @@ const emptyState: MissionLoopState = {
   agent_runs: [],
   workflow_events: [],
   patch_proposals: [],
-  verification_runs: [],
   chat_messages: [],
 };
 
@@ -121,7 +120,7 @@ describe("workspaceViewFromMissionLoop", () => {
     const kinds = view.graphNodes.map((node) => node.kind);
     expect(kinds).toEqual(["repo", "tool"]);
     expect(view.graphNodes[1].detail).toBe("npm test");
-    expect(view.runtimeByMission.m1.status).toBe("verified");
+    expect(view.runtimeByMission.m1.status).toBe("done");
   });
 
   it("keeps a research mission as one node with no pipeline stages", () => {
@@ -133,7 +132,7 @@ describe("workspaceViewFromMissionLoop", () => {
     );
     expect(view.graphNodes.map((node) => node.kind)).toEqual(["repo", "research"]);
     expect(view.graphEdges.map((edge) => edge.kind)).toEqual(["owns"]);
-    expect(view.runtimeByMission.m1.status).toBe("verified");
+    expect(view.runtimeByMission.m1.status).toBe("done");
   });
 
   it("renders an edge from a verified research node to a task chained onto it", () => {
@@ -158,21 +157,19 @@ describe("workspaceViewFromMissionLoop", () => {
     ]);
   });
 
-  it("maps verification results onto mission status", () => {
-    const verification: VerificationRun = {
-      id: "v1",
-      mission_id: "m1",
-      repository_id: "r1",
-      command: "go test ./...",
-      status: "failed",
-      output: "boom",
-      started_at: "2026-07-01T00:03:00Z",
-    };
+  it("reads an applied patch as done — approve + apply is the last step", () => {
+    const appliedPatch: PatchProposal = { ...pendingPatch, status: "applied" };
     const view = workspaceViewFromMissionLoop(
-      state({ missions: [mission({ status: "applied" })], agent_runs: [run], verification_runs: [verification] }),
+      state({ missions: [mission({ status: "applied" })], agent_runs: [run], patch_proposals: [appliedPatch] }),
+    );
+    expect(view.runtimeByMission.m1.status).toBe("done");
+  });
+
+  it("reads a rejected mission as blocked", () => {
+    const view = workspaceViewFromMissionLoop(
+      state({ missions: [mission({ status: "rejected" })], agent_runs: [run] }),
     );
     expect(view.runtimeByMission.m1.status).toBe("blocked");
-    expect(view.verificationOutputByMission.m1).toBe("boom");
   });
 });
 
@@ -201,7 +198,6 @@ describe("followUpTargetFor", () => {
     files: [],
     step: 0,
     patch_status: "pending",
-    verified: false,
     map_position: "center",
     ...overrides,
   });

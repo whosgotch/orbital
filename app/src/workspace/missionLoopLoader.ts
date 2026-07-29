@@ -52,10 +52,6 @@ export function rejectPatchMissionLoopState(repoPath: string, missionId: string)
   return invokeState("reject_patch", { repoPath, missionId });
 }
 
-export function verifyMissionLoopState(repoPath: string, missionId: string, command: string) {
-  return invokeState("verify_mission", { repoPath, missionId, command });
-}
-
 // Turn a research mission's findings document into draft tasks chained after
 // it, so their prompts stay concise and the findings still flow down via the
 // ordinary upstream hand-off.

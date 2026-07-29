@@ -131,19 +131,3 @@ func (s *Service) ListChildRuns(parentRunID string) ([]domain.AgentRun, error) {
 
 	return runs, nil
 }
-
-func (s *Service) ListVerificationsByMission(missionID string) ([]domain.VerificationRun, error) {
-	state, err := s.store.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	verifications := make([]domain.VerificationRun, 0)
-	for _, verification := range state.VerificationRuns {
-		if verification.MissionID == missionID {
-			verifications = append(verifications, verification)
-		}
-	}
-
-	return verifications, nil
-}

@@ -23,7 +23,6 @@ import {
   startAgentRunMissionLoopState,
   unlinkMissionsLoopState,
   updateMissionTextLoopState,
-  verifyMissionLoopState,
 } from "./missionLoopLoader";
 
 const freshId = (prefix: string) => `${prefix}_${Date.now()}`;
@@ -38,7 +37,6 @@ export type UseMissionActionsArgs = {
   setRuntimeByMission: Dispatch<SetStateAction<WorkspaceRuntimeMap>>;
   workerModeByMission: Record<string, WorkerMode>;
   setWorkerModeByMission: Dispatch<SetStateAction<Record<string, WorkerMode>>>;
-  verificationCommandByMission: Record<string, string>;
   setChatByMission: Dispatch<SetStateAction<Record<string, ChatMessage[]>>>;
   setChatSendingByMission: Dispatch<SetStateAction<Record<string, boolean>>>;
   applyRepoState: (state: MissionLoopState) => void;
@@ -61,7 +59,6 @@ export function useMissionActions({
   setRuntimeByMission,
   workerModeByMission,
   setWorkerModeByMission,
-  verificationCommandByMission,
   setChatByMission,
   setChatSendingByMission,
   applyRepoState,
@@ -450,23 +447,6 @@ export function useMissionActions({
     }
   };
 
-  const runVerificationFor = async (missionId: string) => {
-    const mission = workspaceMissions.find((item) => item.id === missionId);
-    const command = (verificationCommandByMission[missionId] ?? mission?.command ?? "").trim();
-    if (!command) {
-      setMissionLoopError("Verification command is required.");
-      return;
-    }
-
-    setMissionLoopError("");
-
-    try {
-      applyRepoState(await verifyMissionLoopState(repoPathForMission(missionId), missionId, command));
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to run verification."));
-    }
-  };
-
   return {
     missionDraft,
     setMissionDraft,
@@ -490,7 +470,6 @@ export function useMissionActions({
     rejectMission,
     deleteMission,
     saveMissionPrompt,
-    runVerificationFor,
     extractingByMission,
     extractTasks,
   };

@@ -79,14 +79,6 @@ func printMissionStatus(stdout io.Writer, service *app.Service, mission domain.M
 		}
 	}
 
-	verifications, err := service.ListVerificationsByMission(mission.ID)
-	if err != nil {
-		return err
-	}
-	for _, verification := range verifications {
-		_, _ = fmt.Fprintf(stdout, "  verification: %s (%s)\n", verification.ID, verification.Status)
-	}
-
 	events, err := service.ListEventsByMission(mission.ID)
 	if err != nil {
 		return err

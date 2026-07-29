@@ -147,14 +147,6 @@ func (s *Service) DeleteMission(missionID string) error {
 		}
 		state.PatchProposals = remainingPatches
 
-		remainingVerifications := make([]domain.VerificationRun, 0, len(state.VerificationRuns))
-		for _, verification := range state.VerificationRuns {
-			if verification.MissionID != missionID {
-				remainingVerifications = append(remainingVerifications, verification)
-			}
-		}
-		state.VerificationRuns = remainingVerifications
-
 		remainingEvents := make([]domain.WorkflowEvent, 0, len(state.WorkflowEvents))
 		for _, event := range state.WorkflowEvents {
 			if event.MissionID != missionID && !runIDs[event.RunID] {

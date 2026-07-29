@@ -8,7 +8,6 @@ export const emptyMissionLoopState: MissionLoopState = {
   agent_runs: [],
   workflow_events: [],
   patch_proposals: [],
-  verification_runs: [],
   chat_messages: [],
 };
 
@@ -23,7 +22,6 @@ export function combineRepoStates(states: Record<string, MissionLoopState>): Mis
     agent_runs: all.flatMap((state) => state.agent_runs),
     workflow_events: all.flatMap((state) => state.workflow_events),
     patch_proposals: all.flatMap((state) => state.patch_proposals),
-    verification_runs: all.flatMap((state) => state.verification_runs),
     chat_messages: all.flatMap((state) => state.chat_messages),
   };
 }
@@ -43,7 +41,6 @@ export function splitByRepository(state: MissionLoopState): Record<string, Missi
         (event) => (event.mission_id != null && missionIds.has(event.mission_id)) || (event.run_id != null && runIds.has(event.run_id)),
       ),
       patch_proposals: state.patch_proposals.filter((patch) => runIds.has(patch.run_id)),
-      verification_runs: state.verification_runs.filter((run) => run.repository_id === repo.id || missionIds.has(run.mission_id)),
       chat_messages: state.chat_messages.filter((message) => missionIds.has(message.mission_id) || runIds.has(message.run_id)),
     };
   }

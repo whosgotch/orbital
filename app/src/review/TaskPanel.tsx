@@ -1,12 +1,11 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, ChevronDown, GitBranch, ListTree, Loader, Pencil, Terminal, Trash2, X } from "lucide-react";
+import { Check, GitBranch, ListTree, Loader, Pencil, ShieldCheck, Trash2, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "../chat/AgentChat";
 import { UsageDetails } from "../chat/UsageDetails";
 import { DocumentView } from "./DocumentView";
 import { ReviseBox } from "../chat/ReviseBox";
 import type { TranscriptEntry } from "../chat/AgentTranscript";
 import type { AgentStatusModel } from "../chat/statusModel";
-import { verifyPillClass, verifyPillLabel, verificationOutput } from "../workspace/missionUi";
 import type { CommitInfo, WorkspaceRuntime } from "../workspace/workspaceAdapter";
 import type { WorkspaceMission } from "../canvas/graph";
 import type { ChatMessage, Repository } from "../workspace/domain";
@@ -55,12 +54,6 @@ type TaskPanelProps = {
   reasoningByMessage: Record<string, TranscriptEntry[]>;
   onOpenDiffFile: (path: string) => void;
   onSendChat: (text: string) => void;
-  verifyOpen: boolean;
-  onToggleVerifyOpen: () => void;
-  verificationCommand: string;
-  onChangeVerificationCommand: (command: string) => void;
-  verificationOutputText: string;
-  onRunVerification: () => void;
   onReject: () => void;
   onApprove: () => void;
 };
@@ -93,12 +86,6 @@ export function TaskPanel({
   reasoningByMessage,
   onOpenDiffFile,
   onSendChat,
-  verifyOpen,
-  onToggleVerifyOpen,
-  verificationCommand,
-  onChangeVerificationCommand,
-  verificationOutputText,
-  onRunVerification,
   onReject,
   onApprove,
 }: TaskPanelProps) {
@@ -301,34 +288,6 @@ export function TaskPanel({
                 <ReviseBox sending={chatSending} onSend={onSendChat} />
               ) : null}
 
-              <div className="verify-bar">
-                <button type="button" className="verify-status-toggle" onClick={onToggleVerifyOpen} aria-expanded={verifyOpen}>
-                  <span className={`verify-pill ${verifyPillClass(runtime)}`}>{verifyPillLabel(runtime)}</span>
-                  <ChevronDown size={14} className={`verify-chevron ${verifyOpen ? "open" : ""}`} aria-hidden="true" />
-                </button>
-                <button
-                  className="secondary mini"
-                  type="button"
-                  disabled={runtime.patchStatus !== "approved" || runtime.verified || !verificationCommand.trim()}
-                  onClick={onRunVerification}
-                  title="Run verification"
-                >
-                  <Terminal size={14} aria-hidden="true" />
-                  <span>Verify</span>
-                </button>
-              </div>
-              {verifyOpen ? (
-                <div className="verify-detail">
-                  <input
-                    className="command-line"
-                    aria-label="Verification command"
-                    value={verificationCommand}
-                    onChange={(event) => onChangeVerificationCommand(event.target.value)}
-                  />
-                  <pre className="test-output">{verificationOutput(runtime, verificationOutputText)}</pre>
-                </div>
-              ) : null}
-
               {commit.hash ? (
                 <div className="landed-commit">
                   {commit.branch ? (
@@ -342,25 +301,39 @@ export function TaskPanel({
                 </div>
               ) : null}
 
-              <div className="actions">
-                <button
-                  className="secondary"
-                  type="button"
-                  disabled={!patchReady || runtime.patchStatus !== "pending"}
-                  onClick={onReject}
-                >
-                  <X size={16} aria-hidden="true" />
-                  <span>Reject</span>
-                </button>
-                <button
-                  className="primary"
-                  type="button"
-                  disabled={!patchReady || runtime.patchStatus !== "pending"}
-                  onClick={onApprove}
-                >
-                  <Check size={16} aria-hidden="true" />
-                  <span>Approve + apply</span>
-                </button>
+              <div className="task-gate">
+                {/* Approve + apply is the last step, so the gate says plainly where the
+                    code is right now: still in the agent's own worktree. */}
+                {patchReady && runtime.patchStatus === "pending" ? (
+                  <p className="gate-note">
+                    <ShieldCheck size={13} aria-hidden="true" />
+                    <span>
+                      Nothing is in {repository?.name ?? "your repo"} yet — these changes live in the agent's worktree until you
+                      apply them.
+                    </span>
+                  </p>
+                ) : null}
+
+                <div className="actions">
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={!patchReady || runtime.patchStatus !== "pending"}
+                    onClick={onReject}
+                  >
+                    <X size={16} aria-hidden="true" />
+                    <span>Reject</span>
+                  </button>
+                  <button
+                    className="primary"
+                    type="button"
+                    disabled={!patchReady || runtime.patchStatus !== "pending"}
+                    onClick={onApprove}
+                  >
+                    <Check size={16} aria-hidden="true" />
+                    <span>Approve + apply</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

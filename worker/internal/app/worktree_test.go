@@ -88,3 +88,48 @@ func TestStartAgentRunExecutesInIsolatedWorktree(t *testing.T) {
 		t.Fatalf("worktree dir missing: %v", err)
 	}
 }
+
+// A repository with no commits yet can't host a worktree. The run must fail
+// there rather than fall back to the repo root: running in the user's own tree
+// would edit their files live, leaving nothing to approve.
+func TestStartAgentRunFailsWhenRepositoryCannotHostAWorktree(t *testing.T) {
+	repoDir := t.TempDir()
+	cmd := exec.Command("git", "init")
+	cmd.Dir = repoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+
+	var seenDir string
+	registry := agent.NewWorkerRegistry()
+	registry.Register(recordingWorker{seen: &seenDir})
+	jsonStore := store.NewJSONStore(filepath.Join(repoDir, ".orbital"))
+	svc := NewServiceWithWorkerRegistry(jsonStore, registry)
+
+	if _, err := jsonStore.Update(func(state *store.State) error {
+		state.Repositories = []domain.Repository{{ID: "repo_1", Path: repoDir, Name: "demo"}}
+		state.Missions = []domain.Mission{{ID: "mission_1", RepositoryID: "repo_1", Text: "do work", Status: domain.MissionStatusRunning}}
+		return nil
+	}); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+
+	if _, err := svc.StartAgentRun(context.Background(), "mission_1", "recording"); err == nil {
+		t.Fatal("StartAgentRun() error = nil, want a worktree isolation failure")
+	}
+
+	if seenDir != "" {
+		t.Fatalf("worker ran in %q, want no run at all", seenDir)
+	}
+
+	state, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if state.Missions[0].Status != domain.MissionStatusFailed {
+		t.Fatalf("mission status = %q, want %q", state.Missions[0].Status, domain.MissionStatusFailed)
+	}
+	if state.AgentRuns[0].Status != domain.AgentRunStatusFailed {
+		t.Fatalf("run status = %q, want %q", state.AgentRuns[0].Status, domain.AgentRunStatusFailed)
+	}
+}

@@ -26,7 +26,6 @@ function mission(overrides: Partial<WorkspaceMission> = {}): WorkspaceMission {
     files: [],
     step: 0,
     patch_status: "pending",
-    verified: false,
     map_position: "center",
     ...overrides,
   };
@@ -39,8 +38,6 @@ const baseArgs = {
   workerModeByMission: {},
   activityByMission: {},
   patchDiffByMission: {},
-  verificationOutputByMission: {},
-  verificationCommandByMission: {},
   commitByMission: {},
   usageByMission: {},
 };

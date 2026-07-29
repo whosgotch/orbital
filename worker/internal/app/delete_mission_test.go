@@ -25,10 +25,6 @@ func TestDeleteMissionRemovesMissionAndDependents(t *testing.T) {
 			{ID: "patch_doomed", RunID: "run_doomed"},
 			{ID: "patch_keep", RunID: "run_keep"},
 		},
-		VerificationRuns: []domain.VerificationRun{
-			{ID: "verify_doomed", MissionID: "mission_doomed", RepositoryID: "repo_1"},
-			{ID: "verify_keep", MissionID: "mission_keep", RepositoryID: "repo_1"},
-		},
 		WorkflowEvents: []domain.WorkflowEvent{
 			{ID: "event_by_mission", MissionID: "mission_doomed"},
 			{ID: "event_by_run", RunID: "run_doomed"},
@@ -51,7 +47,6 @@ func TestDeleteMissionRemovesMissionAndDependents(t *testing.T) {
 	assertOnlyID(t, "missions", len(got.Missions), idsOfMissions(got.Missions), "mission_keep")
 	assertOnlyID(t, "agent runs", len(got.AgentRuns), idsOfRuns(got.AgentRuns), "run_keep")
 	assertOnlyID(t, "patches", len(got.PatchProposals), idsOfPatches(got.PatchProposals), "patch_keep")
-	assertOnlyID(t, "verifications", len(got.VerificationRuns), idsOfVerifications(got.VerificationRuns), "verify_keep")
 	assertOnlyID(t, "events", len(got.WorkflowEvents), idsOfEvents(got.WorkflowEvents), "event_keep")
 }
 
@@ -87,14 +82,6 @@ func idsOfRuns(in []domain.AgentRun) []string {
 }
 
 func idsOfPatches(in []domain.PatchProposal) []string {
-	out := make([]string, len(in))
-	for i, v := range in {
-		out[i] = v.ID
-	}
-	return out
-}
-
-func idsOfVerifications(in []domain.VerificationRun) []string {
 	out := make([]string, len(in))
 	for i, v := range in {
 		out[i] = v.ID

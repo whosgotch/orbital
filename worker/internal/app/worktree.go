@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,13 +16,22 @@ func runWorktreePath(repoPath, runID string) string {
 }
 
 // createRunWorktree adds an isolated git worktree for a run at a detached HEAD,
-// so parallel agents on the same repo never share one working tree. It returns
-// the worktree path, or an empty string when the repo can't host a worktree
-// (not a git repo, or no commits yet) — callers then fall back to the repo root.
-func createRunWorktree(ctx context.Context, repoPath, runID string) string {
+// so an agent's edits never touch the user's own working tree before the patch
+// is approved, and parallel agents never share one tree.
+//
+// It returns an empty path and no error only for a directory git doesn't manage
+// (the scratch dirs the local-command worker uses), where there is no tree to
+// protect. In a real repository the worktree is mandatory: failing to create one
+// is an error, never a fallback to the repo root — running there would edit the
+// user's files live, with nothing left to approve.
+func createRunWorktree(ctx context.Context, repoPath, runID string) (string, error) {
+	if !isGitRepo(repoPath) {
+		return "", nil
+	}
+
 	worktreePath := runWorktreePath(repoPath, runID)
 	if err := os.MkdirAll(filepath.Dir(worktreePath), 0o755); err != nil {
-		return ""
+		return "", fmt.Errorf("create worktree directory: %w", err)
 	}
 
 	// A stale worktree directory from a crashed run would block `add`.
@@ -29,11 +39,14 @@ func createRunWorktree(ctx context.Context, repoPath, runID string) string {
 
 	cmd := exec.CommandContext(ctx, "git", "worktree", "add", "--detach", worktreePath, "HEAD")
 	cmd.Dir = repoPath
-	if err := cmd.Run(); err != nil {
-		return ""
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf(
+			"cannot isolate this run: git worktree add failed in %s (a repository with no commits yet can't host one — make an initial commit and re-run): %w: %s",
+			repoPath, err, strings.TrimSpace(string(output)),
+		)
 	}
 
-	return worktreePath
+	return worktreePath, nil
 }
 
 // rebaselineWorktree commits a live chat agent's worktree in place, so its HEAD

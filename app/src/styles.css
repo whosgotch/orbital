@@ -590,7 +590,7 @@ h3 {
   overflow: auto;
 }
 
-/* flex: 0 1 auto (not 1 1 auto) so this sizes to content but still shrinks to scroll, keeping the verify bar and approve gate pinned at the bottom. */
+/* flex: 0 1 auto (not 1 1 auto) so this sizes to content but still shrinks to scroll, keeping the approve gate pinned at the bottom. */
 .task-changes .chat-changes {
   flex: 0 1 auto;
   min-height: 0;
@@ -693,7 +693,7 @@ h3 {
   margin-top: 12px;
 }
 
-.task-changes .verify-bar {
+.task-changes .task-gate {
   margin-top: auto;
   padding-top: 12px;
 }
@@ -1312,68 +1312,19 @@ button.mini-text {
   font-size: 12px;
 }
 
-.verify-bar {
+.gate-note {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.verify-status-toggle {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #0b0b0d;
-  color: var(--soft);
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.verify-pill {
-  display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.verify-pill::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-
-.verify-pill.passed { color: var(--green); }
-.verify-pill.passed::before { background: var(--green); }
-.verify-pill.failed { color: var(--red); }
-.verify-pill.failed::before { background: var(--red); }
-.verify-pill.ready { color: #d9a441; }
-.verify-pill.ready::before { background: #d9a441; }
-.verify-pill.pending { color: var(--muted); }
-
-.verify-chevron {
-  transition: transform 160ms ease;
+  margin: 12px 0 0;
   color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
-.verify-chevron.open {
-  transform: rotate(180deg);
-}
-
-.verify-detail {
-  margin-top: 8px;
-}
-
-.verify-detail .test-output {
-  height: 110px;
-  padding: 10px 12px;
+.gate-note svg {
+  flex: none;
+  color: var(--green);
 }
 
 .activity-toolbar {

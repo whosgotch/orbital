@@ -420,7 +420,7 @@ function toRfEdge(
 function miniMapColor(node: Node) {
   const status = (node.data as OrbitalNodeData)?.status;
   if (status === "running") return "#d9a441";
-  if (status === "verified") return "#3fb96f";
+  if (status === "done") return "#3fb96f";
   if (status === "blocked") return "#e5615c";
   return "rgba(255, 255, 255, 0.16)";
 }
@@ -660,7 +660,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
             {meta.attachments} image{meta.attachments === 1 ? "" : "s"}
           </span>
         ) : null}
-        {node.status === "verified" ? <span className="node-tag ok">findings ready</span> : null}
+        {node.status === "done" ? <span className="node-tag ok">findings ready</span> : null}
         <CommitChip hash={meta?.commitHash} />
         <ModelChip model={meta?.model} />
         <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
@@ -688,8 +688,8 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
       <div className="node-card-body">
         {meta?.command ? <code className="node-card-command">{meta.command}</code> : null}
         {meta?.waitingFor ? <span className="node-tag wait">after: {meta.waitingFor}</span> : null}
-        {meta?.verifyState === "passed" ? <span className="node-tag ok">passed</span> : null}
-        {meta?.verifyState === "failed" ? <span className="node-tag bad">failed</span> : null}
+        {meta?.toolState === "passed" ? <span className="node-tag ok">passed</span> : null}
+        {meta?.toolState === "failed" ? <span className="node-tag bad">failed</span> : null}
         <CommitChip hash={meta?.commitHash} />
       </div>
     );

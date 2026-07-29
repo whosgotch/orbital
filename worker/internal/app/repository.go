@@ -34,9 +34,6 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 				if repository.Branch == "" {
 					state.Repositories[index].Branch = currentGitBranch(cleanPath)
 				}
-				if repository.VerificationCommand == "" {
-					state.Repositories[index].VerificationCommand = defaultVerificationCommand(cleanPath)
-				}
 				result = state.Repositories[index]
 				return nil
 			}
@@ -44,12 +41,11 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 
 		now := time.Now().UTC()
 		repository := domain.Repository{
-			ID:                  fmt.Sprintf("repo_%d", now.UnixNano()),
-			Path:                cleanPath,
-			Name:                filepath.Base(cleanPath),
-			Branch:              currentGitBranch(cleanPath),
-			VerificationCommand: defaultVerificationCommand(cleanPath),
-			CreatedAt:           now,
+			ID:        fmt.Sprintf("repo_%d", now.UnixNano()),
+			Path:      cleanPath,
+			Name:      filepath.Base(cleanPath),
+			Branch:    currentGitBranch(cleanPath),
+			CreatedAt: now,
 		}
 
 		state.Repositories = append(state.Repositories, repository)
@@ -61,22 +57,6 @@ func (s *Service) OpenRepository(path string) (*domain.Repository, error) {
 	}
 
 	return &result, nil
-}
-
-func defaultVerificationCommand(repoPath string) string {
-	if fileExists(filepath.Join(repoPath, "package.json")) {
-		return "npm test"
-	}
-	if fileExists(filepath.Join(repoPath, "go.mod")) {
-		return "go test ./..."
-	}
-
-	return "true"
-}
-
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
 }
 
 func currentGitBranch(repoPath string) string {

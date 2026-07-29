@@ -155,7 +155,7 @@ export function buildAgentStatus(
 
   const patchPending = (runtime?.patchStatus === "pending" && patchDiff.trim() !== "") || runtime?.status === "review";
   let patchStatus: AgentPhaseStatus = "pending";
-  if (runtime?.verified || runtime?.status === "verified" || runtime?.patchStatus === "approved") patchStatus = "done";
+  if (runtime?.status === "done" || runtime?.patchStatus === "approved") patchStatus = "done";
   else if (runtime?.patchStatus === "rejected" || runtime?.status === "blocked") patchStatus = "failed";
   else if (patchPending) patchStatus = "active";
   phases.push({ id: "patch", label: "Patch", status: patchStatus });
