@@ -26,7 +26,7 @@ func TestCreateMissionSavesMission(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	mission, err := svc.CreateMission("repo_1", " add a version command ", " camp_1 ")
+	mission, err := svc.CreateMission("repo_1", " add a version command ", " camp_1 ", "")
 	if err != nil {
 		t.Fatalf("CreateMission() error = %v", err)
 	}
@@ -114,7 +114,7 @@ func TestCreateToolMissionRejectsBlankCommand(t *testing.T) {
 func TestCreateMissionRejectsBlankText(t *testing.T) {
 	svc := NewService(store.NewJSONStore(t.TempDir()))
 
-	if _, err := svc.CreateMission("repo_1", "   ", ""); err == nil {
+	if _, err := svc.CreateMission("repo_1", "   ", "", ""); err == nil {
 		t.Fatal("expected error for blank mission text, got nil")
 	}
 }
@@ -122,7 +122,40 @@ func TestCreateMissionRejectsBlankText(t *testing.T) {
 func TestCreateMissionRejectsUnknownRepository(t *testing.T) {
 	svc := NewService(store.NewJSONStore(t.TempDir()))
 
-	if _, err := svc.CreateMission("missing_repo", "add a version command", ""); err == nil {
+	if _, err := svc.CreateMission("missing_repo", "add a version command", "", ""); err == nil {
 		t.Fatal("expected error for unknown repository, got nil")
+	}
+}
+
+// The model chosen when a task is created must be persisted on the mission —
+// it is a decision, and a reload must not silently swap it for whatever the
+// global picker happens to say.
+func TestCreateMissionPersistsTheChosenModel(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	svc := NewService(jsonStore)
+	if _, err := svc.OpenRepository(t.TempDir()); err != nil {
+		t.Fatalf("OpenRepository() error = %v", err)
+	}
+	state, err := jsonStore.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	repoID := state.Repositories[0].ID
+
+	mission, err := svc.CreateMission(repoID, "add a version command", "", " claude-haiku-4-5 ")
+	if err != nil {
+		t.Fatalf("CreateMission() error = %v", err)
+	}
+	if mission.Model != "claude-haiku-4-5" {
+		t.Errorf("Model = %q, want the trimmed chosen model", mission.Model)
+	}
+
+	// No choice made is not a choice of "": the run falls through to the picker.
+	plain, err := svc.CreateMission(repoID, "another task", "", "")
+	if err != nil {
+		t.Fatalf("CreateMission() error = %v", err)
+	}
+	if plain.Model != "" {
+		t.Errorf("Model = %q, want empty when no model was chosen", plain.Model)
 	}
 }

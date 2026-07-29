@@ -19,7 +19,7 @@ func TestCreateResearchMissionRecordsKind(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	mission, err := svc.CreateResearchMission("repo_1", "how does the plan engine work?", "")
+	mission, err := svc.CreateResearchMission("repo_1", "how does the plan engine work?", "", "")
 	if err != nil {
 		t.Fatalf("CreateResearchMission() error = %v", err)
 	}

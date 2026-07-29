@@ -76,7 +76,12 @@ export function useMissionActions({
   const [extractingByMission, setExtractingByMission] = useState<Record<string, boolean>>({});
   const [campaignRepoIds, setCampaignRepoIds] = useState<string[]>([]);
   const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-engineer");
-  const [modelByMission, setModelByMission] = useState<Record<string, string>>({});
+  // The model a mission runs on lives on the mission itself (persisted by the
+  // worker), so it survives a reload. The global picker only supplies it at
+  // creation time and is the fallback for missions created before the choice
+  // was recorded.
+  const modelForMission = (missionId: string) =>
+    workspaceMissions.find((mission) => mission.id === missionId)?.model || claudeModel;
 
   // A tool draft's text doubles as its shell command; the worker resolves execution itself, so no worker mode is stamped for tools.
   const createTaskOnCanvas = async (text: string, run: boolean, kind: "task" | "tool", worker: WorkerMode, model?: string) => {
@@ -86,12 +91,18 @@ export function useMissionActions({
     const isTool = kind === "tool";
 
     try {
-      const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, text, undefined, isTool ? text : undefined);
+      const nextMissionLoopState = await queueMissionLoopState(
+        draftRepository.path,
+        text,
+        undefined,
+        isTool ? text : undefined,
+        undefined,
+        isTool ? undefined : model,
+      );
       const missionId = nextMissionLoopState.missions.at(-1)?.id;
       applyRepoState(nextMissionLoopState);
       if (missionId) {
         if (!isTool) setWorkerModeByMission((current) => ({ ...current, [missionId]: worker }));
-        if (model) setModelByMission((current) => ({ ...current, [missionId]: model }));
         if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : worker, model });
       }
     } catch (error) {
@@ -196,7 +207,7 @@ export function useMissionActions({
     const repoPath = overrides?.repoPath ?? repoPathForMission(missionId);
     const mission = workspaceMissions.find((item) => item.id === missionId);
     const workerMode = overrides?.workerMode ?? workerModeByMission[missionId] ?? workerModeFromName(mission?.worker);
-    const runModel = overrides?.model ?? modelByMission[missionId] ?? claudeModel;
+    const runModel = overrides?.model ?? modelForMission(missionId);
     const localCommand = defaultLocalCommand();
 
     setRuntimeByMission((current) => ({
@@ -293,7 +304,7 @@ export function useMissionActions({
     });
 
     try {
-      applyRepoState(await sendAgentMessageLoopState(repoPath, missionId, text, modelByMission[missionId] ?? claudeModel, claudeEffort));
+      applyRepoState(await sendAgentMessageLoopState(repoPath, missionId, text, modelForMission(missionId), claudeEffort));
     } catch (error) {
       if (cancelledMissionsRef.current.has(missionId)) return;
       console.error("[orbital] chat failed", error);
@@ -439,7 +450,7 @@ export function useMissionActions({
     setExtractingByMission((current) => ({ ...current, [missionId]: true }));
 
     try {
-      applyRepoState(await extractTasksLoopState(repoPathForMission(missionId), missionId, modelByMission[missionId] ?? claudeModel));
+      applyRepoState(await extractTasksLoopState(repoPathForMission(missionId), missionId, modelForMission(missionId)));
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to create tasks from the research document."));
     } finally {

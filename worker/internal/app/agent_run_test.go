@@ -599,3 +599,69 @@ func (w failingWorker) StartRun(ctx context.Context, request agent.RunRequest) (
 func (w failingWorker) CancelRun(ctx context.Context, runID string) error {
 	return nil
 }
+
+// A run started without an explicit model must use the one chosen when the
+// mission was created. This is the reload case: the app has forgotten its
+// in-memory pick, and the stored decision has to stand instead of silently
+// falling through to whatever the global picker says.
+func TestStartAgentRunUsesTheMissionsChosenModel(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	worker := &recordingChatWorker{sessionID: "sess_model"}
+	registry := agent.NewWorkerRegistry()
+	registry.Register(worker)
+	svc := NewServiceWithWorkerRegistry(jsonStore, registry)
+
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{{ID: "repo_1", Path: t.TempDir(), Name: "demo"}},
+		Missions: []domain.Mission{{
+			ID: "mission_1", RepositoryID: "repo_1", Text: "add a health route",
+			Status: domain.MissionStatusDraft, Model: "claude-haiku-4-5",
+		}},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	if _, err := svc.StartAgentRun(context.Background(), "mission_1", "claude-engineer"); err != nil {
+		t.Fatalf("StartAgentRun() error = %v", err)
+	}
+
+	worker.mu.Lock()
+	defer worker.mu.Unlock()
+	if len(worker.seen) != 1 {
+		t.Fatalf("worker saw %d requests, want 1", len(worker.seen))
+	}
+	if worker.seen[0].Model != "claude-haiku-4-5" {
+		t.Errorf("Model = %q, want the mission's chosen model", worker.seen[0].Model)
+	}
+}
+
+// An explicitly requested model still wins over the mission's stored one —
+// picking a different model for this one run must not be ignored.
+func TestStartAgentRunPrefersAnExplicitModel(t *testing.T) {
+	jsonStore := store.NewJSONStore(t.TempDir())
+	worker := &recordingChatWorker{sessionID: "sess_model"}
+	registry := agent.NewWorkerRegistry()
+	registry.Register(worker)
+	svc := NewServiceWithWorkerRegistry(jsonStore, registry)
+	svc.SetRunModel("claude-opus-5")
+
+	if err := jsonStore.Save(&store.State{
+		Repositories: []domain.Repository{{ID: "repo_1", Path: t.TempDir(), Name: "demo"}},
+		Missions: []domain.Mission{{
+			ID: "mission_1", RepositoryID: "repo_1", Text: "add a health route",
+			Status: domain.MissionStatusDraft, Model: "claude-haiku-4-5",
+		}},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	if _, err := svc.StartAgentRun(context.Background(), "mission_1", "claude-engineer"); err != nil {
+		t.Fatalf("StartAgentRun() error = %v", err)
+	}
+
+	worker.mu.Lock()
+	defer worker.mu.Unlock()
+	if worker.seen[0].Model != "claude-opus-5" {
+		t.Errorf("Model = %q, want the explicitly requested model", worker.seen[0].Model)
+	}
+}

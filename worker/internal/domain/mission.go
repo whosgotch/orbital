@@ -51,6 +51,11 @@ type Mission struct {
 	// ToolCommand is the shell command a kind=tool mission runs (sh -c in the
 	// repo); success lands the mission as verified, failure marks it failed.
 	ToolCommand string `json:"tool_command,omitempty"`
+	// Model is the claude model chosen for this mission when it was created.
+	// It is the decision, persisted: a run started later uses it unless the
+	// caller names a different one, so a reload cannot silently swap the model
+	// out from under a task the user already made a choice for.
+	Model string `json:"model,omitempty"`
 	// Document is a research mission's findings — the full, current version of
 	// the document the researcher delivers and rewrites across chat turns.
 	Document string `json:"document,omitempty"`

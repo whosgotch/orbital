@@ -33,7 +33,7 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 	// separate transactions, but a mission's kind and tool command never
 	// change after creation.) Upstream hand-offs are recorded as events so the
 	// feed shows where the agent's context came from.
-	var repoPath, missionText, upstreamCtx string
+	var repoPath, missionText, upstreamCtx, missionModel string
 	var handoffEvents []domain.WorkflowEvent
 	if _, err := s.store.Update(func(state *store.State) error {
 		missionIndex := findMissionIndex(state.Missions, missionID)
@@ -48,6 +48,7 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 
 		repoPath = state.Repositories[repositoryIndex].Path
 		missionText = state.Missions[missionIndex].Text
+		missionModel = state.Missions[missionIndex].Model
 		var upstreamTitles []string
 		upstreamCtx, upstreamTitles = upstreamContextFor(state, state.Missions[missionIndex])
 		for _, title := range upstreamTitles {
@@ -92,12 +93,19 @@ func (s *Service) StartAgentRun(ctx context.Context, missionID string, workerNam
 		}
 	}
 
+	// The model chosen when the mission was created stands unless this run was
+	// started with an explicit one — a reload must not silently swap it out.
+	runModel := s.runModel
+	if runModel == "" {
+		runModel = missionModel
+	}
+
 	runRequest := agent.RunRequest{
 		RunID:           run.ID,
 		MissionID:       missionID,
 		RepoPath:        workdir,
 		MissionText:     missionText,
-		Model:           s.runModel,
+		Model:           runModel,
 		Effort:          s.runEffort,
 		UpstreamContext: upstreamCtx,
 	}

@@ -39,6 +39,8 @@ export type Mission = {
   // the researcher on every chat turn.
   document?: string;
   tool_command?: string;
+  // The model chosen for this mission when it was created.
+  model?: string;
 };
 
 export type AgentRunStatus = "queued" | "running" | "waiting_for_children" | "aggregating" | "completed" | "failed" | "cancelled";

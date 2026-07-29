@@ -16,8 +16,11 @@ export function queueMissionLoopState(
   campaignId?: string,
   toolCommand?: string,
   research?: boolean,
+  // The model this mission runs on, chosen at creation and persisted with it so
+  // a reload can't swap it for whatever the global picker happens to say.
+  model?: string,
 ) {
-  return invokeState("queue_mission", { repoPath, missionText, campaignId, toolCommand, research });
+  return invokeState("queue_mission", { repoPath, missionText, campaignId, toolCommand, research, model });
 }
 
 export function updateMissionTextLoopState(repoPath: string, missionId: string, text: string) {

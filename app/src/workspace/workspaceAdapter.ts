@@ -111,7 +111,7 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
     status: missionStatus(mission, patch?.status),
     worker: topLevelRun?.worker_name ?? "unassigned",
     // What ran, if it has; otherwise the choice made when the task was created.
-    model: topLevelRun?.model,
+    model: topLevelRun?.model || mission.model,
     command: mission.kind === "tool" ? mission.tool_command ?? "" : "",
     files: Array.from(new Set(events.map((event) => event.file_path).filter((path): path is string => Boolean(path)))),
     step: Math.max(events.length - 1, -1),

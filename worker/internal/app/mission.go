@@ -12,8 +12,8 @@ import (
 // CreateMission records a draft mission for a repo. A non-empty campaignID ties
 // it to a coordinated multi-repo change so the campaign can be reconstructed by
 // grouping missions that share the id across each repo's separate state.
-func (s *Service) CreateMission(repoID string, text string, campaignID string) (*domain.Mission, error) {
-	return s.createMission(repoID, text, campaignID, "", "")
+func (s *Service) CreateMission(repoID string, text string, campaignID string, model string) (*domain.Mission, error) {
+	return s.createMission(repoID, text, campaignID, "", "", model)
 }
 
 // CreateToolMission records a draft tool step: a deterministic shell command
@@ -24,16 +24,17 @@ func (s *Service) CreateToolMission(repoID string, text string, toolCommand stri
 		return nil, fmt.Errorf("tool command is required")
 	}
 
-	return s.createMission(repoID, text, campaignID, domain.MissionKindTool, command)
+	// A tool step runs a shell command, so no model applies.
+	return s.createMission(repoID, text, campaignID, domain.MissionKindTool, command, "")
 }
 
 // CreateResearchMission records a draft research question: a read-only agent
 // run whose deliverable is a findings document instead of a patch.
-func (s *Service) CreateResearchMission(repoID string, text string, campaignID string) (*domain.Mission, error) {
-	return s.createMission(repoID, text, campaignID, domain.MissionKindResearch, "")
+func (s *Service) CreateResearchMission(repoID string, text string, campaignID string, model string) (*domain.Mission, error) {
+	return s.createMission(repoID, text, campaignID, domain.MissionKindResearch, "", model)
 }
 
-func (s *Service) createMission(repoID string, text string, campaignID string, kind domain.MissionKind, toolCommand string) (*domain.Mission, error) {
+func (s *Service) createMission(repoID string, text string, campaignID string, kind domain.MissionKind, toolCommand string, model string) (*domain.Mission, error) {
 	missionText := strings.TrimSpace(text)
 	if missionText == "" {
 		return nil, fmt.Errorf("mission text is required")
@@ -50,6 +51,7 @@ func (s *Service) createMission(repoID string, text string, campaignID string, k
 		CampaignID:   strings.TrimSpace(campaignID),
 		Kind:         kind,
 		ToolCommand:  toolCommand,
+		Model:        strings.TrimSpace(model),
 	}
 
 	_, err := s.store.Update(func(state *store.State) error {
