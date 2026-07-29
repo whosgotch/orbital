@@ -2952,39 +2952,80 @@ button.node-action.danger:hover:not(:disabled) {
   overflow-x: hidden;
 }
 
-/* align-items: flex-start keeps gutters top-aligned when a line wraps, so the add/del background still spans the full width. */
+/* GitHub-style unified row: an old-line gutter, a new-line gutter, the +/-
+   sign, then the code. align-items: flex-start keeps the gutters top-aligned
+   when a line wraps, so the add/del background still spans the full width. */
 .diff-line {
   display: flex;
   align-items: flex-start;
 }
 
 .diff-line.add {
-  background: rgba(79, 191, 123, 0.12);
+  background: rgba(46, 160, 67, 0.15);
 }
 
 .diff-line.del {
-  background: rgba(226, 97, 95, 0.12);
+  background: rgba(248, 81, 73, 0.12);
+}
+
+/* Changed rows tint the gutter a shade deeper than the row, but the numbers
+   themselves stay the same muted grey everywhere — they are a reference, not
+   part of the change. */
+.diff-line.add .diff-gutter {
+  background: rgba(46, 160, 67, 0.12);
+}
+
+.diff-line.del .diff-gutter {
+  background: rgba(248, 81, 73, 0.1);
 }
 
 .diff-line.hunk {
-  padding: 3px 12px;
+  background: rgba(56, 139, 253, 0.1);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.diff-hunk-text {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 12px 2px 4px;
   color: var(--muted);
-  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-hunk-range {
+  color: rgba(110, 160, 230, 0.85);
+}
+
+.diff-hunk-section {
+  margin-left: 10px;
+  color: rgba(152, 152, 159, 0.75);
 }
 
 .diff-gutter {
   flex-shrink: 0;
-  width: 38px;
-  padding: 0 8px;
+  width: 46px;
+  padding: 0 10px 0 6px;
   text-align: right;
-  color: rgba(152, 152, 159, 0.5);
+  font-variant-numeric: tabular-nums;
+  color: rgba(152, 152, 159, 0.42);
+  background: rgba(255, 255, 255, 0.02);
   user-select: none;
+}
+
+.diff-line.hunk .diff-gutter {
+  background: transparent;
+}
+
+.diff-gutter-new {
+  border-right: 1px solid var(--line);
 }
 
 .diff-sign {
   flex-shrink: 0;
-  width: 16px;
-  text-align: center;
+  width: 20px;
+  padding-left: 4px;
   user-select: none;
 }
 

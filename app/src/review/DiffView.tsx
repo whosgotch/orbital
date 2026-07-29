@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus } from "lucide-react";
-import { highlightCode, languageForPath } from "../ui/highlight";
+import { highlightLines, languageForPath } from "../ui/highlight";
 
 export type DiffLineKind = "add" | "del" | "context" | "hunk";
 
@@ -9,6 +9,9 @@ export type DiffLine = {
   text: string;
   oldNo?: number;
   newNo?: number;
+  // Hunk lines only: the literal "@@ -a,b +c,d @@" range marker, kept apart
+  // from the section heading git puts after it.
+  range?: string;
 };
 
 export type FileChange = "added" | "deleted" | "modified";
@@ -46,7 +49,12 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
     return file;
   };
 
-  for (const raw of diff.split("\n")) {
+  const rows = diff.split("\n");
+  // A diff ends with a newline; drop the empty string that split leaves behind
+  // so files don't gain a phantom trailing context line.
+  if (rows.length > 0 && rows[rows.length - 1] === "") rows.pop();
+
+  for (const raw of rows) {
     if (raw.startsWith("diff --git")) {
       const match = raw.match(/ b\/(.+)$/);
       current = pushFile(match ? match[1] : raw.replace("diff --git ", ""));
@@ -76,11 +84,11 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
     if (!current) continue;
 
     if (raw.startsWith("@@")) {
-      const match = raw.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)/);
+      const match = raw.match(/(@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@)(.*)/);
       if (match) {
-        oldNo = parseInt(match[1], 10);
-        newNo = parseInt(match[2], 10);
-        current.lines.push({ kind: "hunk", text: match[3].trim() });
+        oldNo = parseInt(match[2], 10);
+        newNo = parseInt(match[3], 10);
+        current.lines.push({ kind: "hunk", range: match[1], text: match[4].trim() });
       }
       continue;
     }
@@ -109,6 +117,33 @@ export function ChangeBadge({ change }: { change: FileChange }) {
   return <FilePen size={13} className="diff-change modified" aria-hidden="true" />;
 }
 
+// Highlight each side of the diff as a whole document: the old side (context +
+// deletions) and the new side (context + additions). Lines only make sense in
+// the file they came from, so highlighting them together is what keeps
+// multi-line syntax honest.
+export function highlightDiffLines(lines: DiffLine[], language: string | undefined): string[] {
+  const oldRows: number[] = [];
+  const newRows: number[] = [];
+  lines.forEach((line, index) => {
+    if (line.kind === "hunk") return;
+    if (line.kind !== "add") oldRows.push(index);
+    if (line.kind !== "del") newRows.push(index);
+  });
+
+  const out = new Array<string>(lines.length).fill("");
+  const oldHtml = highlightLines(oldRows.map((index) => lines[index].text).join("\n"), language);
+  const newHtml = highlightLines(newRows.map((index) => lines[index].text).join("\n"), language);
+  // Context lines exist on both sides; the new side wins so they match the
+  // additions around them.
+  oldRows.forEach((index, position) => {
+    out[index] = oldHtml[position] ?? "";
+  });
+  newRows.forEach((index, position) => {
+    out[index] = newHtml[position] ?? "";
+  });
+  return out;
+}
+
 function FileSection({
   file,
   collapsed,
@@ -121,6 +156,7 @@ function FileSection({
   sectionRef: (node: HTMLDivElement | null) => void;
 }) {
   const language = languageForPath(file.path);
+  const code = useMemo(() => highlightDiffLines(file.lines, language), [file.lines, language]);
 
   return (
     <div className="diff-file" ref={sectionRef}>
@@ -138,12 +174,23 @@ function FileSection({
           {file.lines.map((line, index) => (
             <div className={`diff-line ${line.kind}`} key={index}>
               {line.kind === "hunk" ? (
-                <span className="diff-hunk-text">{line.text || "…"}</span>
+                <>
+                  <span className="diff-gutter diff-gutter-old">…</span>
+                  <span className="diff-gutter diff-gutter-new">…</span>
+                  <span className="diff-hunk-text">
+                    <span className="diff-hunk-range">{line.range}</span>
+                    {line.text ? <span className="diff-hunk-section">{line.text}</span> : null}
+                  </span>
+                </>
               ) : (
                 <>
-                  <span className="diff-gutter">{(line.kind === "del" ? line.oldNo : line.newNo) ?? ""}</span>
-                  <span className="diff-sign">{line.kind === "add" ? "+" : line.kind === "del" ? "−" : " "}</span>
-                  <span className="diff-code hljs" dangerouslySetInnerHTML={{ __html: highlightCode(line.text, language) }} />
+                  <span className="diff-gutter diff-gutter-old">{line.kind === "add" ? "" : line.oldNo}</span>
+                  <span className="diff-gutter diff-gutter-new">{line.kind === "del" ? "" : line.newNo}</span>
+                  <span className="diff-sign">{line.kind === "add" ? "+" : line.kind === "del" ? "-" : " "}</span>
+                  <span
+                    className="diff-code hljs"
+                    dangerouslySetInnerHTML={{ __html: code[index] || "&nbsp;" }}
+                  />
                 </>
               )}
             </div>

@@ -58,7 +58,7 @@ export function escapeHtml(text: string) {
 
 // Highlight one line or snippet, falling back to escaped text. Per-line
 // highlighting can't see multi-line context (block comments, template literals
-// spanning lines) — an acceptable trade for a synchronous renderer.
+// spanning lines) — use highlightLines when the whole block is available.
 export function highlightCode(text: string, language: string | undefined): string {
   if (text === "") return " ";
   if (!language) return escapeHtml(text);
@@ -67,4 +67,34 @@ export function highlightCode(text: string, language: string | undefined): strin
   } catch {
     return escapeHtml(text);
   }
+}
+
+// Highlight a whole block, then cut it into one HTML string per line, closing
+// and re-opening any spans that straddle a line break. Highlighting the block
+// as a unit is what keeps block comments and multi-line strings from bleeding
+// their colour onto every following line — the reason per-line highlighting
+// paints ordinary code grey.
+export function highlightLines(code: string, language: string | undefined): string[] {
+  const plain = code.split("\n");
+  if (!language) return plain.map(escapeHtml);
+
+  let html: string;
+  try {
+    html = hljs.highlight(code, { language, ignoreIllegals: true }).value;
+  } catch {
+    return plain.map(escapeHtml);
+  }
+
+  const lines = html.split("\n");
+  if (lines.length !== plain.length) return plain.map(escapeHtml);
+
+  const open: string[] = [];
+  return lines.map((line) => {
+    const rendered = open.join("") + line + "</span>".repeat(open.length);
+    for (const tag of line.match(/<span\b[^>]*>|<\/span>/g) ?? []) {
+      if (tag === "</span>") open.pop();
+      else open.push(tag);
+    }
+    return rendered;
+  });
 }
