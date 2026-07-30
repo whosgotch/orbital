@@ -118,7 +118,9 @@ function workspaceMissionFromState(state: MissionLoopState, mission: Mission, in
     patch_status: patchStatus(patch?.status),
     map_position: ["north", "east", "south", "west", "center"][index % 5] as WorkspaceMission["map_position"],
     depends_on: mission.depends_on,
-    kind: mission.kind,
+    // Only "tool" changes how a node behaves; every other kind — including the
+    // retired "research" still sitting in older state files — reads as a task.
+    kind: mission.kind === "tool" ? "tool" : undefined,
   };
 }
 
@@ -149,17 +151,6 @@ function graphNodesFromState(state: MissionLoopState, missions: WorkspaceMission
         label: compactLabel(mission.title),
         detail: mission.command,
         meta: { prompt: mission.prompt, command: mission.command, attachments },
-        ...base,
-      };
-    }
-
-    if (mission.kind === "research") {
-      return {
-        id: mission.id,
-        kind: "research" as const,
-        label: compactLabel(mission.title),
-        detail: "research",
-        meta: { prompt: mission.prompt, attachments },
         ...base,
       };
     }
@@ -251,7 +242,7 @@ function campaignEdges(campaigns: CampaignGroup[]): WorkspaceGraphEdge[] {
 function missionStatus(mission: Mission, patchStatusValue: WorkerPatchStatus | undefined): MissionNodeStatus {
   // Approve + apply is the last step, so an applied patch is a finished task.
   // "verified" is the worker's terminal status for missions with no patch to
-  // approve: a tool whose command exited clean, a research that delivered.
+  // approve: a tool whose command exited clean.
   if (patchStatusValue === "approved" || patchStatusValue === "applied") {
     return "done";
   }
@@ -352,13 +343,13 @@ export function compactLabel(title: string) {
 }
 
 // A selected node is a valid follow-up target only when it's a mission that
-// can hand off a summary/diff/findings at run time — a task or a research
-// card. Repo, tool and campaign nodes never qualify.
+// can hand off a summary/diff at run time — a task card. Repo, tool and
+// campaign nodes never qualify.
 export function followUpTargetFor(
   node: WorkspaceGraphNode | undefined,
   missions: WorkspaceMission[],
 ): { id: string; title: string } | undefined {
-  if (!node || (node.kind !== "task" && node.kind !== "research")) return undefined;
+  if (!node || node.kind !== "task") return undefined;
   const mission = missions.find((item) => item.id === node.mission_id);
   if (!mission) return undefined;
   return { id: mission.id, title: compactLabel(mission.title) };
@@ -368,8 +359,6 @@ export function roleLabel(workerName: string) {
   switch (workerName) {
     case "claude-engineer":
       return "Engineer";
-    case "claude-researcher":
-      return "Researcher";
     case "claude-manager":
       return "AI manager";
     case "local-command":

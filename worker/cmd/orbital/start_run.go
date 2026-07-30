@@ -32,7 +32,6 @@ func startAgentRun(ctx context.Context, args []string, stdout io.Writer) error {
 	service.SetRunEffort(options.effort)
 
 	service.RegisterWorker(agent.NewClaudeEngineerWorker())
-	service.RegisterWorker(agent.NewClaudeResearcherWorker())
 	for _, worker := range testWorkers {
 		service.RegisterWorker(worker)
 	}

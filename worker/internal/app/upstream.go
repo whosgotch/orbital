@@ -12,17 +12,15 @@ import (
 // downstream agents only need enough to understand what landed — they can read
 // the real files in the repository.
 const (
-	upstreamDiffLimit     = 6000
-	upstreamSummaryLimit  = 1200
-	upstreamFindingsLimit = 6000
+	upstreamDiffLimit    = 6000
+	upstreamSummaryLimit = 1200
 )
 
 // upstreamContextFor composes what flows into a mission's run prompt besides
 // its own task text: for every upstream it depends on, that upstream's task
-// text, the agent's final summary, and the diff that landed (or, for
-// research, its findings document). Returns the prompt block and the upstream
-// titles (for the hand-off event); the block is empty when there are no
-// upstreams.
+// text, the agent's final summary, and the diff that landed. Returns the
+// prompt block and the upstream titles (for the hand-off event); the block is
+// empty when there are no upstreams.
 func upstreamContextFor(state *store.State, mission domain.Mission) (string, []string) {
 	var blocks []string
 	var titles []string
@@ -40,12 +38,7 @@ func upstreamContextFor(state *store.State, mission domain.Mission) (string, []s
 			if summary := lastAssistantMessage(state, upstreamID); summary != "" {
 				section += "\nOutcome: " + truncateContext(summary, upstreamSummaryLimit)
 			}
-			// Research produces a findings document, not a patch — hand that down
-			// instead of a diff. Research missions never emit patches, so the diff
-			// branch below naturally stays empty for them.
-			if upstream.IsResearch() && strings.TrimSpace(upstream.Document) != "" {
-				section += "\nFindings:\n" + truncateContext(upstream.Document, upstreamFindingsLimit)
-			} else if diff := latestMissionDiff(state, upstreamID); diff != "" {
+			if diff := latestMissionDiff(state, upstreamID); diff != "" {
 				section += "\nChanges it landed:\n```diff\n" + truncateContext(diff, upstreamDiffLimit) + "\n```"
 			}
 			sections = append(sections, section)

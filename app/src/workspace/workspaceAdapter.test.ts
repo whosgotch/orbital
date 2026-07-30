@@ -123,28 +123,15 @@ describe("workspaceViewFromMissionLoop", () => {
     expect(view.runtimeByMission.m1.status).toBe("done");
   });
 
-  it("keeps a research mission as one node with no pipeline stages", () => {
+  it("reads a legacy research mission as a plain task node", () => {
     const view = workspaceViewFromMissionLoop(
       state({
-        missions: [mission({ kind: "research", text: "how does the plan engine work?", status: "verified" })],
-        agent_runs: [{ ...run, worker_name: "claude-researcher" }],
+        missions: [mission({ kind: "research" as never, text: "how does the plan engine work?", status: "verified" })],
       }),
     );
-    expect(view.graphNodes.map((node) => node.kind)).toEqual(["repo", "research"]);
-    expect(view.graphEdges.map((edge) => edge.kind)).toEqual(["owns"]);
+    expect(view.graphNodes.map((node) => node.kind)).toEqual(["repo", "task"]);
+    expect(view.missions[0].kind).toBeUndefined();
     expect(view.runtimeByMission.m1.status).toBe("done");
-  });
-
-  it("renders an edge from a verified research node to a task chained onto it", () => {
-    const view = workspaceViewFromMissionLoop(
-      state({
-        missions: [
-          mission({ id: "r1", kind: "research", text: "how does the plan engine work?", status: "verified" }),
-          mission({ id: "m2", depends_on: ["r1"] }),
-        ],
-      }),
-    );
-    expect(view.graphEdges).toContainEqual({ id: "then_r1_m2", from: "r1", to: "m2", kind: "then" });
   });
 
   it("chains dependent tasks and connects only chain heads to the repo", () => {
@@ -216,14 +203,6 @@ describe("followUpTargetFor", () => {
     expect(followUpTargetFor(graphNode({}), missions)).toEqual({
       id: "m1",
       title: "add a version command to the…",
-    });
-  });
-
-  it("returns a target for a selected research node", () => {
-    const missions = [workspaceMission({ id: "m2", title: "fix the login bug" })];
-    expect(followUpTargetFor(graphNode({ kind: "research", mission_id: "m2" }), missions)).toEqual({
-      id: "m2",
-      title: "fix the login bug",
     });
   });
 

@@ -10,7 +10,7 @@ import (
 )
 
 func queueMission(args []string, stdout io.Writer) error {
-	// orbital queue <repoPath> <text> [--campaign <id>] [--tool <command>] [--research] [--model <id>]
+	// orbital queue <repoPath> <text> [--campaign <id>] [--tool <command>] [--model <id>]
 	if len(args) < 4 {
 		return usageError()
 	}
@@ -20,13 +20,11 @@ func queueMission(args []string, stdout io.Writer) error {
 
 	campaignID := ""
 	toolCommand := ""
-	research := false
 	model := ""
 	flags := flag.NewFlagSet("queue", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&campaignID, "campaign", "", "campaign id grouping multi-repo missions")
 	flags.StringVar(&toolCommand, "tool", "", "shell command making this a tool step")
-	flags.BoolVar(&research, "research", false, "read-only research whose deliverable is a findings document")
 	flags.StringVar(&model, "model", "", "claude model this mission runs on (empty = whatever the run picks)")
 	if err := flags.Parse(args[4:]); err != nil {
 		return usageError()
@@ -43,19 +41,12 @@ func queueMission(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	switch {
-	case toolCommand != "":
+	if toolCommand != "" {
 		if _, err := service.CreateToolMission(repository.ID, missionText, toolCommand, campaignID); err != nil {
 			return err
 		}
-	case research:
-		if _, err := service.CreateResearchMission(repository.ID, missionText, campaignID, model); err != nil {
-			return err
-		}
-	default:
-		if _, err := service.CreateMission(repository.ID, missionText, campaignID, model); err != nil {
-			return err
-		}
+	} else if _, err := service.CreateMission(repository.ID, missionText, campaignID, model); err != nil {
+		return err
 	}
 
 	return showStatusJSON(repoPath, stdout)

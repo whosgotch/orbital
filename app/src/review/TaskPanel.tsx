@@ -1,8 +1,7 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, GitBranch, ListTree, Loader, Pencil, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, GitBranch, Pencil, ShieldCheck, Trash2, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "../chat/AgentChat";
 import { UsageDetails } from "../chat/UsageDetails";
-import { DocumentView } from "./DocumentView";
 import { ReviseBox } from "../chat/ReviseBox";
 import type { TranscriptEntry } from "../chat/AgentTranscript";
 import type { AgentStatusModel } from "../chat/statusModel";
@@ -40,14 +39,11 @@ type TaskPanelProps = {
   onDelete: () => void;
   onClose: () => void;
   onWidthChange: (width: number) => void;
-  taskView: "chat" | "changes" | "doc";
-  onChangeTaskView: (view: "chat" | "changes" | "doc") => void;
+  taskView: "chat" | "changes";
+  onChangeTaskView: (view: "chat" | "changes") => void;
   agentStatus: AgentStatusModel;
   patchReady: boolean;
   commit: CommitInfo;
-  researchDoc: string;
-  extractingTasks: boolean;
-  onExtractTasks: () => void;
   chatMessages: ChatMessage[];
   chatSending: boolean;
   agentTranscript: TranscriptEntry[];
@@ -77,9 +73,6 @@ export function TaskPanel({
   agentStatus,
   patchReady,
   commit,
-  researchDoc,
-  extractingTasks,
-  onExtractTasks,
   chatMessages,
   chatSending,
   agentTranscript,
@@ -125,7 +118,7 @@ export function TaskPanel({
         <div className="panel-head review-head">
           <div>
             <div className="section-label">
-              {repository?.name ?? "workspace"} · {mission.kind === "tool" ? "tool" : mission.kind === "research" ? "research" : "task"}
+              {repository?.name ?? "workspace"} · {mission.kind === "tool" ? "tool" : "task"}
               {repository?.branch ? ` · ${repository.branch}` : ""}
             </div>
             <h2
@@ -197,17 +190,6 @@ export function TaskPanel({
         ) : null}
 
         <div className="task-switch" role="tablist">
-          {mission.kind === "research" ? (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={taskView === "doc"}
-              className={`task-switch-btn ${taskView === "doc" ? "active" : ""}`}
-              onClick={() => onChangeTaskView("doc")}
-            >
-              Document
-            </button>
-          ) : null}
           <button
             type="button"
             role="tab"
@@ -217,52 +199,24 @@ export function TaskPanel({
           >
             Chat
           </button>
-          {mission.kind !== "research" ? (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={taskView === "changes"}
-              className={`task-switch-btn ${taskView === "changes" ? "active" : ""}`}
-              onClick={() => onChangeTaskView("changes")}
-            >
-              Changes
-              {agentStatus.files.length > 0 ? <span className="tab-count">{agentStatus.files.length}</span> : null}
-              {patchReady && taskView !== "changes" ? <span className="task-switch-dot" aria-hidden="true" /> : null}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={taskView === "changes"}
+            className={`task-switch-btn ${taskView === "changes" ? "active" : ""}`}
+            onClick={() => onChangeTaskView("changes")}
+          >
+            Changes
+            {agentStatus.files.length > 0 ? <span className="tab-count">{agentStatus.files.length}</span> : null}
+            {patchReady && taskView !== "changes" ? <span className="task-switch-dot" aria-hidden="true" /> : null}
+          </button>
           <div className="task-switch-spacer" />
         </div>
 
         <UsageDetails usage={agentStatus.usage} />
 
         <div className="task-body">
-          {taskView === "doc" ? (
-            <div className="plan-doc research-doc">
-              {researchDoc ? (
-                <>
-                  <div className="research-doc-actions">
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={extractingTasks}
-                      onClick={onExtractTasks}
-                      title="Ask the AI to propose draft tasks from these findings"
-                    >
-                      {extractingTasks ? <Loader size={14} className="spin" aria-hidden="true" /> : <ListTree size={14} aria-hidden="true" />}
-                      <span>{extractingTasks ? "Extracting…" : "Create tasks"}</span>
-                    </button>
-                  </div>
-                  <DocumentView content={researchDoc} />
-                </>
-              ) : (
-                <div className="diff-empty">
-                  {runtime.status === "running"
-                    ? "The researcher is reading the repo — findings land here."
-                    : "No findings yet — run the research or ask it something in Chat."}
-                </div>
-              )}
-            </div>
-          ) : taskView === "chat" ? (
+          {taskView === "chat" ? (
             <AgentChat
               messages={chatMessages}
               statusModel={agentStatus}

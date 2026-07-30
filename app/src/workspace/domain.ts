@@ -16,7 +16,7 @@ export type MissionStatus =
   | "verified"
   | "failed";
 
-export type MissionKind = "task" | "tool" | "research";
+export type MissionKind = "task" | "tool";
 
 export type Mission = {
   id: string;
@@ -34,10 +34,9 @@ export type Mission = {
   // Absent kind reads as "task"; a tool mission runs tool_command instead of
   // an AI agent and lands as verified/failed on the command's exit code
   // ("verified" is the worker's terminal status for a mission with no patch).
+  // Anything else — including the retired "research" kind still present in
+  // older state files — also reads as "task".
   kind?: MissionKind;
-  // A research mission's findings — the full current document, rewritten by
-  // the researcher on every chat turn.
-  document?: string;
   tool_command?: string;
   // The model chosen for this mission when it was created.
   model?: string;

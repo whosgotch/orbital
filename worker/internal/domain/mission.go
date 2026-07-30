@@ -5,16 +5,15 @@ import "time"
 type MissionStatus string
 
 // MissionKind separates AI tasks (an agent works toward an outcome) from tool
-// steps (a deterministic command whose exit code decides pass/fail) and from
-// research (a read-only agent whose deliverable is a findings document, not a
-// patch). An empty kind reads as a task so state files written before the
-// field existed load unchanged.
+// steps (a deterministic command whose exit code decides pass/fail). An empty
+// kind reads as a task so state files written before the field existed load
+// unchanged, and so does any kind this build no longer knows — see
+// Mission.IsTool.
 type MissionKind string
 
 const (
-	MissionKindTask     MissionKind = "task"
-	MissionKindTool     MissionKind = "tool"
-	MissionKindResearch MissionKind = "research"
+	MissionKindTask MissionKind = "task"
+	MissionKindTool MissionKind = "tool"
 )
 
 const (
@@ -56,15 +55,11 @@ type Mission struct {
 	// caller names a different one, so a reload cannot silently swap the model
 	// out from under a task the user already made a choice for.
 	Model string `json:"model,omitempty"`
-	// Document is a research mission's findings — the full, current version of
-	// the document the researcher delivers and rewrites across chat turns.
-	Document string `json:"document,omitempty"`
 }
 
+// IsTool is the only kind test there is: tool missions run a command, and
+// everything else — including the retired "research" kind still sitting in
+// older state files — runs as an ordinary task.
 func (m Mission) IsTool() bool {
 	return m.Kind == MissionKindTool
-}
-
-func (m Mission) IsResearch() bool {
-	return m.Kind == MissionKindResearch
 }

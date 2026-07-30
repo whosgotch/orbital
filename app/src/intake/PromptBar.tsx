@@ -1,19 +1,17 @@
 import { useRef, useState } from "react";
-import { Check, CornerDownLeft, CornerDownRight, Cpu, Gauge, Search, X } from "lucide-react";
+import { Check, CornerDownLeft, CornerDownRight, Cpu, Gauge, X } from "lucide-react";
 import { AttachmentChips } from "./AttachmentChips";
 import { usePastedImages } from "./attachments";
-import { detectIntent } from "./intent";
 import { useModels } from "../workspace/useModels";
 import { effortName, findModel } from "../workspace/models";
 
 type PromptBarProps = {
   repoName?: string;
   repoPath?: string;
-  // The selected mission node Create/Research will chain the new mission after, if any.
+  // The selected mission node Create will chain the new mission after, if any.
   followUp?: { id: string; title: string };
   onDismissFollowUp: () => void;
   onCreate: (text: string, attachments: string[]) => void;
-  onResearch: (text: string, attachments: string[]) => void;
   claudeModel: string;
   onPickModel: (model: string) => void;
   modelPickerOpen: boolean;
@@ -30,7 +28,6 @@ export function PromptBar({
   followUp,
   onDismissFollowUp,
   onCreate,
-  onResearch,
   claudeModel,
   onPickModel,
   modelPickerOpen,
@@ -45,7 +42,6 @@ export function PromptBar({
   const attachments = usePastedImages(repoPath);
   const trimmed = text.trim();
   const ready = Boolean(trimmed) && Boolean(repoName);
-  const intent = detectIntent(trimmed);
   const models = useModels();
   const currentModel = findModel(models, claudeModel);
   // An unset model means the catalog hasn't resolved and Claude Code has no
@@ -81,7 +77,7 @@ export function PromptBar({
         ref={inputRef}
         className="prompt-bar-input"
         aria-label="Describe a task"
-        placeholder={repoName ? "Describe a task — question triggers Research, Enter creates" : "Open a repository to start"}
+        placeholder={repoName ? "Describe a task — one per line, Enter creates" : "Open a repository to start"}
         value={text}
         rows={Math.min(6, Math.max(1, text.split("\n").length))}
         disabled={!repoName}
@@ -90,7 +86,7 @@ export function PromptBar({
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
-            submit(intent === "research" ? onResearch : onCreate);
+            submit(onCreate);
           }
         }}
       />
@@ -162,52 +158,16 @@ export function PromptBar({
           </div>
         ) : null}
         {repoName ? <span className="prompt-bar-target">{repoName}</span> : null}
-        {intent === "research" ? (
-          <button
-            type="button"
-            className="secondary"
-            disabled={!ready}
-            onClick={() => submit(onCreate)}
-            title="Create task — one per line"
-          >
-            <CornerDownLeft size={13} aria-hidden="true" />
-            <span>Create</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="secondary"
-            disabled={!ready}
-            onClick={() => submit(onResearch)}
-            title="Ask about the repo — a read-only researcher answers with a findings document"
-          >
-            <Search size={13} aria-hidden="true" />
-            <span>Research</span>
-          </button>
-        )}
-        {intent === "research" ? (
-          <button
-            type="button"
-            className="primary"
-            disabled={!ready}
-            onClick={() => submit(onResearch)}
-            title="Ask about the repo — a read-only researcher answers with a findings document"
-          >
-            <Search size={13} aria-hidden="true" />
-            <span>Research</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="primary"
-            disabled={!ready}
-            onClick={() => submit(onCreate)}
-            title="Create task — one per line"
-          >
-            <CornerDownLeft size={13} aria-hidden="true" />
-            <span>Create</span>
-          </button>
-        )}
+        <button
+          type="button"
+          className="primary"
+          disabled={!ready}
+          onClick={() => submit(onCreate)}
+          title="Create task — one per line"
+        >
+          <CornerDownLeft size={13} aria-hidden="true" />
+          <span>Create</span>
+        </button>
       </div>
     </div>
   );

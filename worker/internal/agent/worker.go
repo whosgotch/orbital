@@ -61,10 +61,6 @@ type RunEvent struct {
 	// Model is the model the CLI reported actually running this turn — the
 	// resolved id, not necessarily the one requested.
 	Model string `json:"model,omitempty"`
-	// Findings is the full, current findings document a researcher delivered
-	// this turn; the service stores it on the mission. Not streamed — it lands
-	// with the final state snapshot.
-	Findings string `json:"findings,omitempty"`
 	// Usage is this turn's token accounting; the service merges it into the run's
 	// running totals so a node can show its context fill and total spend.
 	Usage *domain.RunUsage `json:"usage,omitempty"`

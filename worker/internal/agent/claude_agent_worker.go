@@ -11,25 +11,21 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/domain"
 )
 
-// claudeAgentWorker is a Claude-backed agent working in the repository. The
-// role and prompt distinguish the specialized agents; capturesPatch separates
-// engineers (whose deliverable is a diff) from researchers (whose deliverable
-// is the written reply itself).
+// claudeAgentWorker is a Claude-backed agent working in the repository; the
+// role and prompt distinguish the specialized agents. Its deliverable is a
+// diff, captured from the working tree once the agent's turn ends.
 type claudeAgentWorker struct {
-	name             string
-	role             string
-	startLabel       string
-	capturesPatch    bool
-	deliversFindings bool
-	buildPrompt      func(task string) string
+	name        string
+	role        string
+	startLabel  string
+	buildPrompt func(task string) string
 }
 
 func NewClaudeEngineerWorker() *claudeAgentWorker {
 	return &claudeAgentWorker{
-		name:          "claude-engineer",
-		role:          "Engineer",
-		startLabel:    "Claude Engineer started.",
-		capturesPatch: true,
+		name:       "claude-engineer",
+		role:       "Engineer",
+		startLabel: "Claude Engineer started.",
 		buildPrompt: func(task string) string {
 			return fmt.Sprintf(`You are an autonomous software engineer working in this repository.
 
@@ -42,49 +38,6 @@ When done, briefly summarize what you changed, then end your reply with a Conven
 One line, imperative mood, no trailing period, no AI attribution. type is feat/fix/refactor/chore/docs/test/style as fits; scope is the touched area (e.g. app, worker).`, task)
 		},
 	}
-}
-
-// NewClaudeResearcherWorker answers questions about the repository instead of
-// changing it. Each reply carries two parts: a short chat note and the full
-// findings document, which the service stores on the mission — so the Document
-// panel always shows the current version while the chat stays a conversation.
-func NewClaudeResearcherWorker() *claudeAgentWorker {
-	return &claudeAgentWorker{
-		name:             "claude-researcher",
-		role:             "Researcher",
-		startLabel:       "Claude Researcher started.",
-		capturesPatch:    false,
-		deliversFindings: true,
-		buildPrompt: func(task string) string {
-			return fmt.Sprintf(`You are a researcher exploring the repository in the current directory. Read the code, trace how things actually work, and answer with evidence — file paths and specifics, never guesses.
-
-Question: %s
-
-Work strictly read-only: do NOT create, modify, or delete any files.
-
-Reply in EXACTLY this shape, with both tags and nothing outside them:
-<note>One or two sentences for the chat: the headline of what you found or what changed.</note>
-<findings>The findings document in well-structured Markdown: a one-paragraph answer first, then the supporting detail (structure, key files, gaps, options).</findings>
-
-The <findings> document is your whole deliverable. On every follow-up turn in this conversation, reply in the same shape and re-issue the FULL updated document — never a delta or a bare answer.`, task)
-		},
-	}
-}
-
-// splitResearchReply separates a researcher's reply into the short chat note
-// and the findings document. A reply without the expected tags becomes the
-// document itself, with a stock note — the deliverable survives a model that
-// forgot the shape.
-func splitResearchReply(reply string) (note, findings string) {
-	note = strings.TrimSpace(extractTag(reply, "note"))
-	findings = strings.TrimSpace(extractTag(reply, "findings"))
-	if findings == "" {
-		findings = strings.TrimSpace(reply)
-	}
-	if note == "" {
-		note = "Findings updated — open the Document tab."
-	}
-	return note, findings
 }
 
 func extractTag(s, tag string) string {
@@ -107,12 +60,6 @@ func (w *claudeAgentWorker) Profile() WorkerProfile {
 	capabilities := []string{
 		"edit repository files via claude CLI",
 		"capture changes as a unified diff for review",
-	}
-	if !w.capturesPatch {
-		capabilities = []string{
-			"read the repository via claude CLI",
-			"answer with a written findings document",
-		}
 	}
 	return WorkerProfile{
 		Name:         w.name,
@@ -205,22 +152,14 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 
 		suggestedSubject := ""
 		if strings.TrimSpace(turn.Summary) != "" {
-			// A researcher's reply splits in two: a short note stays in the chat,
-			// the full findings document goes to the mission via its own event.
 			chatText := strings.TrimSpace(turn.Summary)
-			findings := ""
-			if w.deliversFindings {
-				chatText, findings = splitResearchReply(turn.Summary)
-			}
 
 			// An engineer's reply ends with a <commit> tag (see buildPrompt) — pull
 			// it out for the eventual git commit and keep it out of the chat text.
-			if w.capturesPatch {
-				if tagged := strings.TrimSpace(extractTag(chatText, "commit")); tagged != "" {
-					suggestedSubject = tagged
-					if idx := strings.Index(chatText, "<commit>"); idx != -1 {
-						chatText = strings.TrimSpace(chatText[:idx])
-					}
+			if tagged := strings.TrimSpace(extractTag(chatText, "commit")); tagged != "" {
+				suggestedSubject = tagged
+				if idx := strings.Index(chatText, "<commit>"); idx != -1 {
+					chatText = strings.TrimSpace(chatText[:idx])
 				}
 			}
 
@@ -242,20 +181,6 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 			}}:
 			}
 
-			if findings != "" {
-				select {
-				case <-ctx.Done():
-					sendCancelledEvent(events, request.RunID)
-					return
-				case events <- RunEvent{Findings: findings}:
-				}
-			}
-		}
-
-		// A researcher's deliverable is the reply itself — no diff to capture.
-		if !w.capturesPatch {
-			sendWorkflowEvent(ctx, events, request.RunID, domain.WorkflowEventRunCompleted, fmt.Sprintf("Claude %s completed.", w.role), "", "")
-			return
 		}
 
 		diff, err := captureGitDiff(ctx, request.RepoPath)
