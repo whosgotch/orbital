@@ -612,51 +612,6 @@ h3 {
   font-size: 11px;
 }
 
-.plan-doc {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel);
-  padding: 14px 16px;
-}
-
-.research-doc-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 10px;
-}
-
-.plan-html {
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--soft);
-}
-
-.plan-html h1, .plan-html h2, .plan-html h3 { color: var(--text); }
-.plan-html a { color: var(--accent); }
-.plan-html table { border-collapse: collapse; }
-.plan-html th, .plan-html td { border: 1px solid var(--line); padding: 4px 8px; }
-
-.plan-doc .markdown {
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--soft);
-}
-
-.plan-doc .markdown > * + * {
-  margin-top: 10px;
-}
-
-.plan-doc .md-heading {
-  margin-top: 4px;
-}
-
-.plan-doc .md-heading.level-1 { font-size: 15px; }
-.plan-doc .md-heading.level-2 { font-size: 14px; }
-.plan-doc .md-heading.level-3 { font-size: 13.5px; }
-
 .revise-box {
   flex: 0 0 auto;
   position: relative;

@@ -54,7 +54,7 @@ export function missionStatusFor(runtime: WorkspaceRuntime, patchReady: boolean)
   const status = statusFromRuntime(runtime);
   if (status === "done") {
     // Approve + apply is the last step a patch has, so say what happened to it.
-    // Tool and research missions never produce one — they just finish.
+    // Tool missions never produce one — they just finish.
     return { label: patchReady ? "Applied" : "Done", className: "done" };
   }
   if (status === "blocked") {

@@ -110,25 +110,6 @@ export function enrichGraphNodes({
           },
         };
       }
-      case "research": {
-        const mission = workspaceMissions.find((m) => m.id === missionId);
-        const pendingUpstreams = (mission?.depends_on ?? []).filter((id) => !upstreamLanded(id));
-        const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
-        const launchable =
-          (!runtime || runtime.status === "queued" || runtime.status === "draft") && pendingUpstreams.length === 0;
-        return {
-          ...node,
-          status,
-          meta: {
-            ...node.meta,
-            launchable,
-            waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
-            commitHash: commitByMission[missionId]?.hash || undefined,
-            model: mission?.model,
-            ...usageMeta(missionId),
-          },
-        };
-      }
       default:
         return { ...node, status };
     }

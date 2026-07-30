@@ -153,7 +153,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     const { source, target } = connection;
     const chainable = (id: string | null | undefined) => {
       const kind = id ? kindByNodeRef.current[id] : undefined;
-      return kind === "task" || kind === "tool" || kind === "research";
+      return kind === "task" || kind === "tool";
     };
     return Boolean(source && target && source !== target && chainable(source) && chainable(target));
   }, []);
@@ -430,7 +430,6 @@ const KIND_LABEL: Record<GraphNodeKind, string> = {
   task: "Task",
   campaign: "Campaign",
   tool: "Tool",
-  research: "Research",
 };
 
 function OrbitalNode({ data, selected }: NodeProps) {
@@ -441,8 +440,8 @@ function OrbitalNode({ data, selected }: NodeProps) {
     return <DraftTaskNode node={node} selected={selected ?? false} />;
   }
 
-  // Only task, tool, and research cards accept hand-drawn connections: a chain edge starts the downstream step when the upstream lands.
-  const connectable = node.kind === "task" || node.kind === "tool" || node.kind === "research";
+  // Only task and tool cards accept hand-drawn connections: a chain edge starts the downstream step when the upstream lands.
+  const connectable = node.kind === "task" || node.kind === "tool";
 
   return (
     <div className={`node-card ${node.kind} ${node.status ?? ""} ${selected ? "selected" : ""} ${live ? "live" : ""}`}>
@@ -650,25 +649,6 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
     );
   }
 
-  if (node.kind === "research") {
-    return (
-      <div className="node-card-body">
-        <p className="node-card-prompt">{meta?.prompt ?? node.detail}</p>
-        {meta?.waitingFor ? <span className="node-tag wait">after: {meta.waitingFor}</span> : null}
-        {meta?.attachments ? (
-          <span className="node-tag">
-            {meta.attachments} image{meta.attachments === 1 ? "" : "s"}
-          </span>
-        ) : null}
-        {node.status === "done" ? <span className="node-tag ok">findings ready</span> : null}
-        <CommitChip hash={meta?.commitHash} />
-        <ModelChip model={meta?.model} />
-        <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
-        <DurationChip durationMs={meta?.durationMs} />
-      </div>
-    );
-  }
-
   if (node.kind === "repo") {
     return (
       <div className="node-card-body">
@@ -760,7 +740,7 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
   const act = node.actions;
 
   // `nodrag` so React Flow lets the click through instead of starting a card drag. On a failed tool the button is a re-run.
-  if ((node.kind === "task" || node.kind === "tool" || node.kind === "research") && meta?.launchable) {
+  if ((node.kind === "task" || node.kind === "tool") && meta?.launchable) {
     return (
       <div className="node-card-actions">
         <button

@@ -2,8 +2,8 @@
 // the graph nodes/edges the canvas renders.
 import type { PatchStatus } from "../workspace/domain";
 
-// "done" is terminal: a task whose patch was approved and applied, a tool whose
-// command exited clean, a research that delivered its findings.
+// "done" is terminal: a task whose patch was approved and applied, or a tool
+// whose command exited clean.
 export type MissionNodeStatus = "draft" | "queued" | "running" | "review" | "blocked" | "done";
 
 export type WorkspaceMission = {
@@ -25,16 +25,15 @@ export type WorkspaceMission = {
   map_position: "north" | "east" | "south" | "west" | "center";
   // Upstream missions whose patches must land before this one auto-starts.
   depends_on?: string[];
-  // Absent kind reads as "task"; tool and research missions render as a
-  // single card — their whole pipeline is the card itself.
-  kind?: "task" | "tool" | "research";
+  // Absent kind reads as "task"; a tool mission renders as a single card —
+  // its whole pipeline is the card itself.
+  kind?: "task" | "tool";
 };
 
 // Every node is a step you operate, not a picture of state: a task you run and
-// talk to, a tool you fire, a research whose findings you read and question.
-// A mission is exactly one card — its agent and change set are the panel behind
-// that card, never cards of their own.
-export type GraphNodeKind = "repo" | "task" | "campaign" | "tool" | "research";
+// talk to, a tool you fire. A mission is exactly one card — its agent and
+// change set are the panel behind that card, never cards of their own.
+export type GraphNodeKind = "repo" | "task" | "campaign" | "tool";
 
 // Per-kind payload that makes a node card operable and glanceable.
 export type GraphNodeMeta = {
@@ -51,13 +50,13 @@ export type GraphNodeMeta = {
   command?: string; // tool: the command it runs
   toolState?: "passed" | "failed"; // tool: how its command exited
   waitingFor?: string; // task: label of the upstream task it waits on
-  attachments?: number; // task/research: pasted images riding in the prompt
-  commitHash?: string; // task/tool/research: short hash of the landed commit
+  attachments?: number; // task: pasted images riding in the prompt
+  commitHash?: string; // task/tool: short hash of the landed commit
   branch?: string; // repo: current live branch
-  contextTokens?: number; // task/research/agent: live context-window fill
-  totalTokens?: number; // task/research/agent: tokens burned across the run
-  durationMs?: number; // task/research/agent: wall-clock time the mission took
-  model?: string; // task/research: model id that actually did the work
+  contextTokens?: number; // task/agent: live context-window fill
+  totalTokens?: number; // task/agent: tokens burned across the run
+  durationMs?: number; // task/agent: wall-clock time the mission took
+  model?: string; // task: model id that actually did the work
 };
 
 export type WorkspaceGraphNode = {

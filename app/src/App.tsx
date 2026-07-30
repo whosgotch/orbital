@@ -58,8 +58,7 @@ export function App() {
 
   // Dismissal is per-selection, so picking a different mission brings the follow-up chip back.
   const [followUpDismissedFor, setFollowUpDismissedFor] = useState("");
-  // Research missions show "doc" (the findings document) instead of "changes".
-  const [taskView, setTaskView] = useState<"chat" | "changes" | "doc">("chat");
+  const [taskView, setTaskView] = useState<"chat" | "changes">("chat");
   const [diffModalOpen, setDiffModalOpen] = useState(false);
   const [focusedDiffFile, setFocusedDiffFile] = useState<string | undefined>(undefined);
   // Model and effort are derived, not stored: an explicit pick here wins, and
@@ -101,9 +100,6 @@ export function App() {
     const node = workspaceGraphNodes.find((item) => item.id === nodeId);
     if (!node) return;
     switch (node.kind) {
-      case "research":
-        setTaskView("doc");
-        break;
       case "task":
       case "tool":
         setTaskView("chat");
@@ -158,16 +154,9 @@ export function App() {
   if (editorMissionId !== selectedMissionId) {
     setEditorMissionId(selectedMissionId);
     setEditingPrompt(false);
-    setTaskView(selectedMission?.kind === "research" ? "doc" : "chat");
+    setTaskView("chat");
   }
 
-  // Missions from before the document field existed fall back to the latest assistant reply.
-  const researchDoc =
-    selectedMission?.kind === "research"
-      ? selectedMissionRecord?.document ??
-        [...selectedChatMessages].reverse().find((message) => message.role === "assistant")?.text ??
-        ""
-      : "";
 
   const draftRepository =
     selectedRepository ??
@@ -205,7 +194,6 @@ export function App() {
     createTaskOnCanvas,
     linkTasks,
     unlinkTasks,
-    researchFromPrompt,
     createFromPrompt,
     dispatchMission,
     sendAgentChat,
@@ -216,10 +204,7 @@ export function App() {
     rejectMission,
     deleteMission,
     saveMissionPrompt,
-    extractingByMission,
-    extractTasks,
   } = missionActions;
-  const selectedExtractingTasks = extractingByMission[selectedMission?.id ?? ""] ?? false;
 
   const beginEditPrompt = () => {
     setPromptDraft(selectedMissionRecord?.text ?? selectedMission?.prompt ?? "");
@@ -415,7 +400,6 @@ export function App() {
           followUp={followUpTarget}
           onDismissFollowUp={() => setFollowUpDismissedFor(selectedNodeId)}
           onCreate={(text, attachments) => void createFromPrompt(text, attachments)}
-          onResearch={(text, attachments) => void researchFromPrompt(text, attachments)}
           claudeModel={claudeModel}
           onPickModel={(model) => {
             pickClaudeModel(model);
@@ -462,9 +446,6 @@ export function App() {
           agentStatus={agentStatus}
           patchReady={patchReady}
           commit={selectedCommit}
-          researchDoc={researchDoc}
-          extractingTasks={selectedExtractingTasks}
-          onExtractTasks={() => void extractTasks(selectedMission.id)}
           chatMessages={selectedChatMessages}
           chatSending={selectedChatSending}
           agentTranscript={agentTranscript}

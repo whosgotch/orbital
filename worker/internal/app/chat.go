@@ -10,36 +10,21 @@ import (
 	"github.com/whosgotch/orbital/worker/internal/store"
 )
 
-// Chat runs on the mission's own kind of agent: engineers evolve a diff,
-// researchers evolve a findings document.
-const (
-	engineerWorkerName   = "claude-engineer"
-	researcherWorkerName = "claude-researcher"
-)
-
-func chatWorkerNameFor(mission domain.Mission) string {
-	if mission.IsResearch() {
-		return researcherWorkerName
-	}
-	return engineerWorkerName
-}
+const engineerWorkerName = "claude-engineer"
 
 // SendAgentMessage sends one chat turn to a mission's agent. The first message
 // starts a fresh claude session in an isolated worktree; every later message
-// resumes that same session, so the agent keeps its context and its deliverable
-// (diff or findings) evolves in place across the conversation instead of
-// starting over each time.
+// resumes that same session, so the agent keeps its context and its diff
+// evolves in place across the conversation instead of starting over each time.
 func (s *Service) SendAgentMessage(ctx context.Context, missionID string, text string) (*domain.AgentRun, error) {
-	// The mission's kind picks the agent, so read it before minting the run.
 	loaded, err := s.store.Load()
 	if err != nil {
 		return nil, err
 	}
-	missionIndex := findMissionIndex(loaded.Missions, missionID)
-	if missionIndex == -1 {
+	if findMissionIndex(loaded.Missions, missionID) == -1 {
 		return nil, fmt.Errorf("mission not found: %s", missionID)
 	}
-	chatWorkerName := chatWorkerNameFor(loaded.Missions[missionIndex])
+	chatWorkerName := engineerWorkerName
 
 	worker, err := s.workerRegistry.Lookup(chatWorkerName)
 	if err != nil {

@@ -76,12 +76,12 @@ describe("layoutGraph", () => {
 
 describe("dependency-aware lane order", () => {
   it("keeps a chained family contiguous, right after its root, without reordering past an older unrelated mission", () => {
-    // "older" and "d" are unrelated root missions; "a" is a research mission
-    // whose extracted tasks "b" and "c" chain off it via "then" edges.
+    // "older" and "d" are unrelated root missions; "b" and "c" chain off the
+    // root task "a" via "then" edges.
     const nodes = [
       node("r1", "repo"),
       node("older", "task", "older"),
-      node("a", "research", "a"),
+      node("a", "task", "a"),
       node("b", "task", "b"),
       node("c", "task", "c"),
       node("d", "task", "d"),
@@ -92,7 +92,7 @@ describe("dependency-aware lane order", () => {
     // Roots keep creation order: "older" was created before the family, so
     // its lane still precedes it — this is not a global dependency reorder.
     expect(positions.older.y).toBeLessThan(positions.a.y);
-    // The extracted tasks land immediately after their research root...
+    // The chained tasks land immediately after their root...
     expect(positions.a.y).toBeLessThan(positions.b.y);
     expect(positions.b.y).toBeLessThan(positions.c.y);
     // ...and before the next root mission, created after the whole family.
@@ -134,7 +134,7 @@ describe("no overlaps", () => {
       node("m1", "task", "m1"),
       node("m2", "task", "m2"),
       node("m3", "task", "m3"), // chained off m1
-      node("m4", "research", "m4"),
+      node("m4", "task", "m4"),
       node("m5", "task", "m5", "r2"),
     ];
     const edges = [

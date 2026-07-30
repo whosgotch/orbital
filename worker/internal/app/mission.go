@@ -28,12 +28,6 @@ func (s *Service) CreateToolMission(repoID string, text string, toolCommand stri
 	return s.createMission(repoID, text, campaignID, domain.MissionKindTool, command, "")
 }
 
-// CreateResearchMission records a draft research question: a read-only agent
-// run whose deliverable is a findings document instead of a patch.
-func (s *Service) CreateResearchMission(repoID string, text string, campaignID string, model string) (*domain.Mission, error) {
-	return s.createMission(repoID, text, campaignID, domain.MissionKindResearch, "", model)
-}
-
 func (s *Service) createMission(repoID string, text string, campaignID string, kind domain.MissionKind, toolCommand string, model string) (*domain.Mission, error) {
 	missionText := strings.TrimSpace(text)
 	if missionText == "" {

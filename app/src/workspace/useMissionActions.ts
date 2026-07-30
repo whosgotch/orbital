@@ -15,7 +15,6 @@ import type { WorkspaceRuntimeMap } from "./workspaceAdapter";
 import {
   approvePatchMissionLoopState,
   deleteMissionLoopState,
-  extractTasksLoopState,
   linkMissionsLoopState,
   queueMissionLoopState,
   rejectPatchMissionLoopState,
@@ -73,7 +72,6 @@ export function useMissionActions({
   // Dispatch promise rejects when a cancelled mission's agent process dies; swallowed instead of surfaced as an error.
   const cancelledMissionsRef = useRef<Set<string>>(new Set());
   const [missionDraft, setMissionDraft] = useState("");
-  const [extractingByMission, setExtractingByMission] = useState<Record<string, boolean>>({});
   const [campaignRepoIds, setCampaignRepoIds] = useState<string[]>([]);
   const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-engineer");
   // The model a mission runs on lives on the mission itself (persisted by the
@@ -96,8 +94,7 @@ export function useMissionActions({
         text,
         undefined,
         isTool ? text : undefined,
-        undefined,
-        isTool ? undefined : model,
+        isTool ? undefined : model || claudeModel,
       );
       const missionId = nextMissionLoopState.missions.at(-1)?.id;
       applyRepoState(nextMissionLoopState);
@@ -148,36 +145,19 @@ export function useMissionActions({
     }
   };
 
-  // Dispatches immediately — a read-only run is always safe to start.
-  const researchFromPrompt = async (text: string, attachments: string[]) => {
-    if (!draftRepository) return;
-    setMissionLoopError("");
-    try {
-      const nextMissionLoopState = await queueMissionLoopState(
-        draftRepository.path,
-        text + attachmentLines(attachments),
-        undefined,
-        undefined,
-        true,
-      );
-      const missionId = nextMissionLoopState.missions.at(-1)?.id;
-      applyRepoState(nextMissionLoopState);
-      if (missionId) {
-        await linkFollowUp(draftRepository.path, missionId);
-        void dispatchMission(missionId, { repoPath: draftRepository.path });
-      }
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to start research."));
-    }
-  };
-
   const createFromPrompt = async (text: string, attachments: string[]) => {
     if (!draftRepository) return;
     setMissionLoopError("");
     const titles = text.split("\n").map((line) => line.trim()).filter(Boolean);
     try {
       for (const title of titles) {
-        const nextMissionLoopState = await queueMissionLoopState(draftRepository.path, title + attachmentLines(attachments));
+        const nextMissionLoopState = await queueMissionLoopState(
+          draftRepository.path,
+          title + attachmentLines(attachments),
+          undefined,
+          undefined,
+          claudeModel,
+        );
         const missionId = nextMissionLoopState.missions.at(-1)?.id;
         applyRepoState(nextMissionLoopState);
         if (missionId) {
@@ -444,20 +424,6 @@ export function useMissionActions({
     }
   };
 
-  const extractTasks = async (missionId: string) => {
-    if (extractingByMission[missionId]) return;
-    setMissionLoopError("");
-    setExtractingByMission((current) => ({ ...current, [missionId]: true }));
-
-    try {
-      applyRepoState(await extractTasksLoopState(repoPathForMission(missionId), missionId, modelForMission(missionId)));
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to create tasks from the research document."));
-    } finally {
-      setExtractingByMission((current) => ({ ...current, [missionId]: false }));
-    }
-  };
-
   return {
     missionDraft,
     setMissionDraft,
@@ -469,7 +435,6 @@ export function useMissionActions({
     createTaskOnCanvas,
     linkTasks,
     unlinkTasks,
-    researchFromPrompt,
     createFromPrompt,
     repoPathForMission,
     dispatchMission,
@@ -481,7 +446,5 @@ export function useMissionActions({
     rejectMission,
     deleteMission,
     saveMissionPrompt,
-    extractingByMission,
-    extractTasks,
   };
 }
