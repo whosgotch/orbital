@@ -1,4 +1,4 @@
-import { FolderOpen, History, Plus, Rocket, X } from "lucide-react";
+import { FolderOpen, History, Plus, X } from "lucide-react";
 import type { Repository } from "../workspace/domain";
 
 type TopBarProps = {
@@ -10,8 +10,8 @@ type TopBarProps = {
   refreshing: boolean;
   draftRepositoryAvailable: boolean;
   onDraftTask: () => void;
-  openPanel: null | "mission" | "history";
-  onTogglePanel: (panel: "mission" | "history") => void;
+  historyOpen: boolean;
+  onToggleHistory: () => void;
 };
 
 export function TopBar({
@@ -23,8 +23,8 @@ export function TopBar({
   refreshing,
   draftRepositoryAvailable,
   onDraftTask,
-  openPanel,
-  onTogglePanel,
+  historyOpen,
+  onToggleHistory,
 }: TopBarProps) {
   return (
     <header className="topbar">
@@ -69,18 +69,9 @@ export function TopBar({
           <Plus size={15} aria-hidden="true" />
         </button>
         <button
-          className={`ghost icon-button ${openPanel === "mission" ? "active" : ""}`}
+          className={`ghost icon-button ${historyOpen ? "active" : ""}`}
           type="button"
-          onClick={() => onTogglePanel("mission")}
-          title="Queue a backlog or multi-repo campaign"
-          aria-label="Queue a backlog or campaign"
-        >
-          <Rocket size={14} aria-hidden="true" />
-        </button>
-        <button
-          className={`ghost icon-button ${openPanel === "history" ? "active" : ""}`}
-          type="button"
-          onClick={() => onTogglePanel("history")}
+          onClick={onToggleHistory}
           title="Git history"
           aria-label="Git history"
         >

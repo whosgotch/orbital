@@ -31,7 +31,6 @@ export type UseMissionActionsArgs = {
   workspaceMissions: WorkspaceMission[];
   repositories: Repository[];
   activeRepoPath: string;
-  selectedRepository: Repository | undefined;
   draftRepository: Repository | undefined;
   runtimeByMission: WorkspaceRuntimeMap;
   setRuntimeByMission: Dispatch<SetStateAction<WorkspaceRuntimeMap>>;
@@ -53,7 +52,6 @@ export function useMissionActions({
   workspaceMissions,
   repositories,
   activeRepoPath,
-  selectedRepository,
   draftRepository,
   runtimeByMission,
   setRuntimeByMission,
@@ -72,10 +70,7 @@ export function useMissionActions({
 }: UseMissionActionsArgs) {
   // Dispatch promise rejects when a cancelled mission's agent process dies; swallowed instead of surfaced as an error.
   const cancelledMissionsRef = useRef<Set<string>>(new Set());
-  const [missionDraft, setMissionDraft] = useState("");
   const [extractingByMission, setExtractingByMission] = useState<Record<string, boolean>>({});
-  const [campaignRepoIds, setCampaignRepoIds] = useState<string[]>([]);
-  const [intakeWorkerMode, setIntakeWorkerMode] = useState<WorkerMode>("claude-engineer");
   // The model a mission runs on lives on the mission itself (persisted by the
   // worker), so it survives a reload. The global picker only supplies it at
   // creation time and is the fallback for missions created before the choice
@@ -181,7 +176,7 @@ export function useMissionActions({
         const missionId = nextMissionLoopState.missions.at(-1)?.id;
         applyRepoState(nextMissionLoopState);
         if (missionId) {
-          setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
+          setWorkerModeByMission((current) => ({ ...current, [missionId]: "claude-engineer" }));
           await linkFollowUp(draftRepository.path, missionId);
         }
       }
@@ -318,53 +313,6 @@ export function useMissionActions({
     }
   };
 
-  const queueMission = async () => {
-    const titles = missionDraft.split("\n").map((line) => line.trim()).filter(Boolean);
-    if (titles.length === 0) {
-      return;
-    }
-
-    setMissionLoopError("");
-
-    const targetRepos = campaignTargetRepos();
-    const isCampaign = targetRepos.length > 1;
-
-    try {
-      for (let titleIndex = 0; titleIndex < titles.length; titleIndex++) {
-        const title = titles[titleIndex];
-        const campaignId = isCampaign ? `${freshId("camp")}_${titleIndex}` : undefined;
-        for (const repo of targetRepos) {
-          const nextMissionLoopState = await queueMissionLoopState(repo.path, title, campaignId);
-          const missionId = nextMissionLoopState.missions.at(-1)?.id;
-          applyRepoState(nextMissionLoopState);
-          if (missionId) {
-            setWorkerModeByMission((current) => ({ ...current, [missionId]: intakeWorkerMode }));
-          }
-        }
-      }
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to queue mission."));
-    }
-  };
-
-  const campaignTargetRepos = () => {
-    if (campaignRepoIds.length > 0) {
-      return campaignRepoIds
-        .map((id) => repositories.find((repo) => repo.id === id))
-        .filter((repo): repo is Repository => Boolean(repo));
-    }
-    if (selectedRepository) return [selectedRepository];
-    const active = repositories.find((repo) => repo.path === activeRepoPath);
-    return active ? [active] : [];
-  };
-
-  const toggleCampaignRepo = (repoId: string) => {
-    setCampaignRepoIds((current) => {
-      const base = current.length > 0 ? current : campaignTargetRepos().map((repo) => repo.id);
-      return base.includes(repoId) ? base.filter((id) => id !== repoId) : [...base, repoId];
-    });
-  };
-
   const approveMission = async (missionId: string) => {
     setMissionLoopError("");
 
@@ -459,12 +407,6 @@ export function useMissionActions({
   };
 
   return {
-    missionDraft,
-    setMissionDraft,
-    campaignRepoIds,
-    setCampaignRepoIds,
-    intakeWorkerMode,
-    setIntakeWorkerMode,
     runningMissionIds,
     createTaskOnCanvas,
     linkTasks,
@@ -474,9 +416,6 @@ export function useMissionActions({
     repoPathForMission,
     dispatchMission,
     sendAgentChat,
-    queueMission,
-    campaignTargetRepos,
-    toggleCampaignRepo,
     approveMission,
     rejectMission,
     deleteMission,
