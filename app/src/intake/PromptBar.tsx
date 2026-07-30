@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Check, CornerDownLeft, CornerDownRight, Cpu, Gauge, X } from "lucide-react";
+import { Check, ChevronDown, CornerDownRight, Cpu, FolderGit2, Gauge, SendHorizontal, X } from "lucide-react";
 import { AttachmentChips } from "./AttachmentChips";
 import { usePastedImages } from "./attachments";
 import { useModels } from "../workspace/useModels";
@@ -91,10 +91,16 @@ export function PromptBar({
         }}
       />
       <div className="prompt-bar-actions">
+        {repoName ? (
+          <span className="prompt-bar-target">
+            <FolderGit2 size={13} aria-hidden="true" />
+            <span>{repoName}</span>
+          </span>
+        ) : null}
         <div className="topbar-model">
           <button
             type="button"
-            className={`chip model-trigger ${modelPickerOpen ? "active" : ""}`}
+            className={`prompt-bar-trigger ${modelPickerOpen ? "active" : ""}`}
             title="Model used by every AI run and chat turn"
             aria-haspopup="listbox"
             aria-expanded={modelPickerOpen}
@@ -102,6 +108,7 @@ export function PromptBar({
           >
             <Cpu size={14} aria-hidden="true" />
             <span>{currentModelName}</span>
+            <ChevronDown size={12} aria-hidden="true" />
           </button>
           {modelPickerOpen ? (
             <div className="popover model-popover" role="listbox" aria-label="Claude model">
@@ -127,7 +134,7 @@ export function PromptBar({
           <div className="topbar-model">
             <button
               type="button"
-              className={`chip model-trigger ${effortPickerOpen ? "active" : ""}`}
+              className={`prompt-bar-trigger ${effortPickerOpen ? "active" : ""}`}
               title="Thinking level (--effort) used by every AI run and chat turn"
               aria-haspopup="listbox"
               aria-expanded={effortPickerOpen}
@@ -135,6 +142,7 @@ export function PromptBar({
             >
               <Gauge size={14} aria-hidden="true" />
               <span>{effortName(claudeEffort)}</span>
+              <ChevronDown size={12} aria-hidden="true" />
             </button>
             {effortPickerOpen ? (
               <div className="popover model-popover" role="listbox" aria-label="Thinking level">
@@ -157,16 +165,15 @@ export function PromptBar({
             ) : null}
           </div>
         ) : null}
-        {repoName ? <span className="prompt-bar-target">{repoName}</span> : null}
         <button
           type="button"
-          className="primary"
+          className="prompt-bar-send"
           disabled={!ready}
           onClick={() => submit(onCreate)}
-          title="Create task — one per line"
+          aria-label="Create task"
+          title="Create task — one per line, Enter creates"
         >
-          <CornerDownLeft size={13} aria-hidden="true" />
-          <span>Create</span>
+          <SendHorizontal size={15} aria-hidden="true" />
         </button>
       </div>
     </div>

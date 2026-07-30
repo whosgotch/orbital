@@ -186,8 +186,8 @@ h3 {
   width: min(620px, calc(100% - 48px));
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 12px 12px 10px;
   background: var(--panel);
   border: 1px solid var(--line-strong);
   border-radius: 12px;
@@ -216,7 +216,9 @@ h3 {
 
 .prompt-bar-input {
   width: 100%;
-  min-height: 0;
+  /* Room for a second line before the field grows, so the composer reads as a
+     writing surface at rest instead of a one-line search box. */
+  min-height: 38px;
   padding: 2px 2px 0;
   background: transparent;
   border: none;
@@ -227,10 +229,51 @@ h3 {
   line-height: 1.5;
 }
 
+/* The row under the field is chrome, not content: borderless, muted, and it only
+   firms up on hover. Scope sits left, the how-it-runs pickers and send sit right. */
 .prompt-bar-actions button {
   min-height: 26px;
-  padding: 0 10px;
+  padding: 0 8px;
   font-size: 12px;
+}
+
+.prompt-bar-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.prompt-bar-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-bar-trigger:hover,
+.prompt-bar-trigger.active {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+/* Tag-qualified to outrank .prompt-bar-actions button above. */
+button.prompt-bar-send {
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.prompt-bar-send:not(:disabled):hover {
+  background: var(--panel-2);
+  color: var(--accent);
 }
 
 .attachment-chips {
@@ -289,24 +332,21 @@ h3 {
 }
 
 .prompt-bar-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-right: auto;
-  font-size: 11px;
+  padding: 0 4px;
+  font-size: 12px;
   color: var(--muted);
 }
 
-.model-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  justify-content: flex-start;
-}
-
-/* Must win specificity over .popover, defined later in this file; opens upward since it's anchored in the bottom-docked prompt bar. */
+/* Must win specificity over .popover, defined later in this file; opens upward since it's anchored in the bottom-docked prompt bar, and right-aligned since its trigger sits in the row's right-hand cluster. */
 .popover.model-popover {
   top: auto;
   bottom: calc(100% + 8px);
-  left: 0;
-  right: auto;
+  left: auto;
+  right: 0;
   width: 300px;
   display: flex;
   flex-direction: column;
@@ -1312,14 +1352,6 @@ button.mini-text {
   margin-bottom: 6px;
 }
 
-.intake-worker {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 12px 0;
-  font-size: 12px;
-}
-
 .control-worker {
   width: auto;
   padding: 4px 6px;
@@ -1531,32 +1563,6 @@ select:focus {
   flex: 1;
 }
 
-
-.campaign-targets {
-  margin-top: 4px;
-}
-
-.campaign-repo-list {
-  list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.campaign-repo-list label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.campaign-repo-list input[type="checkbox"] {
-  width: auto;
-  margin: 0;
-}
 
 .node-card.campaign {
   border-color: var(--line-strong);

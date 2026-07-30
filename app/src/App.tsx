@@ -7,7 +7,6 @@ import { DiffModal } from "./review/DiffModal";
 import { DiffView } from "./review/DiffView";
 import { PromptBar } from "./intake/PromptBar";
 import { HistoryPanel } from "./shell/HistoryPanel";
-import { QueueIntakePanel } from "./intake/QueueIntakePanel";
 import { CanvasEmptyState } from "./canvas/CanvasEmptyState";
 import { buildAgentStatus } from "./chat/statusModel";
 import { buildAgentTranscript, sliceTranscriptByMessage } from "./chat/transcriptModel";
@@ -20,7 +19,7 @@ import { useWorkspaceState } from "./workspace/useWorkspaceState";
 import { useMissionActions } from "./workspace/useMissionActions";
 import { useRepoHistory } from "./workspace/useRepoHistory";
 
-// Exists only in the rendered graph until Queue/Run turns it into a real mission, so one well-known id is enough.
+// Exists only in the rendered graph until Create/Run turns it into a real mission, so one well-known id is enough.
 const DRAFT_TASK_NODE_ID = "task_draft";
 
 export function App() {
@@ -90,7 +89,7 @@ export function App() {
   const [draftingTask, setDraftingTask] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
-  const [openPanel, setOpenPanel] = useState<null | "mission" | "history">(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const repoHistory = useRepoHistory(activeRepoPath);
 
   const handleSelectNode = (nodeId: string) => {
@@ -167,7 +166,6 @@ export function App() {
     workspaceMissions,
     repositories: missionLoopState.repositories,
     activeRepoPath,
-    selectedRepository,
     draftRepository,
     runtimeByMission,
     setRuntimeByMission,
@@ -185,11 +183,6 @@ export function App() {
     setEditingPrompt,
   });
   const {
-    missionDraft,
-    setMissionDraft,
-    setCampaignRepoIds,
-    intakeWorkerMode,
-    setIntakeWorkerMode,
     runningMissionIds,
     createTaskOnCanvas,
     linkTasks,
@@ -197,9 +190,6 @@ export function App() {
     createFromPrompt,
     dispatchMission,
     sendAgentChat,
-    queueMission,
-    campaignTargetRepos,
-    toggleCampaignRepo,
     approveMission,
     rejectMission,
     deleteMission,
@@ -211,14 +201,11 @@ export function App() {
     setEditingPrompt(true);
   };
 
-  const togglePanel = (panel: "mission" | "history") =>
-    setOpenPanel((current) => {
-      const next = current === panel ? null : panel;
-      // Opening intake starts from the current repo; campaign targets are opt-in.
-      if (next === "mission") setCampaignRepoIds([]);
+  const toggleHistory = () =>
+    setHistoryOpen((current) => {
       // History reads git fresh on every open, so landed patches show up.
-      if (next === "history") void repoHistory.refresh();
-      return next;
+      if (!current) void repoHistory.refresh();
+      return !current;
     });
 
   const graphNodes = useMemo(
@@ -276,8 +263,8 @@ export function App() {
         repoHistory.close();
         return;
       }
-      if (openPanel) {
-        setOpenPanel(null);
+      if (historyOpen) {
+        setHistoryOpen(false);
         return;
       }
       if (modelPickerOpen) {
@@ -296,7 +283,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [diffModalOpen, openPanel, modelPickerOpen, effortPickerOpen, draftingTask, repoHistory]);
+  }, [diffModalOpen, historyOpen, modelPickerOpen, effortPickerOpen, draftingTask, repoHistory]);
 
   // Canvas keybinds for the selected node. Delete/Backspace removes it: a
   // mission node runs the panel's confirm-and-delete flow; a repo node closes
@@ -344,8 +331,8 @@ export function App() {
         refreshing={refreshingMissionLoop}
         draftRepositoryAvailable={Boolean(draftRepository)}
         onDraftTask={() => setDraftingTask(true)}
-        openPanel={openPanel}
-        onTogglePanel={togglePanel}
+        historyOpen={historyOpen}
+        onToggleHistory={toggleHistory}
       />
 
       <div className="canvas-area">
@@ -367,23 +354,7 @@ export function App() {
           }}
         />
 
-      {openPanel === "mission" ? (
-        <QueueIntakePanel
-          repositories={missionLoopState.repositories}
-          missionDraft={missionDraft}
-          onChangeMissionDraft={setMissionDraft}
-          campaignTargetRepos={campaignTargetRepos}
-          onToggleCampaignRepo={toggleCampaignRepo}
-          intakeWorkerMode={intakeWorkerMode}
-          onChangeIntakeWorkerMode={setIntakeWorkerMode}
-          onQueue={() => {
-            void queueMission();
-            setOpenPanel(null);
-          }}
-        />
-      ) : null}
-
-      {openPanel === "history" ? (
+      {historyOpen ? (
         <section className="popover history-popover" aria-label="Git history">
           <div className="section-label">
             {selectedRepository?.name ?? "workspace"} · history
