@@ -61,11 +61,11 @@ export function enrichGraphNodes({
         // waiting it can't be launched by hand either — the chain owns it.
         const pendingUpstreams = (mission?.depends_on ?? []).filter((id) => !upstreamLanded(id));
         const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
-        // A run that failed is a dead end unless it can be launched again; a
-        // rejected patch is not — that one is answered in chat, not by a re-run.
-        const failed = runtime?.status === "blocked" && runtime.patchStatus !== "rejected";
+        // A stopped node is a dead end unless it can be launched again —
+        // whether the run failed or its patch was rejected. The re-run starts a
+        // fresh run; chat stays the other way to answer a rejection.
         const launchable =
-          (!runtime || runtime.status === "queued" || runtime.status === "draft" || failed) &&
+          (!runtime || runtime.status === "queued" || runtime.status === "draft" || runtime.status === "blocked") &&
           pendingUpstreams.length === 0;
         const live = runtime?.status === "running";
         // The task card carries its own change set: the counts it shows and the

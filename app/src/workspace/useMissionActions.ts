@@ -187,7 +187,13 @@ export function useMissionActions({
 
     setRuntimeByMission((current) => ({
       ...current,
-      [missionId]: { ...(current[missionId] ?? queuedRuntime), status: "running", step: Math.max(current[missionId]?.step ?? -1, 0) },
+      [missionId]: {
+        ...(current[missionId] ?? queuedRuntime),
+        status: "running",
+        step: Math.max(current[missionId]?.step ?? -1, 0),
+        // A re-run answers the last failure: drop its reason as the new run starts.
+        blockedReason: undefined,
+      },
     }));
 
     const unlistenRun = await listen<AgentRun>("agent_run", (e) => {
