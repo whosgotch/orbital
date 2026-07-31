@@ -61,8 +61,12 @@ export function enrichGraphNodes({
         // waiting it can't be launched by hand either — the chain owns it.
         const pendingUpstreams = (mission?.depends_on ?? []).filter((id) => !upstreamLanded(id));
         const firstUpstream = workspaceMissions.find((m) => m.id === pendingUpstreams[0]);
+        // A run that failed is a dead end unless it can be launched again; a
+        // rejected patch is not — that one is answered in chat, not by a re-run.
+        const failed = runtime?.status === "blocked" && runtime.patchStatus !== "rejected";
         const launchable =
-          (!runtime || runtime.status === "queued" || runtime.status === "draft") && pendingUpstreams.length === 0;
+          (!runtime || runtime.status === "queued" || runtime.status === "draft" || failed) &&
+          pendingUpstreams.length === 0;
         const live = runtime?.status === "running";
         // The task card carries its own change set: the counts it shows and the
         // Approve/Reject gate it offers are this mission's proposed patch.
@@ -78,6 +82,7 @@ export function enrichGraphNodes({
             live,
             now: live ? activityByMission[missionId]?.at(-1) : undefined,
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
+            error: runtime?.blockedReason,
             commitHash: commitByMission[missionId]?.hash || undefined,
             files: files.length,
             additions: files.reduce((sum, file) => sum + file.added, 0),
@@ -106,6 +111,7 @@ export function enrichGraphNodes({
             live: runtime?.status === "running",
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
             toolState: status === "done" ? ("passed" as const) : status === "blocked" ? ("failed" as const) : undefined,
+            error: runtime?.blockedReason,
             commitHash: commitByMission[missionId]?.hash || undefined,
           },
         };

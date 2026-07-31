@@ -56,6 +56,24 @@ describe("enrichGraphNodes", () => {
     expect(node.meta?.commitHash).toBe("abc1234");
   });
 
+  it("shows a failed task's reason and offers a re-run", () => {
+    const [node] = enrichGraphNodes({
+      ...baseArgs,
+      runtimeByMission: { m1: { step: 0, patchStatus: "pending", status: "blocked", blockedReason: "claude: not found" } },
+    });
+    expect(node.meta?.error).toBe("claude: not found");
+    expect(node.meta?.launchable).toBe(true);
+  });
+
+  it("keeps a rejected patch off the re-run path — it is answered in chat", () => {
+    const [node] = enrichGraphNodes({
+      ...baseArgs,
+      runtimeByMission: { m1: { step: 0, patchStatus: "rejected", status: "blocked", blockedReason: "You rejected this patch." } },
+    });
+    expect(node.meta?.error).toBe("You rejected this patch.");
+    expect(node.meta?.launchable).toBe(false);
+  });
+
   it("threads the mission's token usage onto the task node's meta", () => {
     const [node] = enrichGraphNodes({
       ...baseArgs,

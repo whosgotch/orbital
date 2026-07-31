@@ -14,6 +14,9 @@ export type WorkspaceRuntime = {
   step: number;
   patchStatus: PatchStatus;
   status: MissionNodeStatus;
+  // Why this mission is blocked, in the worker's own words. Only set for
+  // blocked missions — a node that stops must be able to say what stopped it.
+  blockedReason?: string;
 };
 
 export type WorkspaceRuntimeMap = Record<string, WorkspaceRuntime>;
@@ -56,6 +59,7 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
         step: mission.step,
         patchStatus: mission.patch_status,
         status: mission.status,
+        blockedReason: mission.status === "blocked" ? blockedReason(state, mission) : undefined,
       },
     ]),
   ) as WorkspaceRuntimeMap;
@@ -261,6 +265,36 @@ function missionStatus(mission: Mission, patchStatusValue: WorkerPatchStatus | u
   return "draft";
 }
 
+// The reason a blocked mission stopped, most specific first: the run's own
+// error, then the failure event that ended it, then the human gate. Blocked
+// with nothing recorded still says something — silence is what made blocked
+// nodes unreadable in the first place.
+function blockedReason(state: MissionLoopState, mission: WorkspaceMission): string {
+  const runs = state.agent_runs.filter((run) => run.mission_id === mission.id);
+  const failedRun = runs.filter((run) => run.error?.trim()).at(-1);
+  if (failedRun?.error) {
+    return failedRun.error.trim();
+  }
+
+  const runIds = new Set(runs.map((run) => run.id));
+  const failureEvent = state.workflow_events
+    .filter(
+      (event) =>
+        (event.type === "run_failed" || event.type === "child_run_failed") &&
+        (event.mission_id === mission.id || (event.run_id != null && runIds.has(event.run_id))),
+    )
+    .at(-1);
+  if (failureEvent?.message.trim()) {
+    return failureEvent.message.trim();
+  }
+
+  if (mission.patch_status === "rejected") {
+    return "You rejected this patch — revise the task in chat and run it again.";
+  }
+
+  return "The run failed without reporting a reason.";
+}
+
 function patchStatus(status: WorkerPatchStatus | undefined): PatchStatus {
   if (status === "approved" || status === "applied") {
     return "approved";
@@ -314,7 +348,8 @@ function stationActivityFromEvents(events: WorkflowEvent[]) {
       case "run_completed":
         return "AI manager moved the mission to human review.";
       case "run_failed":
-        return "AI manager marked the run failed.";
+        // The worker writes the actual cause here — never replace it with prose.
+        return event.message || "AI manager marked the run failed.";
       case "run_cancelled":
         return "AI manager cancelled the run.";
       case "agent_thought":
@@ -327,7 +362,7 @@ function stationActivityFromEvents(events: WorkflowEvent[]) {
       case "child_run_completed":
         return "Child agent completed its assignment.";
       case "child_run_failed":
-        return "Child agent failed. Manager assessing.";
+        return event.message || "Child agent failed. Manager assessing.";
       case "patches_merged":
         return event.message || "Manager merged patches from child agents.";
       default:

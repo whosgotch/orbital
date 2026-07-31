@@ -24,7 +24,7 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, Cpu, GitBranch, GitCommitHorizontal, Loader, Play, Timer, X } from "lucide-react";
+import { Check, Cpu, GitBranch, GitCommitHorizontal, Loader, Play, Timer, TriangleAlert, X } from "lucide-react";
 import { layoutGraph, portOffset, type NodePosition } from "./graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "./graph";
 import { formatDuration, formatTokens } from "../workspace/usage";
@@ -641,6 +641,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
           </div>
         ) : null}
         {meta?.patchState === "rejected" ? <span className="node-tag bad">rejected</span> : null}
+        <NodeError error={meta?.error} />
         <CommitChip hash={meta?.commitHash} />
         <ModelChip model={meta?.model} />
         <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
@@ -670,6 +671,7 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         {meta?.waitingFor ? <span className="node-tag wait">after: {meta.waitingFor}</span> : null}
         {meta?.toolState === "passed" ? <span className="node-tag ok">passed</span> : null}
         {meta?.toolState === "failed" ? <span className="node-tag bad">failed</span> : null}
+        <NodeError error={meta?.error} />
         <CommitChip hash={meta?.commitHash} />
       </div>
     );
@@ -679,6 +681,19 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
     <div className="node-card-body">
       <p className="node-card-prompt">{node.detail}</p>
     </div>
+  );
+}
+
+// Why the card is red, on the card itself. One line here (hover for the whole
+// thing); the task panel carries the full text.
+function NodeError({ error }: { error?: string }) {
+  if (!error) return null;
+  const firstLine = error.split("\n").find((line) => line.trim()) ?? error;
+  return (
+    <p className="node-card-error" title={error}>
+      <TriangleAlert size={11} aria-hidden="true" />
+      <span>{firstLine}</span>
+    </p>
   );
 }
 
@@ -752,7 +767,7 @@ function NodeFooter({ node }: { node: OrbitalNodeData }) {
           }}
         >
           <Play size={12} aria-hidden="true" />
-          Run
+          {node.status === "blocked" ? "Run again" : "Run"}
         </button>
       </div>
     );
