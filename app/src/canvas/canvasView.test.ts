@@ -51,12 +51,22 @@ describe("enrichGraphNodes", () => {
     expect(node.meta?.launchable).toBe(true);
   });
 
-  it("keeps a rejected patch off the re-run path — it is answered in chat", () => {
+  it("offers a re-run after a rejected patch too — a stopped node is never a dead end", () => {
     const [node] = enrichGraphNodes({
       ...baseArgs,
       runtimeByMission: { m1: { step: 0, patchStatus: "rejected", status: "blocked", blockedReason: "You rejected this patch." } },
     });
     expect(node.meta?.error).toBe("You rejected this patch.");
+    expect(node.meta?.launchable).toBe(true);
+  });
+
+  it("withholds the re-run while an upstream has not landed — the chain owns it", () => {
+    const [, node] = enrichGraphNodes({
+      ...baseArgs,
+      workspaceGraphNodes: [taskNode(), taskNode({ id: "m2", mission_id: "m2" })],
+      workspaceMissions: [mission(), mission({ id: "m2", depends_on: ["m1"] })],
+      runtimeByMission: { m2: { step: 0, patchStatus: "pending", status: "blocked", blockedReason: "boom" } },
+    });
     expect(node.meta?.launchable).toBe(false);
   });
 

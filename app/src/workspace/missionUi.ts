@@ -31,6 +31,11 @@ export function statusFromRuntime(runtime: WorkspaceRuntime): MissionNodeStatus 
   if (runtime.status === "done") {
     return "done";
   }
+  // A re-run outranks whatever the last run left behind: a mission working
+  // again must not read as blocked because its previous patch was rejected.
+  if (runtime.status === "running") {
+    return "running";
+  }
   if (runtime.patchStatus === "approved") {
     return "done";
   }

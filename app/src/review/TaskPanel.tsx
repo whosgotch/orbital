@@ -1,5 +1,5 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, Copy, GitBranch, Pencil, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
+import { Check, Copy, GitBranch, Pencil, RotateCcw, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "../chat/AgentChat";
 import { UsageDetails } from "../chat/UsageDetails";
 import { ReviseBox } from "../chat/ReviseBox";
@@ -37,6 +37,7 @@ type TaskPanelProps = {
   onChangePromptDraft: (text: string) => void;
   onSavePrompt: () => void;
   onDelete: () => void;
+  onRun: () => void;
   onClose: () => void;
   onWidthChange: (width: number) => void;
   taskView: "chat" | "changes";
@@ -66,6 +67,7 @@ export function TaskPanel({
   onChangePromptDraft,
   onSavePrompt,
   onDelete,
+  onRun,
   onClose,
   onWidthChange,
   taskView,
@@ -169,14 +171,26 @@ export function TaskPanel({
               <span className="task-error-title">Blocked</span>
               <pre className="task-error-text">{runtime.blockedReason}</pre>
             </div>
-            <button
-              type="button"
-              className="ghost mini-text"
-              onClick={() => navigator.clipboard?.writeText(runtime.blockedReason ?? "")}
-              title="Copy the error"
-            >
-              <Copy size={12} aria-hidden="true" />
-            </button>
+            <div className="task-error-actions">
+              <button
+                type="button"
+                className="ghost mini-text"
+                onClick={() => navigator.clipboard?.writeText(runtime.blockedReason ?? "")}
+                title="Copy the error"
+                aria-label="Copy the error"
+              >
+                <Copy size={12} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="node-action secondary"
+                onClick={onRun}
+                title="Start a fresh run of this task"
+              >
+                <RotateCcw size={12} aria-hidden="true" />
+                Run again
+              </button>
+            </div>
           </div>
         ) : null}
 

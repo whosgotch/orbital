@@ -408,6 +408,7 @@ export function App() {
           onChangePromptDraft={setPromptDraft}
           onSavePrompt={() => void saveMissionPrompt(selectedMission.id, promptDraft)}
           onDelete={() => void deleteMission(selectedMission.id)}
+          onRun={() => void dispatchMission(selectedMission.id)}
           onClose={() => setSelectedNodeId("")}
           onWidthChange={setTaskPanelWidth}
           taskView={taskView}
