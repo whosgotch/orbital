@@ -38,24 +38,10 @@ const baseArgs = {
   workerModeByMission: {},
   activityByMission: {},
   patchDiffByMission: {},
-  commitByMission: {},
   usageByMission: {},
 };
 
 describe("enrichGraphNodes", () => {
-  it("leaves commitHash unset when the mission has no landed commit", () => {
-    const [node] = enrichGraphNodes(baseArgs);
-    expect(node.meta?.commitHash).toBeUndefined();
-  });
-
-  it("threads the landed commit's hash onto the task node's meta", () => {
-    const [node] = enrichGraphNodes({
-      ...baseArgs,
-      commitByMission: { m1: { hash: "abc1234", subject: "add a version command", branch: "main" } },
-    });
-    expect(node.meta?.commitHash).toBe("abc1234");
-  });
-
   it("shows a failed task's reason and offers a re-run", () => {
     const [node] = enrichGraphNodes({
       ...baseArgs,
