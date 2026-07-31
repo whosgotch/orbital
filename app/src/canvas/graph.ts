@@ -50,6 +50,7 @@ export type GraphNodeMeta = {
   command?: string; // tool: the command it runs
   toolState?: "passed" | "failed"; // tool: how its command exited
   waitingFor?: string; // task: label of the upstream task it waits on
+  error?: string; // task/tool: why it is blocked, in the worker's words
   attachments?: number; // task: pasted images riding in the prompt
   commitHash?: string; // task/tool: short hash of the landed commit
   branch?: string; // repo: current live branch

@@ -1,5 +1,5 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, GitBranch, Pencil, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, Copy, GitBranch, Pencil, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "../chat/AgentChat";
 import { UsageDetails } from "../chat/UsageDetails";
 import { ReviseBox } from "../chat/ReviseBox";
@@ -161,6 +161,24 @@ export function TaskPanel({
             </button>
           </div>
         </div>
+
+        {runtime.blockedReason ? (
+          <div className="task-error" role="alert">
+            <TriangleAlert size={14} aria-hidden="true" />
+            <div className="task-error-body">
+              <span className="task-error-title">Blocked</span>
+              <pre className="task-error-text">{runtime.blockedReason}</pre>
+            </div>
+            <button
+              type="button"
+              className="ghost mini-text"
+              onClick={() => navigator.clipboard?.writeText(runtime.blockedReason ?? "")}
+              title="Copy the error"
+            >
+              <Copy size={12} aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
 
         {promptExpanded && !editingPrompt ? (
           <div className="prompt-full" onClick={() => setExpandedPromptFor("")} title="Collapse prompt">

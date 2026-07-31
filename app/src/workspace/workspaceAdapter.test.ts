@@ -158,6 +158,51 @@ describe("workspaceViewFromMissionLoop", () => {
     );
     expect(view.runtimeByMission.m1.status).toBe("blocked");
   });
+
+  it("carries the failed run's own error as the blocked reason", () => {
+    const view = workspaceViewFromMissionLoop(
+      state({
+        missions: [mission({ status: "failed" })],
+        agent_runs: [{ ...run, status: "failed", error: "claude: command not found" }],
+      }),
+    );
+    expect(view.runtimeByMission.m1.blockedReason).toBe("claude: command not found");
+  });
+
+  it("falls back to the run_failed event when the run recorded no error", () => {
+    const view = workspaceViewFromMissionLoop(
+      state({
+        missions: [mission({ status: "failed" })],
+        agent_runs: [{ ...run, status: "failed" }],
+        workflow_events: [
+          {
+            id: "e1",
+            run_id: "run1",
+            type: "run_failed",
+            message: "Local command failed: exit status 1",
+            created_at: "2026-07-01T00:02:00Z",
+          },
+        ],
+      }),
+    );
+    expect(view.runtimeByMission.m1.blockedReason).toBe("Local command failed: exit status 1");
+    // The same message must survive into the activity feed, not be replaced by prose.
+    expect(view.activityByMission.m1).toContain("Local command failed: exit status 1");
+  });
+
+  it("explains a human rejection and leaves healthy missions without a reason", () => {
+    const rejected = workspaceViewFromMissionLoop(
+      state({
+        missions: [mission({ status: "rejected" })],
+        agent_runs: [run],
+        patch_proposals: [{ ...pendingPatch, status: "rejected" }],
+      }),
+    );
+    expect(rejected.runtimeByMission.m1.blockedReason).toMatch(/rejected this patch/);
+
+    const running = workspaceViewFromMissionLoop(state({ missions: [mission({ status: "running" })], agent_runs: [run] }));
+    expect(running.runtimeByMission.m1.blockedReason).toBeUndefined();
+  });
 });
 
 describe("labels", () => {
