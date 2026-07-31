@@ -2283,8 +2283,7 @@ dd {
   overflow-wrap: anywhere;
 }
 
-.git-branch-chip,
-.git-commit-chip {
+.git-branch-chip {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -2295,10 +2294,6 @@ dd {
   font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
-}
-
-.git-commit-chip {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 .usage-chip {

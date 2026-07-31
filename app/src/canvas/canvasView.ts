@@ -1,7 +1,7 @@
 import { parseDiffFiles } from "../chat/statusModel";
 import { statusFromRuntime, workerModeFromName, workerModeLabel, type WorkerMode } from "../workspace/missionUi";
 import { compactLabel } from "../workspace/workspaceAdapter";
-import type { CommitInfo, WorkspaceRuntimeMap } from "../workspace/workspaceAdapter";
+import type { WorkspaceRuntimeMap } from "../workspace/workspaceAdapter";
 import type { MissionNodeStatus, WorkspaceGraphEdge, WorkspaceGraphNode, WorkspaceMission } from "./graph";
 import type { Repository } from "../workspace/domain";
 import type { MissionUsage } from "../workspace/usage";
@@ -16,7 +16,6 @@ export type EnrichGraphNodesArgs = {
   workerModeByMission: Record<string, WorkerMode>;
   activityByMission: Record<string, string[]>;
   patchDiffByMission: Record<string, string>;
-  commitByMission: Record<string, CommitInfo>;
   usageByMission: Record<string, MissionUsage>;
 };
 
@@ -27,7 +26,6 @@ export function enrichGraphNodes({
   workerModeByMission,
   activityByMission,
   patchDiffByMission,
-  commitByMission,
   usageByMission,
 }: EnrichGraphNodesArgs): GraphNode[] {
   // Fold a mission's token usage into the fields the node badge reads. Absent
@@ -83,7 +81,6 @@ export function enrichGraphNodes({
             now: live ? activityByMission[missionId]?.at(-1) : undefined,
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
             error: runtime?.blockedReason,
-            commitHash: commitByMission[missionId]?.hash || undefined,
             files: files.length,
             additions: files.reduce((sum, file) => sum + file.added, 0),
             deletions: files.reduce((sum, file) => sum + file.removed, 0),
@@ -112,7 +109,6 @@ export function enrichGraphNodes({
             waitingFor: firstUpstream ? compactLabel(firstUpstream.title) : undefined,
             toolState: status === "done" ? ("passed" as const) : status === "blocked" ? ("failed" as const) : undefined,
             error: runtime?.blockedReason,
-            commitHash: commitByMission[missionId]?.hash || undefined,
           },
         };
       }

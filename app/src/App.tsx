@@ -217,7 +217,6 @@ export function App() {
         workerModeByMission,
         activityByMission,
         patchDiffByMission,
-        commitByMission,
         usageByMission,
       }),
     [
@@ -227,7 +226,6 @@ export function App() {
       workerModeByMission,
       activityByMission,
       patchDiffByMission,
-      commitByMission,
       usageByMission,
     ],
   );

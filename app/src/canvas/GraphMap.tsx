@@ -24,10 +24,10 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Check, Cpu, GitBranch, GitCommitHorizontal, Loader, Play, Timer, TriangleAlert, X } from "lucide-react";
+import { Check, Cpu, GitBranch, Loader, Play, Timer, TriangleAlert, X } from "lucide-react";
 import { layoutGraph, portOffset, type NodePosition } from "./graphLayout";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "./graph";
-import { formatDuration, formatTokens } from "../workspace/usage";
+import { CONTEXT_WINDOW, contextPercent, formatDuration, formatTokens } from "../workspace/usage";
 import { useModels } from "../workspace/useModels";
 import { findModel } from "../workspace/models";
 
@@ -633,9 +633,8 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         ) : null}
         {meta?.patchState === "rejected" ? <span className="node-tag bad">rejected</span> : null}
         <NodeError error={meta?.error} />
-        <CommitChip hash={meta?.commitHash} />
         <ModelChip model={meta?.model} />
-        <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
+        <UsageChip context={meta?.contextTokens} />
         <DurationChip durationMs={meta?.durationMs} />
         {/* The diff summary sits last: it is the outcome, read after the run's metadata. */}
         {files > 0 ? (
@@ -673,7 +672,6 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
         {meta?.toolState === "passed" ? <span className="node-tag ok">passed</span> : null}
         {meta?.toolState === "failed" ? <span className="node-tag bad">failed</span> : null}
         <NodeError error={meta?.error} />
-        <CommitChip hash={meta?.commitHash} />
       </div>
     );
   }
@@ -698,15 +696,6 @@ function NodeError({ error }: { error?: string }) {
   );
 }
 
-function CommitChip({ hash }: { hash?: string }) {
-  if (!hash) return null;
-  return (
-    <span className="git-commit-chip">
-      <GitCommitHorizontal size={11} aria-hidden="true" />
-      {hash.slice(0, 7)}
-    </span>
-  );
-}
 
 // Which model did the work, named as the picker names it. The id is what the
 // CLI resolved, so this is what actually ran — not whatever the picker happens
@@ -723,16 +712,19 @@ function ModelChip({ model }: { model?: string }) {
   );
 }
 
-// The node's token read-out: context-window fill (the ◐ figure) and, once a run
-// has spent anything, the cumulative total after the dot. Absent until the
-// agent has reported usage, so idle nodes stay clean.
-function UsageChip({ context, total }: { context?: number; total?: number }) {
-  if (!context && !total) return null;
+// How full the agent's context window got, as a share of it. A percentage is the
+// only token figure that reads at a glance — raw counts need a label to mean
+// anything, so they live in the panel. Absent until the agent has reported
+// usage, so idle nodes stay clean.
+function UsageChip({ context }: { context?: number }) {
+  if (!context) return null;
   return (
-    <span className="usage-chip" title="Context-window fill · total tokens used">
+    <span
+      className="usage-chip"
+      title={`Context window ${formatTokens(context)} / ${formatTokens(CONTEXT_WINDOW)}`}
+    >
       <span className="glyph-char" aria-hidden="true">◐</span>
-      {context ? formatTokens(context) : null}
-      {total ? <span className="usage-total">· {formatTokens(total)}</span> : null}
+      {contextPercent(context)}% ctx
     </span>
   );
 }

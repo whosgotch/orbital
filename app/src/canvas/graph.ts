@@ -52,7 +52,6 @@ export type GraphNodeMeta = {
   waitingFor?: string; // task: label of the upstream task it waits on
   error?: string; // task/tool: why it is blocked, in the worker's words
   attachments?: number; // task: pasted images riding in the prompt
-  commitHash?: string; // task/tool: short hash of the landed commit
   branch?: string; // repo: current live branch
   contextTokens?: number; // task/agent: live context-window fill
   totalTokens?: number; // task/agent: tokens burned across the run
