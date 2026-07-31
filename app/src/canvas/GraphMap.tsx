@@ -631,6 +631,13 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
             {meta.attachments} image{meta.attachments === 1 ? "" : "s"}
           </span>
         ) : null}
+        {meta?.patchState === "rejected" ? <span className="node-tag bad">rejected</span> : null}
+        <NodeError error={meta?.error} />
+        <CommitChip hash={meta?.commitHash} />
+        <ModelChip model={meta?.model} />
+        <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
+        <DurationChip durationMs={meta?.durationMs} />
+        {/* The diff summary sits last: it is the outcome, read after the run's metadata. */}
         {files > 0 ? (
           <div className="node-card-stats">
             <span>
@@ -640,12 +647,6 @@ function NodeBody({ node }: { node: OrbitalNodeData }) {
             {meta?.deletions ? <span className="del">−{meta.deletions}</span> : null}
           </div>
         ) : null}
-        {meta?.patchState === "rejected" ? <span className="node-tag bad">rejected</span> : null}
-        <NodeError error={meta?.error} />
-        <CommitChip hash={meta?.commitHash} />
-        <ModelChip model={meta?.model} />
-        <UsageChip context={meta?.contextTokens} total={meta?.totalTokens} />
-        <DurationChip durationMs={meta?.durationMs} />
       </div>
     );
   }
