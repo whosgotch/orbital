@@ -1405,6 +1405,13 @@ button.mini-text {
   letter-spacing: 0.04em;
 }
 
+.task-error-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
 .task-error-text {
   margin: 3px 0 0;
   max-height: 140px;
