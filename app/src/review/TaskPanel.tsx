@@ -3,6 +3,7 @@ import { Check, Copy, GitBranch, Pencil, ShieldCheck, Trash2, TriangleAlert, X }
 import { AgentChat, ChangesCard } from "../chat/AgentChat";
 import { UsageDetails } from "../chat/UsageDetails";
 import { ReviseBox } from "../chat/ReviseBox";
+import { usePastedImages } from "../intake/attachments";
 import type { TranscriptEntry } from "../chat/AgentTranscript";
 import type { AgentStatusModel } from "../chat/statusModel";
 import type { CommitInfo, WorkspaceRuntime } from "../workspace/workspaceAdapter";
@@ -86,6 +87,20 @@ export function TaskPanel({
   // so switching nodes collapses it again without any effect.
   const [expandedPromptFor, setExpandedPromptFor] = useState("");
   const promptExpanded = expandedPromptFor === mission.id;
+
+  // The composer lives here, above the Chat/Changes switch, because the switch
+  // unmounts the chat view: a half-typed message (and its pasted screenshots)
+  // must survive a trip to Changes and back.
+  const [chatDraft, setChatDraft] = useState("");
+  const attachments = usePastedImages(repository?.path);
+  // Render-phase reset (the React "adjust state on prop change" pattern), so a
+  // draft written for one task never lands in another's composer.
+  const [composerMissionId, setComposerMissionId] = useState(mission.id);
+  if (composerMissionId !== mission.id) {
+    setComposerMissionId(mission.id);
+    setChatDraft("");
+    attachments.clear();
+  }
 
   const onResizeHandlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -244,7 +259,9 @@ export function TaskPanel({
               sending={chatSending}
               onSend={onSendChat}
               readOnly={mission.kind === "tool"}
-              repoPath={repository?.path}
+              draft={chatDraft}
+              onChangeDraft={setChatDraft}
+              attachments={attachments}
             />
           ) : (
             <div className="task-changes">

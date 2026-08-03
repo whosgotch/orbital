@@ -3,7 +3,7 @@ import { ArrowUp, ChevronDown, ChevronRight, FileMinus, FilePen, FilePlus, Loade
 import { AgentStatus } from "./AgentStatus";
 import { AgentTranscript } from "./AgentTranscript";
 import { AttachmentChips } from "../intake/AttachmentChips";
-import { attachmentLines, usePastedImages } from "../intake/attachments";
+import { attachmentLines, type PastedImages } from "../intake/attachments";
 import { Markdown } from "../ui/Markdown";
 import type { TranscriptEntry } from "./AgentTranscript";
 import type { AgentStatusModel, FileChange, TouchedFile } from "./statusModel";
@@ -71,7 +71,9 @@ export function AgentChat({
   onSend,
   sending,
   readOnly = false,
-  repoPath,
+  draft,
+  onChangeDraft,
+  attachments,
 }: {
   messages: ChatMessage[];
   statusModel: AgentStatusModel;
@@ -86,12 +88,13 @@ export function AgentChat({
   // A tool step is a deterministic command, not a conversation — its panel
   // shows the run log but offers no composer to chat with.
   readOnly?: boolean;
-  // Where pasted screenshots are saved; without it, pasting stays text-only.
-  repoPath?: string;
+  // The composer is owned by the panel, not by this view: switching to Changes
+  // unmounts the chat, and a half-typed message must survive the round trip.
+  draft: string;
+  onChangeDraft: (text: string) => void;
+  attachments: PastedImages;
 }) {
-  const [draft, setDraft] = useState("");
   const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({});
-  const attachments = usePastedImages(repoPath);
   const logRef = useRef<HTMLDivElement>(null);
 
   // Follow the newest turn as the conversation and the agent's work grow —
@@ -108,7 +111,7 @@ export function AgentChat({
     const text = draft.trim();
     if (!text || sending) return;
     onSend(text + attachmentLines(attachments.paths));
-    setDraft("");
+    onChangeDraft("");
     attachments.clear();
   };
 
@@ -194,7 +197,7 @@ export function AgentChat({
           placeholder={sending ? "Agent is working…" : "Message the agent — ⏎ to send, ⇧⏎ for a new line"}
           value={draft}
           rows={2}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => onChangeDraft(event.target.value)}
           onPaste={attachments.onPaste}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {

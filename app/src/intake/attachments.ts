@@ -68,3 +68,5 @@ export function usePastedImages(repoPath?: string) {
 
   return { paths, onPaste, remove, clear };
 }
+
+export type PastedImages = ReturnType<typeof usePastedImages>;
