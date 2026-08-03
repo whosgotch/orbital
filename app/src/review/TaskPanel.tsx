@@ -1,5 +1,5 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, Copy, GitBranch, Pencil, RotateCcw, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
+import { Check, Copy, GitBranch, Pencil, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "../chat/AgentChat";
 import { UsageDetails } from "../chat/UsageDetails";
 import { ReviseBox } from "../chat/ReviseBox";
@@ -37,7 +37,6 @@ type TaskPanelProps = {
   onChangePromptDraft: (text: string) => void;
   onSavePrompt: () => void;
   onDelete: () => void;
-  onRun: () => void;
   onClose: () => void;
   onWidthChange: (width: number) => void;
   taskView: "chat" | "changes";
@@ -67,7 +66,6 @@ export function TaskPanel({
   onChangePromptDraft,
   onSavePrompt,
   onDelete,
-  onRun,
   onClose,
   onWidthChange,
   taskView,
@@ -171,26 +169,14 @@ export function TaskPanel({
               <span className="task-error-title">Blocked</span>
               <pre className="task-error-text">{runtime.blockedReason}</pre>
             </div>
-            <div className="task-error-actions">
-              <button
-                type="button"
-                className="ghost mini-text"
-                onClick={() => navigator.clipboard?.writeText(runtime.blockedReason ?? "")}
-                title="Copy the error"
-                aria-label="Copy the error"
-              >
-                <Copy size={12} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className="node-action secondary"
-                onClick={onRun}
-                title="Start a fresh run of this task"
-              >
-                <RotateCcw size={12} aria-hidden="true" />
-                Run again
-              </button>
-            </div>
+            <button
+              type="button"
+              className="ghost mini-text"
+              onClick={() => navigator.clipboard?.writeText(runtime.blockedReason ?? "")}
+              title="Copy the error"
+            >
+              <Copy size={12} aria-hidden="true" />
+            </button>
           </div>
         ) : null}
 
@@ -274,23 +260,6 @@ export function TaskPanel({
                 <ReviseBox sending={chatSending} onSend={onSendChat} />
               ) : null}
 
-              {commit.hash ? (
-                <div className="landed-commit">
-                  <div className="landed-commit-ref">
-                    {commit.branch ? (
-                      <span className="git-branch-chip">
-                        <GitBranch size={12} aria-hidden="true" />
-                        {commit.branch}
-                      </span>
-                    ) : null}
-                    <code className="history-hash">{commit.hash}</code>
-                  </div>
-                  <span className="landed-commit-subject" title={commit.subject}>
-                    {commit.subject}
-                  </span>
-                </div>
-              ) : null}
-
               <div className="task-gate">
                 {/* Approve + apply is the last step, so the gate says plainly where the
                     code is right now: still in the agent's own worktree. */}
@@ -302,6 +271,21 @@ export function TaskPanel({
                       apply them.
                     </span>
                   </p>
+                ) : null}
+
+                {/* Once it has landed the same slot answers the same question,
+                    just with the answer: the branch and commit it went to. */}
+                {commit.hash ? (
+                  <div className="landed-commit">
+                    {commit.branch ? (
+                      <span className="git-branch-chip">
+                        <GitBranch size={12} aria-hidden="true" />
+                        {commit.branch}
+                      </span>
+                    ) : null}
+                    <code className="history-hash">{commit.hash}</code>
+                    <span>{commit.subject}</span>
+                  </div>
                 ) : null}
 
                 <div className="actions">
