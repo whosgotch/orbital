@@ -276,14 +276,18 @@ export function TaskPanel({
 
               {commit.hash ? (
                 <div className="landed-commit">
-                  {commit.branch ? (
-                    <span className="git-branch-chip">
-                      <GitBranch size={12} aria-hidden="true" />
-                      {commit.branch}
-                    </span>
-                  ) : null}
-                  <code className="history-hash">{commit.hash}</code>
-                  <span>{commit.subject}</span>
+                  <div className="landed-commit-ref">
+                    {commit.branch ? (
+                      <span className="git-branch-chip">
+                        <GitBranch size={12} aria-hidden="true" />
+                        {commit.branch}
+                      </span>
+                    ) : null}
+                    <code className="history-hash">{commit.hash}</code>
+                  </div>
+                  <span className="landed-commit-subject" title={commit.subject}>
+                    {commit.subject}
+                  </span>
                 </div>
               ) : null}
 

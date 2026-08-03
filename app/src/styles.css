@@ -643,13 +643,37 @@ button.prompt-bar-send {
   overflow-y: auto;
 }
 
+/* Branch + hash sit on their own line so a long commit subject can't squeeze
+   them into an unreadable smear in the narrow task panel. */
 .landed-commit {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
   padding: 2px 2px;
   color: var(--muted);
   font-size: 11px;
+}
+
+.landed-commit-ref {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.landed-commit-ref .git-branch-chip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.landed-commit-subject {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .revise-box {
