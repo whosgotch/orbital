@@ -273,6 +273,15 @@ func (s *Service) finishAgentRun(runID string, missionID string) (*domain.AgentR
 			state.Missions[missionIndex].UpdatedAt = completedAt
 		}
 
+		// A chat turn that changed no files proposes no patch, so nothing else
+		// moves the mission off "running" — it would pulse as busy forever and
+		// never look chattable again. Settle it back to rest: where work already
+		// landed the mission is applied, otherwise it is idle and runnable.
+		if !mission.IsTool() && finalStatus == domain.AgentRunStatusCompleted && mission.Status == domain.MissionStatusRunning {
+			state.Missions[missionIndex].Status = restingMissionStatus(state, mission.ID)
+			state.Missions[missionIndex].UpdatedAt = completedAt
+		}
+
 		result = state.AgentRuns[runIndex]
 		return nil
 	})
@@ -282,6 +291,23 @@ func (s *Service) finishAgentRun(runID string, missionID string) (*domain.AgentR
 
 	s.streamAgentRun(result)
 	return &result, nil
+}
+
+// restingMissionStatus is where a mission sits between turns: applied once any
+// of its patches has landed, draft while nothing has.
+func restingMissionStatus(state *store.State, missionID string) domain.MissionStatus {
+	runIDs := make(map[string]bool)
+	for _, run := range state.AgentRuns {
+		if run.MissionID == missionID {
+			runIDs[run.ID] = true
+		}
+	}
+	for _, patch := range state.PatchProposals {
+		if runIDs[patch.RunID] && patch.Status == domain.PatchStatusApplied {
+			return domain.MissionStatusApplied
+		}
+	}
+	return domain.MissionStatusDraft
 }
 
 func (s *Service) saveRunEvent(missionID string, event agent.RunEvent) error {
