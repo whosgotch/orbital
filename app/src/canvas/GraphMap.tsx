@@ -373,7 +373,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       >
         <Background variant={BackgroundVariant.Dots} gap={26} size={1} color="rgba(255, 255, 255, 0.06)" />
         <MiniMap
-          position="bottom-left"
+          position="bottom-right"
           pannable
           zoomable
           style={{ width: 168, height: 110 }}

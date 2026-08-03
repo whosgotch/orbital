@@ -2045,13 +2045,28 @@ dd {
   fill: var(--soft);
 }
 
-/* Margins keep controls/minimap above the prompt bar strip on narrow windows; the .react-flow__panel.bottom rule (below) pins bottom: 0 separately. */
+/* Canvas chrome sits in the two bottom corners rather than stacked into one tall
+   column up the left edge: zoom controls bottom-left, minimap bottom-right. */
 .react-flow__panel.react-flow__controls {
-  margin: 0 0 214px 16px;
+  margin: 0 0 16px 16px;
 }
 
 .react-flow__panel.react-flow__minimap {
-  margin: 0 0 96px 16px;
+  margin: 0 16px 16px 0;
+  transition: margin-right 160ms ease-out;
+}
+
+/* The task panel overlays the right edge of the canvas; slide the minimap clear of it. */
+.canvas-shell.panel-open .react-flow__panel.react-flow__minimap {
+  margin-right: calc(var(--task-panel-width) + 16px);
+}
+
+/* Narrow windows: the centered prompt bar reaches the corners, so lift both above it. */
+@media (max-width: 1100px) {
+  .react-flow__panel.react-flow__controls,
+  .react-flow__panel.react-flow__minimap {
+    margin-bottom: 112px;
+  }
 }
 
 .react-flow__minimap {
