@@ -2047,11 +2047,11 @@ dd {
 
 /* Margins keep controls/minimap above the prompt bar strip on narrow windows; the .react-flow__panel.bottom rule (below) pins bottom: 0 separately. */
 .react-flow__panel.react-flow__controls {
-  margin: 0 0 96px 16px;
+  margin: 0 0 214px 16px;
 }
 
 .react-flow__panel.react-flow__minimap {
-  margin: 0 0 184px 16px;
+  margin: 0 0 96px 16px;
 }
 
 .react-flow__minimap {
