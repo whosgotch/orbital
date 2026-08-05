@@ -44,7 +44,6 @@ export type UseMissionActionsArgs = {
   claudeModel: string;
   claudeEffort: string;
   followUpTarget: { id: string; title: string } | undefined;
-  setDraftingTask: Dispatch<SetStateAction<boolean>>;
   setEditingPrompt: Dispatch<SetStateAction<boolean>>;
 };
 
@@ -65,7 +64,6 @@ export function useMissionActions({
   claudeModel,
   claudeEffort,
   followUpTarget,
-  setDraftingTask,
   setEditingPrompt,
 }: UseMissionActionsArgs) {
   // Dispatch promise rejects when a cancelled mission's agent process dies; swallowed instead of surfaced as an error.
@@ -77,33 +75,6 @@ export function useMissionActions({
   const modelForMission = (missionId: string) =>
     workspaceMissions.find((mission) => mission.id === missionId)?.model || claudeModel;
 
-  // A tool draft's text doubles as its shell command; the worker resolves execution itself, so no worker mode is stamped for tools.
-  const createTaskOnCanvas = async (text: string, run: boolean, kind: "task" | "tool", worker: WorkerMode, model?: string) => {
-    setDraftingTask(false);
-    if (!draftRepository) return;
-    setMissionLoopError("");
-    const isTool = kind === "tool";
-
-    try {
-      const nextMissionLoopState = await queueMissionLoopState(
-        draftRepository.path,
-        text,
-        undefined,
-        isTool ? text : undefined,
-        isTool ? undefined : model || claudeModel,
-      );
-      const missionId = nextMissionLoopState.missions.at(-1)?.id;
-      applyRepoState(nextMissionLoopState);
-      if (missionId) {
-        if (!isTool) setWorkerModeByMission((current) => ({ ...current, [missionId]: worker }));
-        if (run) void dispatchMission(missionId, { repoPath: draftRepository.path, workerMode: isTool ? undefined : worker, model });
-      }
-    } catch (error) {
-      setMissionLoopError(errorMessage(error, "Failed to create task."));
-    }
-  };
-
-  // Downstream task starts automatically once the upstream patch lands.
   const linkTasks = async (fromMissionId: string, toMissionId: string) => {
     setMissionLoopError("");
     const from = workspaceMissions.find((m) => m.id === fromMissionId);
@@ -397,7 +368,6 @@ export function useMissionActions({
 
   return {
     runningMissionIds,
-    createTaskOnCanvas,
     linkTasks,
     unlinkTasks,
     createFromPrompt,

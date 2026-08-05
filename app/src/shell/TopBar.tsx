@@ -1,4 +1,4 @@
-import { ArrowUp, FolderOpen, GitBranch, History, Plus, X } from "lucide-react";
+import { ArrowUp, FolderOpen, GitBranch, History, X } from "lucide-react";
 import type { GitSync, Repository } from "../workspace/domain";
 
 type TopBarProps = {
@@ -8,8 +8,6 @@ type TopBarProps = {
   onCloseRepo: (repositoryId: string) => void;
   onChooseFolder: () => void;
   refreshing: boolean;
-  draftRepositoryAvailable: boolean;
-  onDraftTask: () => void;
   historyOpen: boolean;
   onToggleHistory: () => void;
   // undefined until the repo's position against its remote has been read.
@@ -45,8 +43,6 @@ export function TopBar({
   onCloseRepo,
   onChooseFolder,
   refreshing,
-  draftRepositoryAvailable,
-  onDraftTask,
   historyOpen,
   onToggleHistory,
   gitSync,
@@ -105,16 +101,6 @@ export function TopBar({
             ) : null}
           </button>
         ) : null}
-        <button
-          className="ghost icon-button"
-          type="button"
-          onClick={onDraftTask}
-          disabled={!draftRepositoryAvailable}
-          title={draftRepositoryAvailable ? "Draft a task card on the canvas" : "Open a repository first"}
-          aria-label="Draft a task card"
-        >
-          <Plus size={15} aria-hidden="true" />
-        </button>
         <button
           className={`ghost icon-button ${historyOpen ? "active" : ""}`}
           type="button"

@@ -3,7 +3,6 @@ import { statusFromRuntime, workerModeFromName, workerModeLabel, type WorkerMode
 import { compactLabel } from "../workspace/workspaceAdapter";
 import type { WorkspaceRuntimeMap } from "../workspace/workspaceAdapter";
 import type { MissionNodeStatus, WorkspaceGraphEdge, WorkspaceGraphNode, WorkspaceMission } from "./graph";
-import type { Repository } from "../workspace/domain";
 import type { MissionUsage } from "../workspace/usage";
 
 // Mirrors GraphMap's own GraphNode.
@@ -118,36 +117,12 @@ export function enrichGraphNodes({
   });
 }
 
-// While "+ Task" is open, the canvas shows one extra draft card wired to its
-// repo, in its own lane — authored in place, committed via Queue/Run.
-export function draftTaskNode(draftNodeId: string, draftRepositoryId: string | undefined): WorkspaceGraphNode {
-  return {
-    id: draftNodeId,
-    kind: "task" as const,
-    label: "New task",
-    detail: "task",
-    mission_id: draftNodeId,
-    repository_id: draftRepositoryId,
-    meta: { draft: true },
-  };
+// The canvas renders exactly the graph the workspace hands it — no cards that
+// exist only in the view.
+export function buildCanvasNodes(graphNodes: GraphNode[]): GraphNode[] {
+  return graphNodes;
 }
 
-export function buildCanvasNodes(
-  graphNodes: GraphNode[],
-  draftingTask: boolean,
-  draftNodeId: string,
-  draftRepositoryId: string | undefined,
-): GraphNode[] {
-  if (!draftingTask) return graphNodes;
-  return [...graphNodes, draftTaskNode(draftNodeId, draftRepositoryId)];
-}
-
-export function buildCanvasEdges(
-  graphEdges: WorkspaceGraphEdge[],
-  draftingTask: boolean,
-  draftNodeId: string,
-  draftRepository: Repository | undefined,
-): WorkspaceGraphEdge[] {
-  if (!draftingTask || !draftRepository) return graphEdges;
-  return [...graphEdges, { id: "edge_task_draft", from: draftRepository.id, to: draftNodeId, kind: "owns" as const }];
+export function buildCanvasEdges(graphEdges: WorkspaceGraphEdge[]): WorkspaceGraphEdge[] {
+  return graphEdges;
 }

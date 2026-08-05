@@ -33,15 +33,12 @@ import { findModel } from "../workspace/models";
 
 type GraphNode = WorkspaceGraphNode & { status?: MissionNodeStatus };
 
-export type DraftWorker = "claude-engineer" | "local-command";
 
 export type NodeActions = {
   onRunTask: (missionId: string) => void;
   onApprove: (missionId: string) => void;
   onReject: (missionId: string) => void;
   // Tools resolve their own execution and ignore the worker param.
-  onCreateTask: (text: string, run: boolean, kind: "task" | "tool", worker: DraftWorker, model?: string) => void;
-  onCancelDraft: () => void;
   // A drawn task→task edge makes the downstream task wait for the upstream patch to land; deleting the edge dissolves the dependency.
   onLinkTasks: (fromMissionId: string, toMissionId: string) => void;
   onUnlinkTasks: (fromMissionId: string, toMissionId: string) => void;
@@ -131,8 +128,6 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
       onRunTask: (id) => actionsRef.current.onRunTask(id),
       onApprove: (id) => actionsRef.current.onApprove(id),
       onReject: (id) => actionsRef.current.onReject(id),
-      onCreateTask: (text, run, kind, worker, model) => actionsRef.current.onCreateTask(text, run, kind, worker, model),
-      onCancelDraft: () => actionsRef.current.onCancelDraft(),
       onLinkTasks: (from, to) => actionsRef.current.onLinkTasks(from, to),
       onUnlinkTasks: (from, to) => actionsRef.current.onUnlinkTasks(from, to),
     }),
@@ -436,10 +431,6 @@ function OrbitalNode({ data, selected }: NodeProps) {
   const node = data as OrbitalNodeData;
   const live = node.meta?.live ?? false;
 
-  if (node.kind === "task" && node.meta?.draft) {
-    return <DraftTaskNode node={node} selected={selected ?? false} />;
-  }
-
   // Only task and tool cards accept hand-drawn connections: a chain edge starts the downstream step when the upstream lands.
   const connectable = node.kind === "task" || node.kind === "tool";
 
@@ -458,154 +449,6 @@ function OrbitalNode({ data, selected }: NodeProps) {
       <NodeBody node={node} />
       <NodeFooter node={node} />
       <Handle type="source" position={Position.Right} className="rf-handle" isConnectable={connectable} />
-    </div>
-  );
-}
-
-// Draft text/kind stay local to the card so neither typing nor flipping the Task/Tool switch re-renders the graph.
-function DraftTaskNode({ node, selected }: { node: OrbitalNodeData; selected: boolean }) {
-  const [text, setText] = useState("");
-  const [kind, setKind] = useState<"task" | "tool">("task");
-  const [worker, setWorker] = useState<DraftWorker>("claude-engineer");
-  // Model for this one task; empty follows the global pick.
-  const [model, setModel] = useState("");
-  const models = useModels();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const submit = (run: boolean) => {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      inputRef.current?.focus();
-      return;
-    }
-    node.actions.onCreateTask(trimmed, run, kind, worker, model || undefined);
-  };
-
-  const pickKind = (next: "task" | "tool") => {
-    setKind(next);
-    inputRef.current?.focus();
-  };
-
-  return (
-    <div className={`node-card ${kind} draft ${selected ? "selected" : ""}`}>
-      <Handle type="target" position={Position.Left} className="rf-handle" isConnectable={false} />
-      <div className="node-card-head">
-        <div className="node-draft-kind nodrag" role="tablist" aria-label="Node type">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={kind === "task"}
-            className={`node-draft-kind-option ${kind === "task" ? "active" : ""}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              pickKind("task");
-            }}
-          >
-            Task
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={kind === "tool"}
-            className={`node-draft-kind-option ${kind === "tool" ? "active" : ""}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              pickKind("tool");
-            }}
-          >
-            Tool
-          </button>
-        </div>
-        <button
-          type="button"
-          className="node-draft-close nodrag"
-          title="Discard draft"
-          onClick={(event) => {
-            event.stopPropagation();
-            node.actions.onCancelDraft();
-          }}
-        >
-          <X size={12} aria-hidden="true" />
-        </button>
-      </div>
-      <textarea
-        ref={inputRef}
-        className={`node-draft-input nodrag nowheel ${kind === "tool" ? "mono" : ""}`}
-        placeholder={kind === "tool" ? "Command to run (sh -c in the repo)" : "What should get done?"}
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onMouseDown={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === "Escape") node.actions.onCancelDraft();
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault();
-            submit(true);
-          }
-        }}
-      />
-      <div className="node-card-body">
-        {kind === "task" ? (
-          <div className="node-draft-selects">
-            <select
-              className="node-draft-worker nodrag"
-              aria-label="Agent that runs this task"
-              title="Agent that runs this task"
-              value={worker}
-              onMouseDown={(event) => event.stopPropagation()}
-              onChange={(event) => setWorker(event.target.value as DraftWorker)}
-            >
-              <option value="claude-engineer">Claude</option>
-              <option value="local-command">Local command</option>
-            </select>
-            <select
-              className="node-draft-worker nodrag"
-              aria-label="Model for this task"
-              title="Model for this task (falls back to the global pick)"
-              value={model}
-              onMouseDown={(event) => event.stopPropagation()}
-              onChange={(event) => setModel(event.target.value)}
-            >
-              {/* Not the CLI's default — this defers to the global pick, which the models list itself no longer carries an entry for. */}
-              <option value="">Same as global</option>
-              {models.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-      </div>
-      <div className="node-card-actions">
-        <button
-          type="button"
-          className="node-btn nodrag"
-          onClick={(event) => {
-            event.stopPropagation();
-            submit(false);
-          }}
-        >
-          Queue
-        </button>
-        <button
-          type="button"
-          className="node-btn primary nodrag"
-          title="Create and launch (⌘↵)"
-          onClick={(event) => {
-            event.stopPropagation();
-            submit(true);
-          }}
-        >
-          <Play size={12} aria-hidden="true" />
-          Run
-        </button>
-      </div>
-      <Handle type="source" position={Position.Right} className="rf-handle" isConnectable={false} />
     </div>
   );
 }

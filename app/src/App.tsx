@@ -20,9 +20,6 @@ import { useMissionActions } from "./workspace/useMissionActions";
 import { useRepoHistory } from "./workspace/useRepoHistory";
 import { useGitSync } from "./workspace/useGitSync";
 
-// Exists only in the rendered graph until Create/Run turns it into a real mission, so one well-known id is enough.
-const DRAFT_TASK_NODE_ID = "task_draft";
-
 export function App() {
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const workspace = useWorkspaceState(setSelectedNodeId);
@@ -87,7 +84,6 @@ export function App() {
   const [effortPickerOpen, setEffortPickerOpen] = useState(false);
   // Panel width lives here (not in TaskPanel) because the prompt bar centers itself around the panel via the --task-panel-width CSS var on the shell.
   const [taskPanelWidth, setTaskPanelWidth] = useState(loadPanelWidth);
-  const [draftingTask, setDraftingTask] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -98,8 +94,6 @@ export function App() {
   const [commitMessageEdit, setCommitMessageEdit] = useState<string | null>(null);
 
   const handleSelectNode = (nodeId: string) => {
-    // The draft card is an input surface, not a mission — clicking it while typing must not steal the selection onto some other node.
-    if (nodeId === DRAFT_TASK_NODE_ID) return;
     setSelectedNodeId(nodeId);
     const node = workspaceGraphNodes.find((item) => item.id === nodeId);
     if (!node) return;
@@ -199,12 +193,10 @@ export function App() {
     claudeModel,
     claudeEffort,
     followUpTarget,
-    setDraftingTask,
     setEditingPrompt,
   });
   const {
     runningMissionIds,
-    createTaskOnCanvas,
     linkTasks,
     unlinkTasks,
     createFromPrompt,
@@ -283,13 +275,13 @@ export function App() {
   const graphEdges = workspaceGraphEdges;
 
   const canvasNodes = useMemo(
-    () => buildCanvasNodes(graphNodes, draftingTask, DRAFT_TASK_NODE_ID, draftRepository?.id),
-    [graphNodes, draftingTask, draftRepository?.id],
+    () => buildCanvasNodes(graphNodes),
+    [graphNodes],
   );
 
   const canvasEdges = useMemo(
-    () => buildCanvasEdges(graphEdges, draftingTask, DRAFT_TASK_NODE_ID, draftRepository),
-    [graphEdges, draftingTask, draftRepository],
+    () => buildCanvasEdges(graphEdges),
+    [graphEdges],
   );
 
   // The top bar's push control is always on screen, so the repo's git state is
@@ -331,15 +323,11 @@ export function App() {
         setEffortPickerOpen(false);
         return;
       }
-      if (draftingTask) {
-        setDraftingTask(false);
-        return;
-      }
       setSelectedNodeId("");
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [diffModalOpen, historyOpen, modelPickerOpen, effortPickerOpen, draftingTask, repoHistory]);
+  }, [diffModalOpen, historyOpen, modelPickerOpen, effortPickerOpen, repoHistory]);
 
   // Canvas keybinds for the selected node. Delete/Backspace removes it: a
   // mission node runs the panel's confirm-and-delete flow; a repo node closes
@@ -385,8 +373,6 @@ export function App() {
         onCloseRepo={closeRepo}
         onChooseFolder={chooseWorkspaceFolder}
         refreshing={refreshingMissionLoop}
-        draftRepositoryAvailable={Boolean(draftRepository)}
-        onDraftTask={() => setDraftingTask(true)}
         historyOpen={historyOpen}
         onToggleHistory={toggleHistory}
         gitSync={gitSync.sync}
@@ -406,8 +392,6 @@ export function App() {
             onRunTask: (missionId) => void dispatchMission(missionId),
             onApprove: (missionId) => void approveMission(missionId),
             onReject: (missionId) => void rejectMission(missionId),
-            onCreateTask: (text, run, kind, worker, model) => void createTaskOnCanvas(text, run, kind, worker, model),
-            onCancelDraft: () => setDraftingTask(false),
             onLinkTasks: (from, to) => void linkTasks(from, to),
             onUnlinkTasks: (from, to) => void unlinkTasks(from, to),
           }}
