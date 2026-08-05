@@ -12,7 +12,6 @@ import { loadGitSync, pushRepo } from "./missionLoopLoader";
 export function useGitSync(repoPath: string) {
   const [sync, setSync] = useState<GitSync | undefined>(undefined);
   const [pushing, setPushing] = useState(false);
-  const [error, setError] = useState("");
 
   const refresh = async () => {
     if (!repoPath) {
@@ -27,20 +26,23 @@ export function useGitSync(repoPath: string) {
     }
   };
 
-  const push = async () => {
-    if (!repoPath) return;
-    setError("");
+  // Returns the failure to report, or "" — git's own words (rejected push,
+  // missing credentials) beat anything this layer could invent, and the caller
+  // owns the one error surface the app has.
+  const push = async (): Promise<string> => {
+    if (!repoPath) return "";
     setPushing(true);
     try {
       setSync(await pushRepo(repoPath));
+      return "";
     } catch (cause) {
       console.error("[orbital] push failed", cause);
-      setError(typeof cause === "string" ? cause : "Failed to push.");
       void refresh();
+      return typeof cause === "string" ? cause : "Failed to push.";
     } finally {
       setPushing(false);
     }
   };
 
-  return { sync, pushing, error, refresh, push };
+  return { sync, pushing, refresh, push };
 }

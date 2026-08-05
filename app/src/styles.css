@@ -167,6 +167,43 @@ h3 {
   gap: 4px;
 }
 
+/* Branch + how far ahead of the remote it is. Pushing sends the branch, so the
+   control wears the branch's name rather than any one commit's. */
+.branch-push {
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.branch-push-name {
+  max-width: 160px;
+  overflow: hidden;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The count is the part that means "there is something to do", so it keeps full
+   contrast while the branch name stays quiet. */
+.branch-push-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 4px 0 3px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.branch-push:disabled {
+  opacity: 1;
+  color: var(--muted);
+}
+
 .topbar-model {
   position: relative;
 }
@@ -708,11 +745,6 @@ button.prompt-bar-send {
   color: var(--text);
 }
 
-.commit-row-btn.push {
-  border-color: var(--line-strong);
-  color: var(--text);
-}
-
 /* The commit message is text the user edits, so it reads like the editor it is:
    monospace, sized to a subject line, growable for a body. */
 .commit-message-input {
@@ -736,10 +768,6 @@ button.prompt-bar-send {
 
 .commit-message-input:disabled {
   opacity: 0.55;
-}
-
-.gate-note-error svg {
-  color: var(--red);
 }
 
 .diff-modal-commit {

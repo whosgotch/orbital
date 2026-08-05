@@ -231,6 +231,14 @@ export function App() {
     return amended;
   };
 
+  // Pushing sends the branch, not a mission, so it reports through the app's own
+  // error banner rather than inside whichever task happens to be open.
+  const pushBranch = async () => {
+    setMissionLoopError("");
+    const failure = await gitSync.push();
+    if (failure) setMissionLoopError(failure);
+  };
+
   const showTaskView = (view: "chat" | "changes") => {
     setTaskView(view);
     // The gate is the only place that shows push state, so it reads git fresh
@@ -283,6 +291,14 @@ export function App() {
     () => buildCanvasEdges(graphEdges, draftingTask, DRAFT_TASK_NODE_ID, draftRepository),
     [graphEdges, draftingTask, draftRepository],
   );
+
+  // The top bar's push control is always on screen, so the repo's git state is
+  // read whenever the active repo changes — including the session reopen that
+  // sets it on launch, which no click precedes.
+  useEffect(() => {
+    void gitSync.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRepoPath]);
 
   useEffect(() => {
     void reopenLastSession();
@@ -373,6 +389,9 @@ export function App() {
         onDraftTask={() => setDraftingTask(true)}
         historyOpen={historyOpen}
         onToggleHistory={toggleHistory}
+        gitSync={gitSync.sync}
+        pushing={gitSync.pushing}
+        onPush={() => void pushBranch()}
       />
 
       <div className="canvas-area">
@@ -471,9 +490,6 @@ export function App() {
           commitMessage={commitMessage}
           onChangeCommitMessage={setCommitMessageEdit}
           gitSync={gitSync.sync}
-          pushing={gitSync.pushing}
-          pushError={gitSync.error}
-          onPush={() => void gitSync.push()}
           onAmend={(message) => amendCommit(selectedMission.id, message)}
         />
       ) : null}

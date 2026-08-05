@@ -1,5 +1,5 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { ArrowUp, Check, Copy, Pencil, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
+import { Check, Copy, Pencil, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "../chat/AgentChat";
 import { UsageDetails } from "../chat/UsageDetails";
 import { ReviseBox } from "../chat/ReviseBox";
@@ -59,36 +59,21 @@ type TaskPanelProps = {
   onChangeCommitMessage: (message: string) => void;
   // undefined until the repo's position against its remote has been read.
   gitSync: GitSync | undefined;
-  pushing: boolean;
-  pushError: string;
-  onPush: () => void;
   onAmend: (message: string) => Promise<boolean>;
 };
 
-// What the push control offers, given where the branch stands. Undefined sync
-// means it hasn't been read yet, and an unread repo gets no button at all —
-// claiming "no remote" before looking is how you accuse a repo of missing an
-// origin it has. A branch with no upstream publishes (that push sets it);
-// with nothing ahead there is nothing to do, so the control says "Pushed".
-function pushAction(sync: GitSync | undefined): { show: boolean; label: string; title: string; disabled: boolean } {
-  const hidden = { show: false, label: "", title: "", disabled: true };
-  if (!sync) return hidden;
-  if (!sync.remote) {
-    return { show: true, label: "Push", title: "No git remote — add one to push.", disabled: true };
-  }
-  const behind = sync.behind > 0 ? `, ${sync.behind} behind` : "";
-  if (!sync.upstream) {
-    return { show: true, label: "Publish", title: `Publish ${sync.branch} to ${sync.remote}`, disabled: false };
-  }
-  if (sync.ahead === 0) {
-    return { show: true, label: "Pushed", title: `Up to date with ${sync.upstream}${behind}`, disabled: true };
-  }
-  return {
-    show: true,
-    label: `Push ${sync.ahead}`,
-    title: `Push ${sync.ahead} commit${sync.ahead === 1 ? "" : "s"} to ${sync.upstream}${behind}`,
-    disabled: false,
-  };
+// Whether this one commit has reached the remote — a fact about the commit, so
+// it belongs next to it. Pushing itself does not: it sends the whole branch,
+// other missions' commits included, and lives in the top bar.
+//
+// Only stated when it can be known for certain: with nothing ahead every local
+// commit is pushed, and the newest commit is unpushed whenever anything is
+// ahead. An older commit while the branch is ahead is genuinely unknowable from
+// here, and says nothing rather than guessing.
+function commitPushState(sync: GitSync | undefined, hash: string): string {
+  if (!sync || !sync.upstream || !hash) return "";
+  if (sync.ahead === 0) return "pushed";
+  return sync.head === hash ? "not pushed" : "";
 }
 
 export function TaskPanel({
@@ -121,9 +106,6 @@ export function TaskPanel({
   commitMessage,
   onChangeCommitMessage,
   gitSync,
-  pushing,
-  pushError,
-  onPush,
   onAmend,
 }: TaskPanelProps) {
   // Which mission's prompt is expanded past the two-line clamp — keyed by id
@@ -147,7 +129,7 @@ export function TaskPanel({
     setAmendDraft(null);
     attachments.clear();
   }
-  const push = pushAction(gitSync);
+  const pushed = commitPushState(gitSync, commit.hash);
   // Rewording reaches exactly one commit: the last one, and only while it is
   // still yours alone. Anything landed on top puts it out of reach, and once it
   // is pushed a reword would diverge from the remote. Neither state ever
@@ -371,10 +353,10 @@ export function TaskPanel({
                             <span>{commit.branch}</span>
                           </>
                         ) : null}
-                        {gitSync && gitSync.behind > 0 ? (
+                        {pushed ? (
                           <>
                             <span className="commit-row-sep">·</span>
-                            <span>{gitSync.behind} behind</span>
+                            <span>{pushed}</span>
                           </>
                         ) : null}
                       </span>
@@ -390,18 +372,6 @@ export function TaskPanel({
                           aria-label="Amend commit message"
                         >
                           <Pencil size={12} aria-hidden="true" />
-                        </button>
-                      ) : null}
-                      {push.show ? (
-                        <button
-                          className="commit-row-btn push"
-                          type="button"
-                          disabled={push.disabled || pushing}
-                          onClick={onPush}
-                          title={push.title}
-                        >
-                          <ArrowUp size={12} aria-hidden="true" />
-                          <span>{pushing ? "Pushing…" : push.label}</span>
                         </button>
                       ) : null}
                     </span>
@@ -436,13 +406,6 @@ export function TaskPanel({
                       </button>
                     </div>
                   </div>
-                ) : null}
-
-                {pushError ? (
-                  <p className="gate-note gate-note-error" role="alert">
-                    <TriangleAlert size={13} aria-hidden="true" />
-                    <span>{pushError}</span>
-                  </p>
                 ) : null}
 
                 {patchReady && runtime.patchStatus === "pending" ? (

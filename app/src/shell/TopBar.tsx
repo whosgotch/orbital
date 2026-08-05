@@ -1,5 +1,5 @@
-import { FolderOpen, History, Plus, X } from "lucide-react";
-import type { Repository } from "../workspace/domain";
+import { ArrowUp, FolderOpen, GitBranch, History, Plus, X } from "lucide-react";
+import type { GitSync, Repository } from "../workspace/domain";
 
 type TopBarProps = {
   repositories: Repository[];
@@ -12,7 +12,31 @@ type TopBarProps = {
   onDraftTask: () => void;
   historyOpen: boolean;
   onToggleHistory: () => void;
+  // undefined until the repo's position against its remote has been read.
+  gitSync: GitSync | undefined;
+  pushing: boolean;
+  onPush: () => void;
 };
+
+// Pushing sends the whole branch, so it says so here rather than in a task's
+// gate, where every control acts on that one mission's patch.
+function pushState(sync: GitSync): { label: string; title: string; disabled: boolean } {
+  const behind = sync.behind > 0 ? `, ${sync.behind} behind` : "";
+  if (!sync.remote) {
+    return { label: "", title: `${sync.branch} has no git remote — add one to push`, disabled: true };
+  }
+  if (!sync.upstream) {
+    return { label: "Publish", title: `Publish ${sync.branch} to ${sync.remote}`, disabled: false };
+  }
+  if (sync.ahead === 0) {
+    return { label: "", title: `Up to date with ${sync.upstream}${behind}`, disabled: true };
+  }
+  return {
+    label: String(sync.ahead),
+    title: `Push ${sync.ahead} commit${sync.ahead === 1 ? "" : "s"} to ${sync.upstream}${behind}`,
+    disabled: false,
+  };
+}
 
 export function TopBar({
   repositories,
@@ -25,7 +49,12 @@ export function TopBar({
   onDraftTask,
   historyOpen,
   onToggleHistory,
+  gitSync,
+  pushing,
+  onPush,
 }: TopBarProps) {
+  const push = gitSync ? pushState(gitSync) : undefined;
+
   return (
     <header className="topbar">
       <div className="topbar-repos">
@@ -58,6 +87,24 @@ export function TopBar({
       </div>
 
       <div className="topbar-actions">
+        {gitSync && push ? (
+          <button
+            className="ghost branch-push"
+            type="button"
+            onClick={onPush}
+            disabled={push.disabled || pushing}
+            title={push.title}
+          >
+            <GitBranch size={13} aria-hidden="true" />
+            <span className="branch-push-name">{gitSync.branch}</span>
+            {push.label ? (
+              <span className="branch-push-count">
+                <ArrowUp size={11} aria-hidden="true" />
+                {pushing ? "…" : push.label}
+              </span>
+            ) : null}
+          </button>
+        ) : null}
         <button
           className="ghost icon-button"
           type="button"
