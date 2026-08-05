@@ -17,7 +17,11 @@ type DiffModalProps = {
   onSendChat: (text: string) => void;
   onClose: () => void;
   onReject: () => void;
-  onApprove: () => void;
+  onApprove: (message: string) => void;
+  // Shared with the task panel's gate — reviewing here and committing there are
+  // the same act, so they must be holding the same message.
+  commitMessage: string;
+  onChangeCommitMessage: (message: string) => void;
 };
 
 function splitPath(path: string): { dir: string; base: string } {
@@ -116,6 +120,8 @@ export function DiffModal({
   onClose,
   onReject,
   onApprove,
+  commitMessage,
+  onChangeCommitMessage,
 }: DiffModalProps) {
   const files = useMemo(
     () => (patchReady && patchDiff.trim() ? parseUnifiedDiff(patchDiff) : []),
@@ -178,15 +184,31 @@ export function DiffModal({
           </div>
         </div>
         {patchReady && mission.kind !== "tool" ? <ReviseBox sending={chatSending} onSend={onSendChat} /> : null}
-        <div className="actions">
-          <button className="secondary" type="button" disabled={!patchReady || runtime.patchStatus !== "pending"} onClick={onReject}>
-            <X size={16} aria-hidden="true" />
-            <span>Reject</span>
-          </button>
-          <button className="primary" type="button" disabled={!patchReady || runtime.patchStatus !== "pending"} onClick={onApprove}>
-            <Check size={16} aria-hidden="true" />
-            <span>Approve + apply</span>
-          </button>
+        <div className="diff-modal-commit">
+          <textarea
+            className="commit-message-input"
+            aria-label="Commit message"
+            placeholder="Commit message"
+            value={commitMessage}
+            onChange={(event) => onChangeCommitMessage(event.target.value)}
+            rows={2}
+            disabled={!patchReady || runtime.patchStatus !== "pending"}
+          />
+          <div className="actions">
+            <button className="secondary" type="button" disabled={!patchReady || runtime.patchStatus !== "pending"} onClick={onReject}>
+              <X size={16} aria-hidden="true" />
+              <span>Reject</span>
+            </button>
+            <button
+              className="primary"
+              type="button"
+              disabled={!patchReady || runtime.patchStatus !== "pending" || !commitMessage.trim()}
+              onClick={() => onApprove(commitMessage)}
+            >
+              <Check size={16} aria-hidden="true" />
+              <span>Commit</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -334,13 +334,37 @@ fn unlink_missions(
 }
 
 #[tauri::command]
-fn approve_patch(repo_path: String, mission_id: String) -> Result<String, String> {
-    run_worker(&["approve", repo_path.trim(), mission_id.trim()])
+fn approve_patch(repo_path: String, mission_id: String, message: String) -> Result<String, String> {
+    run_worker(&[
+        "approve",
+        repo_path.trim(),
+        mission_id.trim(),
+        message.trim(),
+    ])
 }
 
 #[tauri::command]
 fn reject_patch(repo_path: String, mission_id: String) -> Result<String, String> {
     run_worker(&["reject", repo_path.trim(), mission_id.trim()])
+}
+
+#[tauri::command]
+fn amend_commit(repo_path: String, mission_id: String, message: String) -> Result<String, String> {
+    run_worker(&["amend", repo_path.trim(), mission_id.trim(), message.trim()])
+}
+
+#[tauri::command]
+fn git_sync(repo_path: String) -> Result<String, String> {
+    run_worker(&["git-sync", repo_path.trim()])
+}
+
+// Pushing talks to a remote, so it can take seconds: off the UI thread or the
+// window freezes for the whole round trip.
+#[tauri::command]
+async fn push_repo(repo_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || run_worker(&["push", repo_path.trim()]))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 fn run_worker_streaming(
@@ -497,6 +521,9 @@ pub fn run() {
             unlink_missions,
             approve_patch,
             reject_patch,
+            amend_commit,
+            git_sync,
+            push_repo,
             load_repo_history,
             load_commit_diff,
             list_models

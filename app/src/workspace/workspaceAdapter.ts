@@ -21,8 +21,10 @@ export type WorkspaceRuntime = {
 
 export type WorkspaceRuntimeMap = Record<string, WorkspaceRuntime>;
 
-// hash "" means nothing has landed yet (draft, pending, or a re-apply that changed nothing).
-export type CommitInfo = { hash: string; subject: string; branch: string };
+// hash "" means nothing has landed yet (draft, pending, or a re-apply that
+// changed nothing). draftMessage is what the gate's message box starts with
+// before anything lands: the engineer's own subject, else the mission's first line.
+export type CommitInfo = { hash: string; subject: string; branch: string; draftMessage: string };
 
 export type WorkspaceView = {
   missions: WorkspaceMission[];
@@ -71,7 +73,12 @@ export function workspaceViewFromMissionLoop(state: MissionLoopState): Workspace
       const patch = latestPatchForMission(state, mission.id);
       return [
         mission.id,
-        { hash: patch?.commit_hash ?? "", subject: patch?.commit_subject ?? "", branch: patch?.branch ?? "" },
+        {
+          hash: patch?.commit_hash ?? "",
+          subject: patch?.commit_subject ?? "",
+          branch: patch?.branch ?? "",
+          draftMessage: commitDraftMessage(patch?.suggested_subject, mission.text),
+        },
       ];
     }),
   );
@@ -308,6 +315,16 @@ function patchStatus(status: WorkerPatchStatus | undefined): PatchStatus {
 // A mission can span several runs (an AI manager spawns child agents). Find the
 // latest patch from the most recent run that produced one, so the CEO gate shows
 // and approves the same patch the worker `approve` command resolves.
+// Mirrors the worker's commitSubject (patch.go), so the box is pre-filled with
+// exactly the message an untouched approve would have committed.
+const COMMIT_SUBJECT_MAX = 72;
+
+function commitDraftMessage(suggestedSubject: string | undefined, missionText: string): string {
+  const suggested = (suggestedSubject ?? "").trim();
+  const subject = (suggested || stripAttachmentLines(missionText).trim()).split("\n")[0].trim();
+  return subject.length > COMMIT_SUBJECT_MAX ? `${subject.slice(0, COMMIT_SUBJECT_MAX - 3)}...` : subject;
+}
+
 function latestPatchForMission(state: MissionLoopState, missionId: string) {
   const runs = state.agent_runs.filter((run) => run.mission_id === missionId);
   for (let index = runs.length - 1; index >= 0; index--) {

@@ -676,6 +676,74 @@ button.prompt-bar-send {
   white-space: nowrap;
 }
 
+/* The commit message is text the user edits, so it reads like the editor it is:
+   monospace, sized to a subject line, growable for a body. */
+.commit-message-input {
+  width: 100%;
+  margin-top: 10px;
+  resize: vertical;
+  padding: 8px 11px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2, rgba(255, 255, 255, 0.03));
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.commit-message-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.commit-message-input:disabled {
+  opacity: 0.55;
+}
+
+/* Push row: where the branch stands on the left, what you can do about it on
+   the right. */
+.commit-sync {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.commit-sync-note {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-sync-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.gate-note-error svg {
+  color: var(--red);
+}
+
+.diff-modal-commit {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.diff-modal-commit .commit-message-input {
+  flex: 1 1 auto;
+}
+
+.diff-modal-commit .actions {
+  flex: none;
+}
+
 .revise-box {
   flex: 0 0 auto;
   position: relative;

@@ -13,6 +13,7 @@ import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, Repository
 import type { WorkspaceMission } from "../canvas/graph";
 import type { WorkspaceRuntimeMap } from "./workspaceAdapter";
 import {
+  amendCommitMissionLoopState,
   approvePatchMissionLoopState,
   deleteMissionLoopState,
   linkMissionsLoopState,
@@ -299,15 +300,31 @@ export function useMissionActions({
     }
   };
 
-  const approveMission = async (missionId: string) => {
+  // message is what the gate's commit box holds; it becomes the commit message.
+  const approveMission = async (missionId: string, message = "") => {
     setMissionLoopError("");
 
     try {
-      const nextMissionLoopState = await approvePatchMissionLoopState(repoPathForMission(missionId), missionId);
+      const nextMissionLoopState = await approvePatchMissionLoopState(repoPathForMission(missionId), missionId, message);
       applyRepoState(nextMissionLoopState);
       autoDispatchChained(missionId, nextMissionLoopState);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to approve patch."));
+    }
+  };
+
+  // Rewords the commit a mission landed. Fails loudly (rather than silently
+  // rewriting history) once another commit sits on top — that guard is the
+  // worker's, and its message is what the user sees.
+  const amendMissionCommit = async (missionId: string, message: string) => {
+    setMissionLoopError("");
+
+    try {
+      applyRepoState(await amendCommitMissionLoopState(repoPathForMission(missionId), missionId, message));
+      return true;
+    } catch (error) {
+      setMissionLoopError(errorMessage(error, "Failed to amend the commit."));
+      return false;
     }
   };
 
@@ -388,6 +405,7 @@ export function useMissionActions({
     dispatchMission,
     sendAgentChat,
     approveMission,
+    amendMissionCommit,
     rejectMission,
     deleteMission,
     saveMissionPrompt,

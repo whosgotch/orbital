@@ -128,6 +128,20 @@ export type PatchProposal = {
   commit_hash?: string;
   commit_subject?: string;
   branch?: string;
+  // The Conventional Commits subject the engineer proposed for its own diff —
+  // what the gate's commit-message box starts out holding.
+  suggested_subject?: string;
+};
+
+// Where the repo stands against its remote, for the gate's push control.
+// remote "" means there is nowhere to push; upstream "" means the branch exists
+// only locally and pushing would publish it.
+export type GitSync = {
+  branch: string;
+  remote: string;
+  upstream: string;
+  ahead: number;
+  behind: number;
 };
 
 export type RepoCommit = {

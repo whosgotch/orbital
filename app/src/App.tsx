@@ -18,6 +18,7 @@ import { useModelCatalog } from "./workspace/useModels";
 import { useWorkspaceState } from "./workspace/useWorkspaceState";
 import { useMissionActions } from "./workspace/useMissionActions";
 import { useRepoHistory } from "./workspace/useRepoHistory";
+import { useGitSync } from "./workspace/useGitSync";
 
 // Exists only in the rendered graph until Create/Run turns it into a real mission, so one well-known id is enough.
 const DRAFT_TASK_NODE_ID = "task_draft";
@@ -91,6 +92,10 @@ export function App() {
   const [promptDraft, setPromptDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const repoHistory = useRepoHistory(activeRepoPath);
+  const gitSync = useGitSync(activeRepoPath);
+  // The commit message the gate is about to use. null = untouched, so the box
+  // keeps following the engineer's suggestion until the user types.
+  const [commitMessageEdit, setCommitMessageEdit] = useState<string | null>(null);
 
   const handleSelectNode = (nodeId: string) => {
     // The draft card is an input surface, not a mission — clicking it while typing must not steal the selection onto some other node.
@@ -119,8 +124,20 @@ export function App() {
     followUpDismissedFor === selectedNodeId ? undefined : followUpTargetFor(selectedGraphNode, workspaceMissions);
   const selectedRuntime = (selectedMission ? runtimeByMission[selectedMission.id] : undefined) ?? queuedRuntime;
   const selectedPatchDiff = (selectedMission ? patchDiffByMission[selectedMission.id] : undefined) ?? "";
-  const selectedCommit = (selectedMission ? commitByMission[selectedMission.id] : undefined) ?? { hash: "", subject: "", branch: "" };
+  const selectedCommit = (selectedMission ? commitByMission[selectedMission.id] : undefined) ?? {
+    hash: "",
+    subject: "",
+    branch: "",
+    draftMessage: "",
+  };
   const patchReady = (selectedPatchDiff ?? "") !== "";
+  // Render-phase reset: a message typed for one task never carries to another.
+  const [commitDraftFor, setCommitDraftFor] = useState(selectedMissionId ?? "");
+  if (commitDraftFor !== (selectedMissionId ?? "")) {
+    setCommitDraftFor(selectedMissionId ?? "");
+    setCommitMessageEdit(null);
+  }
+  const commitMessage = commitMessageEdit ?? selectedCommit.draftMessage;
 
   // The mission is one card, so its chat is the whole mission's transcript — every run it has had, in order.
   const agentTranscript = useMemo(
@@ -191,10 +208,32 @@ export function App() {
     dispatchMission,
     sendAgentChat,
     approveMission,
+    amendMissionCommit,
     rejectMission,
     deleteMission,
     saveMissionPrompt,
   } = missionActions;
+
+  // Committing moves the repo's HEAD, so the push control's read of where the
+  // branch stands has to be taken again right after.
+  const commitMission = async (missionId: string, message: string) => {
+    await approveMission(missionId, message);
+    setCommitMessageEdit(null);
+    void gitSync.refresh();
+  };
+
+  const amendCommit = async (missionId: string, message: string) => {
+    const amended = await amendMissionCommit(missionId, message);
+    if (amended) void gitSync.refresh();
+    return amended;
+  };
+
+  const showTaskView = (view: "chat" | "changes") => {
+    setTaskView(view);
+    // The gate is the only place that shows push state, so it reads git fresh
+    // on the way in rather than being polled.
+    if (view === "changes") void gitSync.refresh();
+  };
 
   const beginEditPrompt = () => {
     setPromptDraft(selectedMissionRecord?.text ?? selectedMission?.prompt ?? "");
@@ -411,7 +450,7 @@ export function App() {
           onClose={() => setSelectedNodeId("")}
           onWidthChange={setTaskPanelWidth}
           taskView={taskView}
-          onChangeTaskView={setTaskView}
+          onChangeTaskView={showTaskView}
           agentStatus={agentStatus}
           patchReady={patchReady}
           commit={selectedCommit}
@@ -425,7 +464,14 @@ export function App() {
           }}
           onSendChat={(text) => void sendAgentChat(selectedMission.id, text)}
           onReject={() => void rejectMission(selectedMission.id)}
-          onApprove={() => void approveMission(selectedMission.id)}
+          onApprove={(message) => void commitMission(selectedMission.id, message)}
+          commitMessage={commitMessage}
+          onChangeCommitMessage={setCommitMessageEdit}
+          gitSync={gitSync.sync}
+          pushing={gitSync.pushing}
+          pushError={gitSync.error}
+          onPush={() => void gitSync.push()}
+          onAmend={(message) => amendCommit(selectedMission.id, message)}
         />
       ) : null}
 
@@ -444,10 +490,12 @@ export function App() {
             void rejectMission(selectedMission.id);
             setDiffModalOpen(false);
           }}
-          onApprove={() => {
-            void approveMission(selectedMission.id);
+          onApprove={(message) => {
+            void commitMission(selectedMission.id, message);
             setDiffModalOpen(false);
           }}
+          commitMessage={commitMessage}
+          onChangeCommitMessage={setCommitMessageEdit}
         />
       ) : null}
 

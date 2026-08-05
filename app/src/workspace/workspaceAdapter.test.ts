@@ -92,7 +92,35 @@ describe("workspaceViewFromMissionLoop", () => {
     expect(view.graphEdges.map((edge) => edge.kind)).toEqual(["owns"]);
     expect(view.runtimeByMission.m1.status).toBe("review");
     expect(view.patchDiffByMission.m1).toBe(pendingPatch.diff);
-    expect(view.commitByMission.m1).toEqual({ hash: "", subject: "", branch: "" });
+    // Nothing landed yet, but the gate's message box already has its pre-fill.
+    expect(view.commitByMission.m1).toEqual({
+      hash: "",
+      subject: "",
+      branch: "",
+      draftMessage: "add a version command to the cli",
+    });
+  });
+
+  it("pre-fills the commit box with the engineer's own subject when it proposed one", () => {
+    const view = workspaceViewFromMissionLoop(
+      state({
+        missions: [mission({ status: "waiting_approval" })],
+        agent_runs: [run],
+        patch_proposals: [{ ...pendingPatch, suggested_subject: "feat(cli): add a version command" }],
+      }),
+    );
+    expect(view.commitByMission.m1.draftMessage).toBe("feat(cli): add a version command");
+  });
+
+  it("caps a pre-filled subject the way git likes it", () => {
+    const view = workspaceViewFromMissionLoop(
+      state({
+        missions: [mission({ status: "waiting_approval", text: "x".repeat(120) })],
+        agent_runs: [run],
+        patch_proposals: [pendingPatch],
+      }),
+    );
+    expect(view.commitByMission.m1.draftMessage).toBe(`${"x".repeat(69)}...`);
   });
 
   it("surfaces the landed commit once a patch's apply recorded one", () => {
@@ -106,7 +134,12 @@ describe("workspaceViewFromMissionLoop", () => {
     const view = workspaceViewFromMissionLoop(
       state({ missions: [mission({ status: "applied" })], agent_runs: [run], patch_proposals: [appliedPatch] }),
     );
-    expect(view.commitByMission.m1).toEqual({ hash: "abc1234", subject: "add a version command to the cli", branch: "main" });
+    expect(view.commitByMission.m1).toEqual({
+      hash: "abc1234",
+      subject: "add a version command to the cli",
+      branch: "main",
+      draftMessage: "add a version command to the cli",
+    });
   });
 
   it("keeps a tool mission as one node with no pipeline stages", () => {

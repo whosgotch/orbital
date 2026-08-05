@@ -1,5 +1,5 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, Copy, GitBranch, Pencil, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Check, Copy, GitBranch, Pencil, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "../chat/AgentChat";
 import { UsageDetails } from "../chat/UsageDetails";
 import { ReviseBox } from "../chat/ReviseBox";
@@ -8,7 +8,7 @@ import type { TranscriptEntry } from "../chat/AgentTranscript";
 import type { AgentStatusModel } from "../chat/statusModel";
 import type { CommitInfo, WorkspaceRuntime } from "../workspace/workspaceAdapter";
 import type { WorkspaceMission } from "../canvas/graph";
-import type { ChatMessage, Repository } from "../workspace/domain";
+import type { ChatMessage, GitSync, Repository } from "../workspace/domain";
 
 const PANEL_WIDTH_KEY = "orbital.taskPanelWidth";
 const PANEL_WIDTH_MIN = 320;
@@ -52,8 +52,38 @@ type TaskPanelProps = {
   onOpenDiffFile: (path: string) => void;
   onSendChat: (text: string) => void;
   onReject: () => void;
-  onApprove: () => void;
+  onApprove: (message: string) => void;
+  // The commit message lives in App because the full-diff modal offers the same
+  // commit button, and both must be about to commit the same thing.
+  commitMessage: string;
+  onChangeCommitMessage: (message: string) => void;
+  gitSync: GitSync;
+  pushing: boolean;
+  pushError: string;
+  onPush: () => void;
+  onAmend: (message: string) => Promise<boolean>;
 };
+
+// What the push control offers, given where the branch stands. A branch with no
+// upstream gets "Publish" (that push also sets the upstream); with nothing ahead
+// there is nothing to do, so the button says so instead of pretending.
+function pushAction(sync: GitSync): { label: string; note: string; disabled: boolean } {
+  if (!sync.remote) {
+    return { label: "Push", note: "No git remote — add one to push.", disabled: true };
+  }
+  const behind = sync.behind > 0 ? ` · ${sync.behind} behind` : "";
+  if (!sync.upstream) {
+    return { label: "Publish branch", note: `${sync.branch} is local only — publish it to ${sync.remote}`, disabled: false };
+  }
+  if (sync.ahead === 0) {
+    return { label: "Push", note: `Up to date with ${sync.upstream}${behind}`, disabled: true };
+  }
+  return {
+    label: `Push ${sync.ahead}`,
+    note: `${sync.ahead} commit${sync.ahead === 1 ? "" : "s"} to push to ${sync.upstream}${behind}`,
+    disabled: false,
+  };
+}
 
 export function TaskPanel({
   mission,
@@ -82,6 +112,13 @@ export function TaskPanel({
   onSendChat,
   onReject,
   onApprove,
+  commitMessage,
+  onChangeCommitMessage,
+  gitSync,
+  pushing,
+  pushError,
+  onPush,
+  onAmend,
 }: TaskPanelProps) {
   // Which mission's prompt is expanded past the two-line clamp — keyed by id
   // so switching nodes collapses it again without any effect.
@@ -95,12 +132,16 @@ export function TaskPanel({
   const attachments = usePastedImages(repository?.path);
   // Render-phase reset (the React "adjust state on prop change" pattern), so a
   // draft written for one task never lands in another's composer.
+  // Non-null while the landed commit's message is being reworded.
+  const [amendDraft, setAmendDraft] = useState<string | null>(null);
   const [composerMissionId, setComposerMissionId] = useState(mission.id);
   if (composerMissionId !== mission.id) {
     setComposerMissionId(mission.id);
     setChatDraft("");
+    setAmendDraft(null);
     attachments.clear();
   }
+  const push = pushAction(gitSync);
 
   const onResizeHandlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -290,6 +331,20 @@ export function TaskPanel({
                   </p>
                 ) : null}
 
+                {/* The commit message is the user's to write: the box holds
+                    what the engineer suggested, and whatever it says at the
+                    moment they commit is what git records. */}
+                {patchReady && runtime.patchStatus === "pending" ? (
+                  <textarea
+                    className="commit-message-input"
+                    aria-label="Commit message"
+                    placeholder="Commit message"
+                    value={commitMessage}
+                    onChange={(event) => onChangeCommitMessage(event.target.value)}
+                    rows={3}
+                  />
+                ) : null}
+
                 {/* Once it has landed the same slot answers the same question,
                     just with the answer: the branch and commit it went to. */}
                 {commit.hash ? (
@@ -305,26 +360,87 @@ export function TaskPanel({
                   </div>
                 ) : null}
 
-                <div className="actions">
-                  <button
-                    className="secondary"
-                    type="button"
-                    disabled={!patchReady || runtime.patchStatus !== "pending"}
-                    onClick={onReject}
-                  >
-                    <X size={16} aria-hidden="true" />
-                    <span>Reject</span>
-                  </button>
-                  <button
-                    className="primary"
-                    type="button"
-                    disabled={!patchReady || runtime.patchStatus !== "pending"}
-                    onClick={onApprove}
-                  >
-                    <Check size={16} aria-hidden="true" />
-                    <span>Approve + apply</span>
-                  </button>
-                </div>
+                {commit.hash && amendDraft !== null ? (
+                  <div className="node-prompt-editor">
+                    <textarea
+                      className="commit-message-input"
+                      aria-label="Amended commit message"
+                      value={amendDraft}
+                      onChange={(event) => setAmendDraft(event.target.value)}
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="node-prompt-actions">
+                      <button className="node-action secondary" type="button" onClick={() => setAmendDraft(null)}>
+                        Cancel
+                      </button>
+                      <button
+                        className="node-action primary"
+                        type="button"
+                        disabled={!amendDraft.trim()}
+                        onClick={() => {
+                          void onAmend(amendDraft).then((ok) => {
+                            if (ok) setAmendDraft(null);
+                          });
+                        }}
+                      >
+                        Amend commit
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {pushError ? (
+                  <p className="gate-note gate-note-error" role="alert">
+                    <TriangleAlert size={13} aria-hidden="true" />
+                    <span>{pushError}</span>
+                  </p>
+                ) : null}
+
+                {commit.hash ? (
+                  <div className="commit-sync">
+                    <span className="commit-sync-note">{push.note}</span>
+                    <div className="commit-sync-actions">
+                      <button
+                        className="node-action secondary"
+                        type="button"
+                        disabled={amendDraft !== null}
+                        onClick={() => setAmendDraft(commit.subject)}
+                        title="Reword this commit"
+                      >
+                        <Pencil size={13} aria-hidden="true" />
+                        <span>Amend</span>
+                      </button>
+                      <button
+                        className="node-action primary"
+                        type="button"
+                        disabled={push.disabled || pushing}
+                        onClick={onPush}
+                      >
+                        <ArrowUp size={13} aria-hidden="true" />
+                        <span>{pushing ? "Pushing…" : push.label}</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {patchReady && runtime.patchStatus === "pending" ? (
+                  <div className="actions">
+                    <button className="secondary" type="button" onClick={onReject}>
+                      <X size={16} aria-hidden="true" />
+                      <span>Reject</span>
+                    </button>
+                    <button
+                      className="primary"
+                      type="button"
+                      disabled={!commitMessage.trim()}
+                      onClick={() => onApprove(commitMessage)}
+                    >
+                      <Check size={16} aria-hidden="true" />
+                      <span>Commit</span>
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MissionLoopState, RepoCommit } from "./domain";
+import type { GitSync, MissionLoopState, RepoCommit } from "./domain";
 
 async function invokeState(command: string, args: Record<string, unknown>): Promise<MissionLoopState> {
   const state = await invoke<string>(command, args);
@@ -46,12 +46,26 @@ export function unlinkMissionsLoopState(repoPath: string, fromMissionId: string,
   return invokeState("unlink_missions", { repoPath, fromMissionId, toMissionId });
 }
 
-export function approvePatchMissionLoopState(repoPath: string, missionId: string) {
-  return invokeState("approve_patch", { repoPath, missionId });
+// message is the commit message the user edited in the gate; "" keeps the
+// engineer's suggested subject.
+export function approvePatchMissionLoopState(repoPath: string, missionId: string, message = "") {
+  return invokeState("approve_patch", { repoPath, missionId, message });
+}
+
+export function amendCommitMissionLoopState(repoPath: string, missionId: string, message: string) {
+  return invokeState("amend_commit", { repoPath, missionId, message });
 }
 
 export function rejectPatchMissionLoopState(repoPath: string, missionId: string) {
   return invokeState("reject_patch", { repoPath, missionId });
+}
+
+export async function loadGitSync(repoPath: string): Promise<GitSync> {
+  return JSON.parse(await invoke<string>("git_sync", { repoPath })) as GitSync;
+}
+
+export async function pushRepo(repoPath: string): Promise<GitSync> {
+  return JSON.parse(await invoke<string>("push_repo", { repoPath })) as GitSync;
 }
 
 export async function loadRepoHistory(repoPath: string): Promise<RepoCommit[]> {
