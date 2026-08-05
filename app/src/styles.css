@@ -643,37 +643,74 @@ button.prompt-bar-send {
   overflow-y: auto;
 }
 
-/* Branch + hash sit on their own line so a long commit subject can't squeeze
-   them into an unreadable smear in the narrow task panel. */
-.landed-commit {
+/* The landed commit is one row, not a stack of chips: what it says, then where
+   it is, then what you can still do to it. Subject leads because that's what
+   you read; hash and branch sit under it in mono, quiet. */
+.commit-row {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2, rgba(255, 255, 255, 0.03));
+}
+
+.commit-row-text {
+  flex: 1 1 auto;
   min-width: 0;
-  padding: 2px 2px;
+}
+
+.commit-row-subject {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
   color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 11px;
 }
 
-.landed-commit-ref {
+.commit-row-sep {
+  opacity: 0.45;
+}
+
+.commit-row-actions {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  min-width: 0;
+  flex: none;
+  gap: 4px;
 }
 
-.landed-commit-ref .git-branch-chip {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.commit-row-btn {
+  min-height: 26px;
+  padding: 0 8px;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
 }
 
-.landed-commit-subject {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.commit-row-btn:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.commit-row-btn.push {
+  border-color: var(--line-strong);
+  color: var(--text);
 }
 
 /* The commit message is text the user edits, so it reads like the editor it is:
@@ -699,31 +736,6 @@ button.prompt-bar-send {
 
 .commit-message-input:disabled {
   opacity: 0.55;
-}
-
-/* Push row: where the branch stands on the left, what you can do about it on
-   the right. */
-.commit-sync {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.commit-sync-note {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.commit-sync-actions {
-  display: flex;
-  flex: none;
-  gap: 6px;
 }
 
 .gate-note-error svg {

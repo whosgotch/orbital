@@ -1,5 +1,5 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { ArrowUp, Check, Copy, GitBranch, Pencil, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Check, Copy, Pencil, ShieldCheck, Trash2, TriangleAlert, X } from "lucide-react";
 import { AgentChat, ChangesCard } from "../chat/AgentChat";
 import { UsageDetails } from "../chat/UsageDetails";
 import { ReviseBox } from "../chat/ReviseBox";
@@ -57,30 +57,36 @@ type TaskPanelProps = {
   // commit button, and both must be about to commit the same thing.
   commitMessage: string;
   onChangeCommitMessage: (message: string) => void;
-  gitSync: GitSync;
+  // undefined until the repo's position against its remote has been read.
+  gitSync: GitSync | undefined;
   pushing: boolean;
   pushError: string;
   onPush: () => void;
   onAmend: (message: string) => Promise<boolean>;
 };
 
-// What the push control offers, given where the branch stands. A branch with no
-// upstream gets "Publish" (that push also sets the upstream); with nothing ahead
-// there is nothing to do, so the button says so instead of pretending.
-function pushAction(sync: GitSync): { label: string; note: string; disabled: boolean } {
+// What the push control offers, given where the branch stands. Undefined sync
+// means it hasn't been read yet, and an unread repo gets no button at all —
+// claiming "no remote" before looking is how you accuse a repo of missing an
+// origin it has. A branch with no upstream publishes (that push sets it);
+// with nothing ahead there is nothing to do, so the control says "Pushed".
+function pushAction(sync: GitSync | undefined): { show: boolean; label: string; title: string; disabled: boolean } {
+  const hidden = { show: false, label: "", title: "", disabled: true };
+  if (!sync) return hidden;
   if (!sync.remote) {
-    return { label: "Push", note: "No git remote — add one to push.", disabled: true };
+    return { show: true, label: "Push", title: "No git remote — add one to push.", disabled: true };
   }
-  const behind = sync.behind > 0 ? ` · ${sync.behind} behind` : "";
+  const behind = sync.behind > 0 ? `, ${sync.behind} behind` : "";
   if (!sync.upstream) {
-    return { label: "Publish branch", note: `${sync.branch} is local only — publish it to ${sync.remote}`, disabled: false };
+    return { show: true, label: "Publish", title: `Publish ${sync.branch} to ${sync.remote}`, disabled: false };
   }
   if (sync.ahead === 0) {
-    return { label: "Push", note: `Up to date with ${sync.upstream}${behind}`, disabled: true };
+    return { show: true, label: "Pushed", title: `Up to date with ${sync.upstream}${behind}`, disabled: true };
   }
   return {
+    show: true,
     label: `Push ${sync.ahead}`,
-    note: `${sync.ahead} commit${sync.ahead === 1 ? "" : "s"} to push to ${sync.upstream}${behind}`,
+    title: `Push ${sync.ahead} commit${sync.ahead === 1 ? "" : "s"} to ${sync.upstream}${behind}`,
     disabled: false,
   };
 }
@@ -346,17 +352,52 @@ export function TaskPanel({
                 ) : null}
 
                 {/* Once it has landed the same slot answers the same question,
-                    just with the answer: the branch and commit it went to. */}
+                    just with the answer: one row saying what commit it went to,
+                    where, and what you can still do about it. */}
                 {commit.hash ? (
-                  <div className="landed-commit">
-                    {commit.branch ? (
-                      <span className="git-branch-chip">
-                        <GitBranch size={12} aria-hidden="true" />
-                        {commit.branch}
+                  <div className="commit-row">
+                    <span className="commit-row-text">
+                      <span className="commit-row-subject">{commit.subject}</span>
+                      <span className="commit-row-meta">
+                        <code>{commit.hash}</code>
+                        {commit.branch ? (
+                          <>
+                            <span className="commit-row-sep">on</span>
+                            <span>{commit.branch}</span>
+                          </>
+                        ) : null}
+                        {gitSync && gitSync.behind > 0 ? (
+                          <>
+                            <span className="commit-row-sep">·</span>
+                            <span>{gitSync.behind} behind</span>
+                          </>
+                        ) : null}
                       </span>
-                    ) : null}
-                    <code className="history-hash">{commit.hash}</code>
-                    <span>{commit.subject}</span>
+                    </span>
+                    <span className="commit-row-actions">
+                      <button
+                        className="commit-row-btn"
+                        type="button"
+                        disabled={amendDraft !== null}
+                        onClick={() => setAmendDraft(commit.subject)}
+                        title="Reword this commit"
+                        aria-label="Amend commit message"
+                      >
+                        <Pencil size={12} aria-hidden="true" />
+                      </button>
+                      {push.show ? (
+                        <button
+                          className="commit-row-btn push"
+                          type="button"
+                          disabled={push.disabled || pushing}
+                          onClick={onPush}
+                          title={push.title}
+                        >
+                          <ArrowUp size={12} aria-hidden="true" />
+                          <span>{pushing ? "Pushing…" : push.label}</span>
+                        </button>
+                      ) : null}
+                    </span>
                   </div>
                 ) : null}
 
@@ -395,33 +436,6 @@ export function TaskPanel({
                     <TriangleAlert size={13} aria-hidden="true" />
                     <span>{pushError}</span>
                   </p>
-                ) : null}
-
-                {commit.hash ? (
-                  <div className="commit-sync">
-                    <span className="commit-sync-note">{push.note}</span>
-                    <div className="commit-sync-actions">
-                      <button
-                        className="node-action secondary"
-                        type="button"
-                        disabled={amendDraft !== null}
-                        onClick={() => setAmendDraft(commit.subject)}
-                        title="Reword this commit"
-                      >
-                        <Pencil size={13} aria-hidden="true" />
-                        <span>Amend</span>
-                      </button>
-                      <button
-                        className="node-action primary"
-                        type="button"
-                        disabled={push.disabled || pushing}
-                        onClick={onPush}
-                      >
-                        <ArrowUp size={13} aria-hidden="true" />
-                        <span>{pushing ? "Pushing…" : push.label}</span>
-                      </button>
-                    </div>
-                  </div>
                 ) : null}
 
                 {patchReady && runtime.patchStatus === "pending" ? (

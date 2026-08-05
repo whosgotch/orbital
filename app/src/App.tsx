@@ -107,6 +107,9 @@ export function App() {
       case "task":
       case "tool":
         setTaskView("chat");
+        // The gate shows push state the moment it opens, so the read happens
+        // on selection — before the user gets to Changes, not after.
+        void gitSync.refresh();
         break;
       default:
         break;
