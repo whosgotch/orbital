@@ -80,6 +80,37 @@ func TestAmendCommitRefusesWhenTheCommitIsNoLongerHead(t *testing.T) {
 	}
 }
 
+// Rewording a pushed commit diverges the branch from the remote, so the gate
+// refuses once it has left the machine.
+func TestAmendCommitRefusesOnceTheCommitIsPushed(t *testing.T) {
+	svc, repoDir := repoWithApprovedPatch(t)
+	remoteDir := t.TempDir()
+	gitIn(t, remoteDir, "init", "--bare")
+	gitIn(t, repoDir, "remote", "add", "origin", remoteDir)
+
+	if _, err := svc.ApplyPatch("patch_1", "feat(gate): landed"); err != nil {
+		t.Fatalf("ApplyPatch() error = %v", err)
+	}
+	// Amending is fine while the commit is still only local.
+	if _, err := svc.AmendCommit("patch_1", "feat(gate): reworded before push"); err != nil {
+		t.Fatalf("AmendCommit() before push error = %v", err)
+	}
+	if _, err := PushRepo(repoDir); err != nil {
+		t.Fatalf("PushRepo() error = %v", err)
+	}
+
+	if _, err := svc.AmendCommit("patch_1", "feat(gate): too late"); err == nil {
+		t.Fatal("AmendCommit() succeeded on a pushed commit, want a refusal")
+	}
+	if subject := strings.TrimSpace(gitIn(t, repoDir, "log", "-1", "--pretty=%s")); subject != "feat(gate): reworded before push" {
+		t.Fatalf("git log subject = %q, want the pushed commit untouched", subject)
+	}
+	// Refusing means refusing outright: the branch must not be left diverged.
+	if sync := GitSyncState(repoDir); sync.Ahead != 0 || sync.Behind != 0 {
+		t.Fatalf("GitSyncState() = %+v, want the branch still level with its upstream", sync)
+	}
+}
+
 func TestGitSyncStateReportsNoRemoteWhenThereIsNone(t *testing.T) {
 	_, repoDir := repoWithApprovedPatch(t)
 

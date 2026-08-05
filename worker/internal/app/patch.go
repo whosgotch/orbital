@@ -238,6 +238,10 @@ func (s *Service) AmendCommit(patchID, message string) (*domain.PatchProposal, e
 			return fmt.Errorf("this commit is no longer the last one (HEAD is %s) — amend it in git if you still want to", head)
 		}
 
+		if headIsPushed(repoPath) {
+			return fmt.Errorf("this commit is already pushed — rewording it now would diverge from the remote and need a force push")
+		}
+
 		amend := exec.Command("git", "commit", "--amend", "--only", "-m", strings.TrimSpace(message))
 		amend.Dir = repoPath
 		if output, err := amend.CombinedOutput(); err != nil {

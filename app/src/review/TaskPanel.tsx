@@ -148,10 +148,11 @@ export function TaskPanel({
     attachments.clear();
   }
   const push = pushAction(gitSync);
-  // Rewording only reaches the last commit. Anything landed on top — another
-  // mission, your own work — puts this one out of reach, and the button says so
-  // up front instead of taking a new message and then refusing it.
-  const amendable = !gitSync || !commit.hash || gitSync.head === commit.hash;
+  // Rewording reaches exactly one commit: the last one, and only while it is
+  // still yours alone. Anything landed on top puts it out of reach, and once it
+  // is pushed a reword would diverge from the remote. Neither state ever
+  // recovers, so the control disappears rather than sitting there dead.
+  const amendable = !gitSync || !commit.hash || (gitSync.head === commit.hash && !(gitSync.upstream !== "" && gitSync.ahead === 0));
 
   const onResizeHandlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -379,16 +380,18 @@ export function TaskPanel({
                       </span>
                     </span>
                     <span className="commit-row-actions">
-                      <button
-                        className="commit-row-btn"
-                        type="button"
-                        disabled={amendDraft !== null || !amendable}
-                        onClick={() => setAmendDraft(commit.subject)}
-                        title={amendable ? "Reword this commit" : "Later commits landed on top — only the last commit can be reworded"}
-                        aria-label="Amend commit message"
-                      >
-                        <Pencil size={12} aria-hidden="true" />
-                      </button>
+                      {amendable ? (
+                        <button
+                          className="commit-row-btn"
+                          type="button"
+                          disabled={amendDraft !== null}
+                          onClick={() => setAmendDraft(commit.subject)}
+                          title="Reword this commit"
+                          aria-label="Amend commit message"
+                        >
+                          <Pencil size={12} aria-hidden="true" />
+                        </button>
+                      ) : null}
                       {push.show ? (
                         <button
                           className="commit-row-btn push"

@@ -92,6 +92,19 @@ func PushRepo(repoPath string) (domain.GitSync, error) {
 	return GitSyncState(repoPath), nil
 }
 
+// headIsPushed reports whether HEAD is already contained in the branch's
+// upstream. Rewriting such a commit diverges the branch from the remote, and
+// the next push is rejected — so the gate stops offering it at all.
+func headIsPushed(repoPath string) bool {
+	upstream := gitOutput(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+	if upstream == "" {
+		return false
+	}
+	contained := exec.Command("git", "merge-base", "--is-ancestor", "HEAD", upstream)
+	contained.Dir = repoPath
+	return contained.Run() == nil
+}
+
 func gitOutput(repoPath string, args ...string) string {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = repoPath
