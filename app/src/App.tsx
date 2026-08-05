@@ -377,6 +377,7 @@ export function App() {
         onToggleHistory={toggleHistory}
         gitSync={gitSync.sync}
         pushing={gitSync.pushing}
+        justPushed={gitSync.justPushed}
         onPush={() => void pushBranch()}
       />
 

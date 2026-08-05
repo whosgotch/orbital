@@ -204,6 +204,22 @@ h3 {
   color: var(--muted);
 }
 
+/* The receipt: green for the moment after a push lands, so the action is seen
+   to have done something rather than just going quiet. */
+.branch-push-count.done {
+  gap: 3px;
+  padding: 0 6px 0 4px;
+  background: rgba(63, 185, 111, 0.16);
+  color: var(--green);
+}
+
+/* Resting "everything is pushed" — the same answer, stated quietly. */
+.branch-push-count.quiet {
+  padding: 0 3px;
+  background: transparent;
+  color: var(--muted);
+}
+
 .topbar-model {
   position: relative;
 }

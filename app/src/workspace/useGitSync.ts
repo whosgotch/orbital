@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { GitSync } from "./domain";
 import { loadGitSync, pushRepo } from "./missionLoopLoader";
 
@@ -12,6 +12,16 @@ import { loadGitSync, pushRepo } from "./missionLoopLoader";
 export function useGitSync(repoPath: string) {
   const [sync, setSync] = useState<GitSync | undefined>(undefined);
   const [pushing, setPushing] = useState(false);
+  // A push that works makes its own badge vanish, which reads as "nothing
+  // happened". This holds a receipt on screen for a moment so the action is
+  // seen to have done something.
+  const [justPushed, setJustPushed] = useState(false);
+
+  useEffect(() => {
+    if (!justPushed) return;
+    const timer = setTimeout(() => setJustPushed(false), 2500);
+    return () => clearTimeout(timer);
+  }, [justPushed]);
 
   const refresh = async () => {
     if (!repoPath) {
@@ -32,8 +42,10 @@ export function useGitSync(repoPath: string) {
   const push = async (): Promise<string> => {
     if (!repoPath) return "";
     setPushing(true);
+    setJustPushed(false);
     try {
       setSync(await pushRepo(repoPath));
+      setJustPushed(true);
       return "";
     } catch (cause) {
       console.error("[orbital] push failed", cause);
@@ -44,5 +56,5 @@ export function useGitSync(repoPath: string) {
     }
   };
 
-  return { sync, pushing, refresh, push };
+  return { sync, pushing, justPushed, refresh, push };
 }
