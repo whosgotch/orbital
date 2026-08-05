@@ -138,6 +138,9 @@ export type PatchProposal = {
 // only locally and pushing would publish it.
 export type GitSync = {
   branch: string;
+  // Current short HEAD hash: a mission's commit can only be amended while it
+  // still is HEAD.
+  head: string;
   remote: string;
   upstream: string;
   ahead: number;

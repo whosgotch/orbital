@@ -24,6 +24,7 @@ func GitSyncState(repoPath string) domain.GitSync {
 		return sync
 	}
 
+	sync.Head = gitOutput(repoPath, "rev-parse", "--short", "HEAD")
 	sync.Upstream = gitOutput(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
 	if sync.Upstream != "" {
 		sync.Remote, _, _ = strings.Cut(sync.Upstream, "/")

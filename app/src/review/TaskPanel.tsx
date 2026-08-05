@@ -148,6 +148,10 @@ export function TaskPanel({
     attachments.clear();
   }
   const push = pushAction(gitSync);
+  // Rewording only reaches the last commit. Anything landed on top — another
+  // mission, your own work — puts this one out of reach, and the button says so
+  // up front instead of taking a new message and then refusing it.
+  const amendable = !gitSync || !commit.hash || gitSync.head === commit.hash;
 
   const onResizeHandlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -378,9 +382,9 @@ export function TaskPanel({
                       <button
                         className="commit-row-btn"
                         type="button"
-                        disabled={amendDraft !== null}
+                        disabled={amendDraft !== null || !amendable}
                         onClick={() => setAmendDraft(commit.subject)}
-                        title="Reword this commit"
+                        title={amendable ? "Reword this commit" : "Later commits landed on top — only the last commit can be reworded"}
                         aria-label="Amend commit message"
                       >
                         <Pencil size={12} aria-hidden="true" />
