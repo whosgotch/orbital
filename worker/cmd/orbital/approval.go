@@ -11,12 +11,18 @@ import (
 )
 
 func approveMissionPatch(args []string, stdout io.Writer) error {
-	if len(args) != 4 {
+	if len(args) != 4 && len(args) != 5 {
 		return usageError()
 	}
 
 	repoPath := args[2]
 	missionID := args[3]
+	// The commit message the user edited in the gate; absent means "use the
+	// engineer's suggested subject", which is what the box was pre-filled with.
+	message := ""
+	if len(args) == 5 {
+		message = args[4]
+	}
 
 	jsonStore := store.NewJSONStore(filepath.Join(repoPath, ".orbital"))
 	service := app.NewService(jsonStore)
@@ -31,11 +37,11 @@ func approveMissionPatch(args []string, stdout io.Writer) error {
 		if _, err := service.ApprovePatch(patch.ID); err != nil {
 			return err
 		}
-		if _, err := service.ApplyPatch(patch.ID); err != nil {
+		if _, err := service.ApplyPatch(patch.ID, message); err != nil {
 			return err
 		}
 	case domain.PatchStatusApproved:
-		if _, err := service.ApplyPatch(patch.ID); err != nil {
+		if _, err := service.ApplyPatch(patch.ID, message); err != nil {
 			return err
 		}
 	case domain.PatchStatusApplied:
@@ -64,6 +70,29 @@ func rejectMissionPatch(args []string, stdout io.Writer) error {
 	}
 
 	if _, err := service.RejectPatch(patch.ID); err != nil {
+		return err
+	}
+
+	return showStatusJSON(repoPath, stdout)
+}
+
+func amendMissionCommit(args []string, stdout io.Writer) error {
+	if len(args) != 5 {
+		return usageError()
+	}
+
+	repoPath := args[2]
+	missionID := args[3]
+	message := args[4]
+
+	jsonStore := store.NewJSONStore(filepath.Join(repoPath, ".orbital"))
+	service := app.NewService(jsonStore)
+
+	patch, err := latestPatchForMission(service, missionID)
+	if err != nil {
+		return err
+	}
+	if _, err := service.AmendCommit(patch.ID, message); err != nil {
 		return err
 	}
 

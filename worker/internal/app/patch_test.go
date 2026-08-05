@@ -145,7 +145,7 @@ func TestApplyPatchAppliesApprovedPatchAndMarksApplied(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	patch, err := svc.ApplyPatch("patch_1")
+	patch, err := svc.ApplyPatch("patch_1", "")
 	if err != nil {
 		t.Fatalf("ApplyPatch() error = %v", err)
 	}
@@ -191,7 +191,7 @@ func TestApplyPatchRecordsBranch(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	patch, err := svc.ApplyPatch("patch_1")
+	patch, err := svc.ApplyPatch("patch_1", "")
 	if err != nil {
 		t.Fatalf("ApplyPatch() error = %v", err)
 	}
@@ -220,7 +220,7 @@ func TestApplyPatchRejectsPendingPatch(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	if _, err := svc.ApplyPatch("patch_1"); err == nil {
+	if _, err := svc.ApplyPatch("patch_1", ""); err == nil {
 		t.Fatal("expected error for pending patch, got nil")
 	}
 }
@@ -228,7 +228,7 @@ func TestApplyPatchRejectsPendingPatch(t *testing.T) {
 func TestApplyPatchRejectsUnknownPatch(t *testing.T) {
 	svc := NewService(store.NewJSONStore(t.TempDir()))
 
-	if _, err := svc.ApplyPatch("missing_patch"); err == nil {
+	if _, err := svc.ApplyPatch("missing_patch", ""); err == nil {
 		t.Fatal("expected error for unknown patch, got nil")
 	}
 }

@@ -108,7 +108,9 @@ func (s *Service) RejectPatch(patchID string) (*domain.PatchProposal, error) {
 	)
 }
 
-func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
+// ApplyPatch lands an approved patch. message is the commit message the user
+// edited in the gate; empty falls back to the engineer's suggested subject.
+func (s *Service) ApplyPatch(patchID, message string) (*domain.PatchProposal, error) {
 	var result domain.PatchProposal
 	_, err := s.store.Update(func(state *store.State) error {
 		patchIndex := findPatchIndex(state.PatchProposals, patchID)
@@ -157,7 +159,7 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 			// drifts from the index and the next mission's apply dies with
 			// "does not match index" — and new run worktrees would branch from
 			// a stale HEAD that lacks the missions already landed.
-			commitHash, subject, err := commitApplied(repoPath, patch.Diff, state.Missions[missionIndex].Text, patch.SuggestedSubject)
+			commitHash, subject, err := commitApplied(repoPath, patch.Diff, commitMessage(message, patch.SuggestedSubject, state.Missions[missionIndex].Text))
 			if err != nil {
 				return err
 			}
@@ -204,6 +206,72 @@ func (s *Service) ApplyPatch(patchID string) (*domain.PatchProposal, error) {
 	}
 
 	return &result, nil
+}
+
+// AmendCommit rewrites the message of the commit a patch landed. It refuses
+// once anything else sits on top: amending then would rewrite a commit this
+// patch does not own. Message-only — `--amend --only` with no pathspec leaves
+// the index and working tree exactly as they are.
+func (s *Service) AmendCommit(patchID, message string) (*domain.PatchProposal, error) {
+	if strings.TrimSpace(message) == "" {
+		return nil, fmt.Errorf("commit message is empty")
+	}
+
+	var result domain.PatchProposal
+	_, err := s.store.Update(func(state *store.State) error {
+		patchIndex := findPatchIndex(state.PatchProposals, patchID)
+		if patchIndex == -1 {
+			return fmt.Errorf("patch proposal not found: %s", patchID)
+		}
+
+		patch := state.PatchProposals[patchIndex]
+		if patch.CommitHash == "" {
+			return fmt.Errorf("patch proposal has no commit to amend: %s", patchID)
+		}
+
+		repoPath, err := repoPathForPatch(state, patch)
+		if err != nil {
+			return err
+		}
+
+		if head := gitOutput(repoPath, "rev-parse", "--short", "HEAD"); head != patch.CommitHash {
+			return fmt.Errorf("this commit is no longer the last one (HEAD is %s) — amend it in git if you still want to", head)
+		}
+
+		amend := exec.Command("git", "commit", "--amend", "--only", "-m", strings.TrimSpace(message))
+		amend.Dir = repoPath
+		if output, err := amend.CombinedOutput(); err != nil {
+			return fmt.Errorf("amend commit: %s", strings.TrimSpace(string(output)))
+		}
+
+		state.PatchProposals[patchIndex].CommitHash = gitOutput(repoPath, "rev-parse", "--short", "HEAD")
+		state.PatchProposals[patchIndex].CommitSubject = firstLine(message)
+		state.PatchProposals[patchIndex].UpdatedAt = time.Now().UTC()
+
+		result = state.PatchProposals[patchIndex]
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func repoPathForPatch(state *store.State, patch domain.PatchProposal) (string, error) {
+	runIndex := findRunIndex(state.AgentRuns, patch.RunID)
+	if runIndex == -1 {
+		return "", fmt.Errorf("agent run not found: %s", patch.RunID)
+	}
+	missionIndex := findMissionIndex(state.Missions, state.AgentRuns[runIndex].MissionID)
+	if missionIndex == -1 {
+		return "", fmt.Errorf("mission not found: %s", state.AgentRuns[runIndex].MissionID)
+	}
+	repositoryIndex := findRepositoryIndex(state.Repositories, state.Missions[missionIndex].RepositoryID)
+	if repositoryIndex == -1 {
+		return "", fmt.Errorf("repository not found: %s", state.Missions[missionIndex].RepositoryID)
+	}
+	return state.Repositories[repositoryIndex].Path, nil
 }
 
 // applyDiff lands a patch on the repo working tree. It tries a strict apply
@@ -306,7 +374,7 @@ func stagePatchPaths(repoPath string, diff string) {
 // work-in-progress is never swept into a mission's commit. Returns two empty
 // strings for non-git scratch dirs (the mock worker) and when the patch
 // changed nothing (a re-apply already matching HEAD).
-func commitApplied(repoPath, diff, missionText, suggestedSubject string) (hash, subject string, err error) {
+func commitApplied(repoPath, diff, message string) (hash, subject string, err error) {
 	if !isGitRepo(repoPath) {
 		return "", "", nil
 	}
@@ -332,7 +400,7 @@ func commitApplied(repoPath, diff, missionText, suggestedSubject string) (hash, 
 		return "", "", nil
 	}
 
-	subject = commitSubject(suggestedSubject, missionText)
+	subject = firstLine(message)
 	// Committing by pathspec takes exactly these files' current content, so
 	// anything else the user staged stays staged and out of this commit.
 	// Uses the repo's own git identity (the user's) rather than a fixed
@@ -340,7 +408,7 @@ func commitApplied(repoPath, diff, missionText, suggestedSubject string) (hash, 
 	// including GitHub's contribution graph, which only counts commits whose
 	// author email is verified on the account.
 	commit := exec.Command("git", append([]string{
-		"commit", "-m", subject, "--"}, paths...)...)
+		"commit", "-m", message, "--"}, paths...)...)
 	commit.Dir = repoPath
 	if output, err := commit.CombinedOutput(); err != nil {
 		return "", "", fmt.Errorf("commit applied patch: %w: %s", err, strings.TrimSpace(string(output)))
@@ -359,6 +427,24 @@ func isGitRepo(repoPath string) bool {
 	cmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
 	cmd.Dir = repoPath
 	return cmd.Run() == nil
+}
+
+// commitMessage picks what the commit actually says. A message the user edited
+// in the gate wins verbatim — including a multi-line body, and with no 72-char
+// trim, because a person typed it on purpose. Only an empty one falls back to
+// the derived subject.
+func commitMessage(message, suggestedSubject, missionText string) string {
+	if edited := strings.TrimSpace(message); edited != "" {
+		return edited
+	}
+	return commitSubject(suggestedSubject, missionText)
+}
+
+func firstLine(text string) string {
+	if index := strings.IndexByte(text, '\n'); index != -1 {
+		return strings.TrimSpace(text[:index])
+	}
+	return strings.TrimSpace(text)
 }
 
 // commitSubject prefers the engineer's own Conventional Commits subject

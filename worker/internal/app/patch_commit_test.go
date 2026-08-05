@@ -65,11 +65,11 @@ func TestApplyPatchCommitsEachMissionSoTheNextOneLands(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	patchOne, err := svc.ApplyPatch("patch_1")
+	patchOne, err := svc.ApplyPatch("patch_1", "")
 	if err != nil {
 		t.Fatalf("ApplyPatch(patch_1) error = %v", err)
 	}
-	patchTwo, err := svc.ApplyPatch("patch_2")
+	patchTwo, err := svc.ApplyPatch("patch_2", "")
 	if err != nil {
 		t.Fatalf("ApplyPatch(patch_2) error = %v", err)
 	}
@@ -137,7 +137,7 @@ func TestApplyPatchLeavesCommitFieldsEmptyWhenNothingToCommit(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	patch, err := svc.ApplyPatch("patch_1")
+	patch, err := svc.ApplyPatch("patch_1", "")
 	if err != nil {
 		t.Fatalf("ApplyPatch() error = %v", err)
 	}

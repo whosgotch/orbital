@@ -52,7 +52,7 @@ func TestApplyPatchLandsOnDirtyWorkingTree(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	if _, err := svc.ApplyPatch("patch_1"); err != nil {
+	if _, err := svc.ApplyPatch("patch_1", ""); err != nil {
 		t.Fatalf("ApplyPatch() error = %v", err)
 	}
 
