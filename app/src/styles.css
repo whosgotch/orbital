@@ -1127,6 +1127,15 @@ button.revise-send {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
+  line-height: 1;
+}
+
+/* The icon carries the inherited line box otherwise, which nudges the arrow off
+   the circle's centre. Block display + no shrink pin it to the exact middle. */
+button.chat-send > svg,
+button.revise-send > svg {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .agent-status {
