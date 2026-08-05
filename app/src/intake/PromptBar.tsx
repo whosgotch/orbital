@@ -77,7 +77,7 @@ export function PromptBar({
         ref={inputRef}
         className="prompt-bar-input"
         aria-label="Describe a task"
-        placeholder={repoName ? "Describe a task — one per line, Enter creates" : "Open a repository to start"}
+        placeholder={repoName ? "Describe a task — Enter creates, Shift+Enter for a new line" : "Open a repository to start"}
         value={text}
         rows={Math.min(6, Math.max(1, text.split("\n").length))}
         disabled={!repoName}
@@ -171,7 +171,7 @@ export function PromptBar({
           disabled={!ready}
           onClick={() => submit(onCreate)}
           aria-label="Create task"
-          title="Create task — one per line, Enter creates"
+          title="Create task (Enter)"
         >
           <SendHorizontal size={15} aria-hidden="true" />
         </button>

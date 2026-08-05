@@ -112,25 +112,26 @@ export function useMissionActions({
     }
   };
 
+  // One prompt, one task — line breaks are part of what the task says, not a
+  // separator that silently multiplies it.
   const createFromPrompt = async (text: string, attachments: string[]) => {
     if (!draftRepository) return;
     setMissionLoopError("");
-    const titles = text.split("\n").map((line) => line.trim()).filter(Boolean);
+    const prompt = text.trim();
+    if (!prompt) return;
     try {
-      for (const title of titles) {
-        const nextMissionLoopState = await queueMissionLoopState(
-          draftRepository.path,
-          title + attachmentLines(attachments),
-          undefined,
-          undefined,
-          claudeModel,
-        );
-        const missionId = nextMissionLoopState.missions.at(-1)?.id;
-        applyRepoState(nextMissionLoopState);
-        if (missionId) {
-          setWorkerModeByMission((current) => ({ ...current, [missionId]: "claude-engineer" }));
-          await linkFollowUp(draftRepository.path, missionId);
-        }
+      const nextMissionLoopState = await queueMissionLoopState(
+        draftRepository.path,
+        prompt + attachmentLines(attachments),
+        undefined,
+        undefined,
+        claudeModel,
+      );
+      const missionId = nextMissionLoopState.missions.at(-1)?.id;
+      applyRepoState(nextMissionLoopState);
+      if (missionId) {
+        setWorkerModeByMission((current) => ({ ...current, [missionId]: "claude-engineer" }));
+        await linkFollowUp(draftRepository.path, missionId);
       }
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to create task."));
