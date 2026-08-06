@@ -10,6 +10,7 @@ const (
 	WorkflowEventFileRead          WorkflowEventType = "file_read"
 	WorkflowEventCommandExecuted   WorkflowEventType = "command_executed"
 	WorkflowEventAgentThought      WorkflowEventType = "agent_thought"
+	WorkflowEventAgentReasoning    WorkflowEventType = "agent_reasoning"
 	WorkflowEventAgentAction       WorkflowEventType = "agent_action"
 	WorkflowEventPatchProposed     WorkflowEventType = "patch_proposed"
 	WorkflowEventPatchApproved     WorkflowEventType = "patch_approved"

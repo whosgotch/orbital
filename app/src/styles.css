@@ -1536,6 +1536,37 @@ button.mini-text {
   line-height: 1.45;
 }
 
+/* Reasoning is a button so it can fold; it must still read as a transcript
+   line, never as a control. */
+.transcript-entry.reasoning {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-style: italic;
+  text-align: left;
+  cursor: pointer;
+}
+
+.transcript-entry.reasoning:disabled {
+  cursor: default;
+}
+
+.transcript-entry.reasoning.expanded {
+  color: var(--soft);
+  white-space: pre-wrap;
+}
+
+.transcript-entry.reasoning .transcript-glyph {
+  color: #8b7fd4;
+}
+
+.transcript-more {
+  color: var(--muted);
+}
+
 .transcript-entry.thought {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.16);

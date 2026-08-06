@@ -115,6 +115,7 @@ function liveVerb(events: WorkflowEvent[], isLive: boolean, patchPending: boolea
   }
   const last = events[events.length - 1];
   switch (last?.type) {
+    case "agent_reasoning":
     case "agent_thought":
       return "thinking";
     case "agent_action":
@@ -169,6 +170,7 @@ export function buildAgentStatus(
   const now = activity.length > 0 ? activity[activity.length - 1] : (events[events.length - 1]?.message ?? "");
   const stepEvents = events.filter((event) =>
     event.type === "agent_thought" ||
+    event.type === "agent_reasoning" ||
     event.type === "agent_action" ||
     event.type === "command_executed" ||
     event.type === "file_read",

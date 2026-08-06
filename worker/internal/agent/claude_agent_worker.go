@@ -113,11 +113,14 @@ func (w *claudeAgentWorker) StartRun(ctx context.Context, request RunRequest) (<
 			prompt = request.MissionText
 		}
 
-		// Stream Claude's reasoning (thoughts) and actions (edits, commands) into
+		// Stream Claude's reasoning, narration and actions (edits, commands) into
 		// the feed, tagged so the Agent transcript can render them distinctly.
 		turn, err := callClaudeAgentic(ctx, request.RepoPath, request.ResumeSessionID, request.Model, request.Effort, prompt, func(kind, msg string) {
 			eventType := domain.WorkflowEventAgentAction
-			if kind == "thought" {
+			switch kind {
+			case "reasoning":
+				eventType = domain.WorkflowEventAgentReasoning
+			case "thought":
 				eventType = domain.WorkflowEventAgentThought
 			}
 			sendWorkflowEvent(ctx, events, request.RunID, eventType, msg, "", "claude")

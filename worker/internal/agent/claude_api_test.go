@@ -38,6 +38,29 @@ func TestScanAgenticStreamCapturesSessionAndSteps(t *testing.T) {
 	}
 }
 
+// Thinking blocks are the model's real chain of thought and must reach the
+// transcript under their own kind, apart from the narration text blocks.
+func TestScanAgenticStreamCapturesThinking(t *testing.T) {
+	stream := strings.Join([]string{
+		`{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"The route is missing a handler.\nI should add one."}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"Adding the route."}]}}`,
+		`{"type":"result","subtype":"success","result":"Done."}`,
+	}, "\n")
+
+	var kinds, msgs []string
+	scanAgenticStream(strings.NewReader(stream), func(kind, msg string) {
+		kinds = append(kinds, kind)
+		msgs = append(msgs, msg)
+	})
+
+	if len(kinds) != 2 || kinds[0] != "reasoning" || kinds[1] != "thought" {
+		t.Fatalf("steps = %v (%v)", kinds, msgs)
+	}
+	if !strings.Contains(msgs[0], "I should add one.") {
+		t.Errorf("reasoning step should keep the whole thought: %q", msgs[0])
+	}
+}
+
 // The node shows which model did the work, so the resolved model the CLI
 // reports must be captured — from the init line, or from an assistant line when
 // a resumed turn carries no init.

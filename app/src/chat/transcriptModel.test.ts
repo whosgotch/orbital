@@ -71,6 +71,20 @@ describe("sliceTranscriptByMessage", () => {
     expect(slices["user1"]).toBeUndefined();
   });
 
+  it("keeps chain of thought as its own kind, apart from narration and tool calls", () => {
+    const events = [
+      eventFixture({ id: "e1", type: "agent_reasoning", created_at: "2026-07-01T00:00:05Z", message: "weighing options" }),
+      eventFixture({ id: "e2", type: "agent_thought", created_at: "2026-07-01T00:00:06Z", message: "Adding the route." }),
+      eventFixture({ id: "e3", type: "agent_action", created_at: "2026-07-01T00:00:07Z", message: "Update(main.go)" }),
+    ];
+    const messages = [messageFixture({ id: "assistant1", created_at: "2026-07-01T00:00:10Z" })];
+    const state = stateFixture([runFixture({})], events);
+
+    const slices = sliceTranscriptByMessage(state, "m1", messages);
+
+    expect(slices["assistant1"].map((entry) => entry.kind)).toEqual(["reasoning", "thought", "action"]);
+  });
+
   it("does not filter the window by run_id — a multi-agent turn stays whole", () => {
     const events = [
       eventFixture({ id: "e1", run_id: "manager", created_at: "2026-07-01T00:00:05Z", message: "planning" }),

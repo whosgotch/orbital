@@ -17,11 +17,13 @@ function labelForRunFactory(state: MissionLoopState): (runId: string | undefined
 // identically.
 function eventToEntry(event: WorkflowEvent, labelForRun: (rid: string | undefined) => string): TranscriptEntry {
   const kind =
-    event.type === "agent_thought"
-      ? "thought"
-      : event.type === "agent_action" || event.type === "command_executed" || event.type === "file_read"
-        ? "action"
-        : "status";
+    event.type === "agent_reasoning"
+      ? "reasoning"
+      : event.type === "agent_thought"
+        ? "thought"
+        : event.type === "agent_action" || event.type === "command_executed" || event.type === "file_read"
+          ? "action"
+          : "status";
   return { id: event.id, kind, text: event.message, agent: labelForRun(event.run_id) } as TranscriptEntry;
 }
 

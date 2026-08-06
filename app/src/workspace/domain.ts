@@ -92,6 +92,7 @@ export type WorkflowEventType =
   | "file_read"
   | "command_executed"
   | "agent_thought"
+  | "agent_reasoning"
   | "agent_action"
   | "patch_proposed"
   | "patch_approved"

@@ -50,10 +50,13 @@ type streamJSONLine struct {
 		// seen reflects the final, fullest context of the turn.
 		Usage   *usageRecord `json:"usage"`
 		Content []struct {
-			Type  string          `json:"type"`
-			Text  string          `json:"text"`
-			Name  string          `json:"name"`
-			Input json.RawMessage `json:"input"`
+			Type string `json:"type"`
+			Text string `json:"text"`
+			// Thinking carries the model's actual chain of thought; it arrives on
+			// its own block type, never inside Text.
+			Thinking string          `json:"thinking"`
+			Name     string          `json:"name"`
+			Input    json.RawMessage `json:"input"`
 		} `json:"content"`
 	} `json:"message"`
 }
@@ -67,8 +70,8 @@ type streamJSONLine struct {
 // When resumeSessionID is non-empty, the prompt continues that existing session
 // (`claude --resume <id>`) instead of starting fresh — this is what turns a run
 // into a live, multi-turn chat. onStep receives each streamed step as
-// ("thought", reasoning text) for Claude's own narration or ("action", tool
-// description) for an edit/command it runs.
+// ("reasoning", chain of thought), ("thought", Claude's narration to the user)
+// or ("action", tool description) for an edit/command it runs.
 func callClaudeAgentic(ctx context.Context, repoPath, resumeSessionID, model, effort, prompt string, onStep func(kind, msg string)) (streamResult, error) {
 	args := []string{"--print",
 		"--permission-mode", "acceptEdits",
@@ -157,9 +160,13 @@ func scanAgenticStream(r io.Reader, onStep func(kind, msg string)) streamResult 
 				}
 			}
 			for _, block := range line.Message.Content {
+				if block.Type == "thinking" && strings.TrimSpace(block.Thinking) != "" {
+					// Real chain of thought, kept whole and kept apart from the
+					// narration below — the two must never render as one thing.
+					onStep("reasoning", strings.TrimSpace(block.Thinking))
+				}
 				if block.Type == "text" && strings.TrimSpace(block.Text) != "" {
-					// Preserve Claude's full reasoning so the Agent transcript can
-					// show how it thinks, not a clipped one-liner.
+					// Claude's narration to the user: what it says it is doing.
 					onStep("thought", strings.TrimSpace(block.Text))
 				}
 				if block.Type == "tool_use" {
