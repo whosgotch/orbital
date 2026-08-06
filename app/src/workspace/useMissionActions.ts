@@ -11,6 +11,7 @@ import {
 import { mergeChatMessage, mergeWorkflowEvent, upsertAgentRun, upsertPatchProposal } from "./repoStates";
 import type { AgentRun, ChatMessage, MissionLoopState, PatchProposal, Repository, WorkflowEvent } from "./domain";
 import type { WorkspaceMission } from "../canvas/graph";
+import { forgetNodePosition } from "../canvas/nodePositions";
 import type { WorkspaceRuntimeMap } from "./workspaceAdapter";
 import {
   amendCommitMissionLoopState,
@@ -346,6 +347,7 @@ export function useMissionActions({
 
     try {
       applyRepoState(await deleteMissionLoopState(repoPathForMission(missionId), missionId));
+      forgetNodePosition(missionId);
     } catch (error) {
       setMissionLoopError(errorMessage(error, "Failed to delete mission."));
     } finally {
