@@ -232,13 +232,18 @@ export function App() {
     if (failure) setMissionLoopError(failure);
   };
 
-  const toggleBranchMenu = () =>
-    setBranchMenuOpen((current) => {
-      // Branches are made and deleted in terminals too, so the list is read
-      // fresh every time the picker opens.
-      if (!current) void gitSync.refreshBranches();
-      return !current;
-    });
+  // Branches are made and deleted in terminals too, so the list is read fresh
+  // every time the picker opens.
+  const toggleBranchMenu = async () => {
+    if (branchMenuOpen) {
+      setBranchMenuOpen(false);
+      return;
+    }
+    setMissionLoopError("");
+    setBranchMenuOpen(true);
+    const failure = await gitSync.refreshBranches();
+    if (failure) setMissionLoopError(failure);
+  };
 
   // Switching branches rewrites the working tree, so the repo's own state (the
   // branch on its canvas node included) is read again, not just git's.
@@ -408,7 +413,7 @@ export function App() {
         branches={gitSync.branches}
         branchMenuOpen={branchMenuOpen}
         switching={gitSync.switching}
-        onToggleBranchMenu={toggleBranchMenu}
+        onToggleBranchMenu={() => void toggleBranchMenu()}
         onSwitchBranch={(branch, create) => void switchBranch(branch, create)}
       />
 

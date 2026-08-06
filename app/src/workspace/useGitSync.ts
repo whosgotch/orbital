@@ -68,13 +68,19 @@ export function useGitSync(repoPath: string) {
 
   // Read when the picker opens, not kept warm: branches come and go from
   // terminals and other tools while Orbital sits there.
-  const refreshBranches = async () => {
-    if (!repoPath) return;
+  //
+  // Reports its failure like push does rather than just emptying the list: a
+  // silent empty list reads as "this repo has no branches", which is never true
+  // and hides whatever actually went wrong.
+  const refreshBranches = async (): Promise<string> => {
+    if (!repoPath) return "";
     try {
       setBranches(await loadBranches(repoPath));
+      return "";
     } catch (cause) {
       console.error("[orbital] branch list failed", cause);
       setBranches([]);
+      return typeof cause === "string" ? cause : "Failed to list branches.";
     }
   };
 

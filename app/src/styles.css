@@ -241,39 +241,23 @@ h3 {
   color: var(--muted);
 }
 
-/* Anchored under the branch name it replaces, and no wider than the name field
-   it filters, so opening it doesn't redraw half the bar. */
+/* Anchored under the branch name it replaces, and built like the model picker:
+   a short column of rows, nothing standing over them. */
 .popover.branch-popover {
   top: calc(100% + 6px);
   left: 0;
-  width: 260px;
-  max-height: min(360px, calc(100vh - 120px));
+  width: 240px;
+  max-height: min(340px, calc(100vh - 120px));
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px;
-}
-
-.branch-filter {
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel-2);
-  color: var(--text);
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-}
-
-.branch-filter:focus {
-  outline: none;
-  border-color: var(--accent);
+  gap: 2px;
+  padding: 4px;
 }
 
 .branch-options {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   overflow-y: auto;
 }
 
@@ -281,7 +265,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 7px 9px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -307,18 +291,32 @@ h3 {
   white-space: nowrap;
 }
 
-/* Creating sits below the list, past a divider: it is the answer only when
-   nothing above it was. */
-.branch-option.create {
-  border-top: 1px solid var(--line);
-  border-radius: 0 0 6px 6px;
+/* Starting a branch is one more row, quieter than the ones above it — and the
+   name box, when asked for, takes exactly that row's place. */
+.branch-option.new {
   color: var(--soft);
 }
 
+.branch-new,
 .branch-empty {
-  padding: 6px 8px;
-  color: var(--muted);
+  padding: 7px 9px;
   font-size: 12px;
+}
+
+.branch-new {
+  border: none;
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.branch-new:focus {
+  outline: 1px solid var(--accent);
+}
+
+.branch-empty {
+  color: var(--muted);
 }
 
 .topbar-model {

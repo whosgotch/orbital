@@ -65,26 +65,22 @@ export function TopBar({
   onSwitchBranch,
 }: TopBarProps) {
   const push = gitSync ? pushState(gitSync) : undefined;
-  const [query, setQuery] = useState("");
+  // Naming a new branch is the rare case, so it stays folded into one row until
+  // asked for, instead of a field sitting over the list you usually want.
+  const [naming, setNaming] = useState(false);
+  const [newBranch, setNewBranch] = useState("");
 
-  // The filter doubles as the name box for a new branch: what you type either
-  // narrows the list or, when nothing matches it, is the branch to create.
-  const needle = query.trim();
-  const matches = branches.filter((branch) => branch.toLowerCase().includes(needle.toLowerCase()));
-  const creatable = needle !== "" && !branches.includes(needle);
+  // Render-phase reset: a half-typed name never survives the popover closing.
+  const [namingWhileOpen, setNamingWhileOpen] = useState(branchMenuOpen);
+  if (namingWhileOpen !== branchMenuOpen) {
+    setNamingWhileOpen(branchMenuOpen);
+    setNaming(false);
+    setNewBranch("");
+  }
 
-  const pick = (branch: string, create: boolean) => {
-    setQuery("");
-    onSwitchBranch(branch, create);
-  };
-
-  // Enter takes the obvious one: the only branch left in the list, or the
-  // branch the typed name would create.
-  const onQueryKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    if (matches.length === 1) pick(matches[0], false);
-    else if (creatable) pick(needle, true);
+  const createBranch = () => {
+    const name = newBranch.trim();
+    if (name) onSwitchBranch(name, true);
   };
 
   return (
@@ -177,40 +173,49 @@ export function TopBar({
             </button>
             {branchMenuOpen ? (
               <div className="popover branch-popover" role="listbox" aria-label="Branch">
-                <input
-                  className="branch-filter"
-                  type="text"
-                  value={query}
-                  autoFocus
-                  spellCheck={false}
-                  placeholder="Find or create a branch…"
-                  onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={onQueryKeyDown}
-                />
                 <div className="branch-options">
-                  {matches.map((branch) => (
+                  {branches.map((branch) => (
                     <button
                       key={branch}
                       type="button"
                       role="option"
                       aria-selected={branch === gitSync.branch}
                       className={`branch-option ${branch === gitSync.branch ? "active" : ""}`}
-                      onClick={() => pick(branch, false)}
+                      onClick={() => onSwitchBranch(branch, false)}
                     >
                       <span className="branch-option-name">{branch}</span>
                       {branch === gitSync.branch ? <Check size={12} aria-hidden="true" /> : null}
                     </button>
                   ))}
-                  {matches.length === 0 && !creatable ? (
-                    <span className="branch-empty">No branches match.</span>
-                  ) : null}
+                  {branches.length === 0 ? <span className="branch-empty">No branches yet.</span> : null}
                 </div>
-                {creatable ? (
-                  <button type="button" className="branch-option create" onClick={() => pick(needle, true)}>
+                {naming ? (
+                  <input
+                    className="branch-new"
+                    type="text"
+                    value={newBranch}
+                    autoFocus
+                    spellCheck={false}
+                    placeholder="new-branch-name"
+                    onChange={(event) => setNewBranch(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        createBranch();
+                      } else if (event.key === "Escape") {
+                        // Back to the list, not out of the popover entirely.
+                        event.stopPropagation();
+                        setNaming(false);
+                        setNewBranch("");
+                      }
+                    }}
+                  />
+                ) : (
+                  <button type="button" className="branch-option new" onClick={() => setNaming(true)}>
                     <Plus size={12} aria-hidden="true" />
-                    <span className="branch-option-name">Create {needle}</span>
+                    <span className="branch-option-name">New branch</span>
                   </button>
-                ) : null}
+                )}
               </div>
             ) : null}
           </div>
