@@ -68,6 +68,15 @@ export async function pushRepo(repoPath: string): Promise<GitSync> {
   return JSON.parse(await invoke<string>("push_repo", { repoPath })) as GitSync;
 }
 
+// Local branches, most recently committed first.
+export async function loadBranches(repoPath: string): Promise<string[]> {
+  return JSON.parse(await invoke<string>("list_branches", { repoPath })) as string[];
+}
+
+export async function switchBranch(repoPath: string, branch: string, create: boolean): Promise<GitSync> {
+  return JSON.parse(await invoke<string>("switch_branch", { repoPath, branch, create })) as GitSync;
+}
+
 export async function loadRepoHistory(repoPath: string): Promise<RepoCommit[]> {
   const history = await invoke<string>("load_repo_history", { repoPath });
   return JSON.parse(history) as RepoCommit[];

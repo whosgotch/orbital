@@ -167,8 +167,15 @@ h3 {
   gap: 4px;
 }
 
-/* Branch + how far ahead of the remote it is. Pushing sends the branch, so the
-   control wears the branch's name rather than any one commit's. */
+/* Branch + how far ahead of the remote it is: one seam-joined control, because
+   switching a branch and pushing it are the same question asked twice. */
+.branch-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.branch-pick,
 .branch-push {
   gap: 5px;
   min-height: 26px;
@@ -176,6 +183,20 @@ h3 {
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
+}
+
+/* The seam: rounded on the outside, square and hairlined where they meet. */
+.branch-pick {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  color: var(--soft);
+}
+
+.branch-push {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid var(--line);
+  padding-left: 6px;
 }
 
 .branch-push-name {
@@ -217,6 +238,84 @@ h3 {
 .branch-push-count.quiet {
   padding: 0 3px;
   background: transparent;
+  color: var(--muted);
+}
+
+/* Anchored under the branch name it replaces, and built like the model picker:
+   a short column of rows, nothing standing over them. */
+.popover.branch-popover {
+  top: calc(100% + 6px);
+  left: 0;
+  width: 240px;
+  max-height: min(340px, calc(100vh - 120px));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+}
+
+.branch-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.branch-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.branch-option:hover {
+  background: var(--panel-2);
+}
+
+.branch-option.active {
+  color: var(--accent);
+}
+
+.branch-option-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Starting a branch is one more row, quieter than the ones above it — and the
+   name box, when asked for, takes exactly that row's place. */
+.branch-option.new {
+  color: var(--soft);
+}
+
+.branch-new,
+.branch-empty {
+  padding: 7px 9px;
+  font-size: 12px;
+}
+
+.branch-new {
+  border: none;
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.branch-new:focus {
+  outline: 1px solid var(--accent);
+}
+
+.branch-empty {
   color: var(--muted);
 }
 

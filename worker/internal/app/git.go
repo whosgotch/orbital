@@ -92,6 +92,53 @@ func PushRepo(repoPath string) (domain.GitSync, error) {
 	return GitSyncState(repoPath), nil
 }
 
+// ListBranches names the repo's local branches, most recently committed first:
+// the branch you want next is nearly always one you touched lately, so that
+// order puts it at the top of the picker.
+func ListBranches(repoPath string) []string {
+	if !isGitRepo(repoPath) {
+		return []string{}
+	}
+	listed := gitOutput(repoPath, "for-each-ref", "--format=%(refname:short)", "--sort=-committerdate", "refs/heads")
+	if listed == "" {
+		return []string{}
+	}
+	return strings.Split(listed, "\n")
+}
+
+// SwitchBranch checks out branch, creating it from HEAD when create is set.
+//
+// It uses `git switch` rather than `git checkout` because switch only ever
+// moves branches: a name that happens to match a file can't be read as a path
+// and silently throw away that file's uncommitted changes.
+//
+// Git decides what carrying uncommitted work across is allowed, and its refusal
+// is returned verbatim — it names the files in the way, which nothing here could
+// improve on.
+func SwitchBranch(repoPath, branch string, create bool) (domain.GitSync, error) {
+	branch = strings.TrimSpace(branch)
+	if !isGitRepo(repoPath) {
+		return GitSyncState(repoPath), fmt.Errorf("not a git repository: %s", repoPath)
+	}
+	// A leading dash would be read as an option instead of a name.
+	if branch == "" || strings.HasPrefix(branch, "-") {
+		return GitSyncState(repoPath), fmt.Errorf("not a usable branch name: %q", branch)
+	}
+
+	args := []string{"switch"}
+	if create {
+		args = append(args, "-c")
+	}
+	args = append(args, branch)
+	switchCmd := exec.Command("git", args...)
+	switchCmd.Dir = repoPath
+	if output, err := switchCmd.CombinedOutput(); err != nil {
+		return GitSyncState(repoPath), fmt.Errorf("git switch: %s", strings.TrimSpace(string(output)))
+	}
+
+	return GitSyncState(repoPath), nil
+}
+
 // headIsPushed reports whether HEAD is already contained in the branch's
 // upstream. Rewriting such a commit diverges the branch from the remote, and
 // the next push is rejected — so the gate stops offering it at all.

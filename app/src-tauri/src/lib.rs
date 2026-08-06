@@ -367,6 +367,26 @@ async fn push_repo(repo_path: String) -> Result<String, String> {
         .map_err(|error| error.to_string())?
 }
 
+#[tauri::command]
+fn list_branches(repo_path: String) -> Result<String, String> {
+    run_worker(&["branches", repo_path.trim()])
+}
+
+// Checking out rewrites the working tree, which on a large repo is far from
+// instant, so it runs off the UI thread like a push does.
+#[tauri::command]
+async fn switch_branch(repo_path: String, branch: String, create: bool) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut args = vec!["switch-branch", repo_path.trim(), branch.trim()];
+        if create {
+            args.push("--create");
+        }
+        run_worker(&args)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 fn run_worker_streaming(
     app: &tauri::AppHandle,
     runs: &RunningRuns,
@@ -524,6 +544,8 @@ pub fn run() {
             amend_commit,
             git_sync,
             push_repo,
+            list_branches,
+            switch_branch,
             load_repo_history,
             load_commit_diff,
             list_models
