@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { GitSync } from "./domain";
-import { loadGitSync, pushRepo } from "./missionLoopLoader";
+import { loadBranches, loadGitSync, pushRepo, switchBranch } from "./missionLoopLoader";
 
 // Where the active repo stands against its remote. Read on demand — after a
 // commit lands, an amend, or a push — rather than polled: nothing else changes
@@ -16,6 +16,16 @@ export function useGitSync(repoPath: string) {
   // happened". This holds a receipt on screen for a moment so the action is
   // seen to have done something.
   const [justPushed, setJustPushed] = useState(false);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [switching, setSwitching] = useState(false);
+
+  // Render-phase reset: a list read for one repo must never be offered as
+  // another's, not even for the moment before the fresh read lands.
+  const [branchesFor, setBranchesFor] = useState(repoPath);
+  if (branchesFor !== repoPath) {
+    setBranchesFor(repoPath);
+    setBranches([]);
+  }
 
   useEffect(() => {
     if (!justPushed) return;
@@ -56,5 +66,36 @@ export function useGitSync(repoPath: string) {
     }
   };
 
-  return { sync, pushing, justPushed, refresh, push };
+  // Read when the picker opens, not kept warm: branches come and go from
+  // terminals and other tools while Orbital sits there.
+  const refreshBranches = async () => {
+    if (!repoPath) return;
+    try {
+      setBranches(await loadBranches(repoPath));
+    } catch (cause) {
+      console.error("[orbital] branch list failed", cause);
+      setBranches([]);
+    }
+  };
+
+  // Same contract as push: git's refusal (uncommitted work in the way, a name
+  // already taken) is returned for the caller's one error surface to show.
+  const switchTo = async (branch: string, create: boolean): Promise<string> => {
+    if (!repoPath) return "";
+    setSwitching(true);
+    setJustPushed(false);
+    try {
+      setSync(await switchBranch(repoPath, branch, create));
+      void refreshBranches();
+      return "";
+    } catch (cause) {
+      console.error("[orbital] branch switch failed", cause);
+      void refresh();
+      return typeof cause === "string" ? cause : `Failed to switch to ${branch}.`;
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  return { sync, pushing, justPushed, branches, switching, refresh, push, refreshBranches, switchTo };
 }

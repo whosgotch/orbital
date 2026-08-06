@@ -42,6 +42,10 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return pushRepository(args, stdout)
 	case "git-sync":
 		return showGitSync(args, stdout)
+	case "branches":
+		return listBranches(args, stdout)
+	case "switch-branch":
+		return switchBranch(args, stdout)
 	case "start-run":
 		return startAgentRun(ctx, args, stdout)
 	case "send-message":
@@ -60,5 +64,5 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 }
 
 func usageError() error {
-	return fmt.Errorf("usage: orbital open <repo-path>\n       orbital queue <repo-path> <mission-text> [--campaign <id>] [--tool <command>]\n       orbital edit-mission <repo-path> <mission-id> <text>\n       orbital link <repo-path> <from-mission-id> <to-mission-id>\n       orbital unlink <repo-path> <from-mission-id> <to-mission-id>\n       orbital start-run <repo-path> <mission-id>\n       orbital send-message <repo-path> <mission-id> <text>\n       orbital approve <repo-path> <mission-id> [commit-message]\n       orbital reject <repo-path> <mission-id>\n       orbital amend <repo-path> <mission-id> <commit-message>\n       orbital push <repo-path>\n       orbital git-sync <repo-path>\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital history <repo-path>\n       orbital history --json <repo-path>\n       orbital show <repo-path> <commit-hash>")
+	return fmt.Errorf("usage: orbital open <repo-path>\n       orbital queue <repo-path> <mission-text> [--campaign <id>] [--tool <command>]\n       orbital edit-mission <repo-path> <mission-id> <text>\n       orbital link <repo-path> <from-mission-id> <to-mission-id>\n       orbital unlink <repo-path> <from-mission-id> <to-mission-id>\n       orbital start-run <repo-path> <mission-id>\n       orbital send-message <repo-path> <mission-id> <text>\n       orbital approve <repo-path> <mission-id> [commit-message]\n       orbital reject <repo-path> <mission-id>\n       orbital amend <repo-path> <mission-id> <commit-message>\n       orbital push <repo-path>\n       orbital git-sync <repo-path>\n       orbital branches <repo-path>\n       orbital switch-branch <repo-path> <branch> [--create]\n       orbital status <repo-path>\n       orbital status --json <repo-path>\n       orbital history <repo-path>\n       orbital history --json <repo-path>\n       orbital show <repo-path> <commit-hash>")
 }

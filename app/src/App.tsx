@@ -87,6 +87,7 @@ export function App() {
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const repoHistory = useRepoHistory(activeRepoPath);
   const gitSync = useGitSync(activeRepoPath);
   // The commit message the gate is about to use. null = untouched, so the box
@@ -231,6 +232,27 @@ export function App() {
     if (failure) setMissionLoopError(failure);
   };
 
+  const toggleBranchMenu = () =>
+    setBranchMenuOpen((current) => {
+      // Branches are made and deleted in terminals too, so the list is read
+      // fresh every time the picker opens.
+      if (!current) void gitSync.refreshBranches();
+      return !current;
+    });
+
+  // Switching branches rewrites the working tree, so the repo's own state (the
+  // branch on its canvas node included) is read again, not just git's.
+  const switchBranch = async (branch: string, create: boolean) => {
+    setMissionLoopError("");
+    setBranchMenuOpen(false);
+    const failure = await gitSync.switchTo(branch, create);
+    if (failure) {
+      setMissionLoopError(failure);
+      return;
+    }
+    await openRepoAtPath(activeRepoPath);
+  };
+
   const showTaskView = (view: "chat" | "changes") => {
     setTaskView(view);
     // The gate is the only place that shows push state, so it reads git fresh
@@ -315,6 +337,10 @@ export function App() {
         setHistoryOpen(false);
         return;
       }
+      if (branchMenuOpen) {
+        setBranchMenuOpen(false);
+        return;
+      }
       if (modelPickerOpen) {
         setModelPickerOpen(false);
         return;
@@ -327,7 +353,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [diffModalOpen, historyOpen, modelPickerOpen, effortPickerOpen, repoHistory]);
+  }, [diffModalOpen, historyOpen, branchMenuOpen, modelPickerOpen, effortPickerOpen, repoHistory]);
 
   // Canvas keybinds for the selected node. Delete/Backspace removes it: a
   // mission node runs the panel's confirm-and-delete flow; a repo node closes
@@ -379,6 +405,11 @@ export function App() {
         pushing={gitSync.pushing}
         justPushed={gitSync.justPushed}
         onPush={() => void pushBranch()}
+        branches={gitSync.branches}
+        branchMenuOpen={branchMenuOpen}
+        switching={gitSync.switching}
+        onToggleBranchMenu={toggleBranchMenu}
+        onSwitchBranch={(branch, create) => void switchBranch(branch, create)}
       />
 
       <div className="canvas-area">
