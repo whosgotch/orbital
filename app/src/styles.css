@@ -241,11 +241,10 @@ h3 {
   color: var(--muted);
 }
 
-/* Anchored under the branch name it replaces, and built like the model picker:
-   a short column of rows, nothing standing over them. */
 .popover.branch-popover {
   top: calc(100% + 6px);
-  left: 0;
+  left: auto;
+  right: 0;
   width: 240px;
   max-height: min(340px, calc(100vh - 120px));
   display: flex;
