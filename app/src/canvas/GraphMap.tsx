@@ -26,6 +26,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Check, Cpu, GitBranch, Loader, Play, Timer, TriangleAlert, X } from "lucide-react";
 import { layoutGraph, portOffset, type NodePosition } from "./graphLayout";
+import { loadNodePositions, saveNodePositions } from "./nodePositions";
 import { type GraphNodeKind, type GraphNodeMeta, type MissionNodeStatus, type WorkspaceGraphEdge, type WorkspaceGraphNode } from "./graph";
 import { CONTEXT_WINDOW, contextPercent, formatDuration, formatTokens } from "../workspace/usage";
 import { useModels } from "../workspace/useModels";
@@ -107,8 +108,12 @@ function portOffsetOf(rfNode: Node): number {
 export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runningMissionIds, onSelectNode, actions }: GraphMapProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<OrbitalNodeData>>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  // Only nodes the user explicitly dragged are pinned here; everything else is re-laid-out fresh on every topology change.
-  const manualPositionsRef = useRef<Record<string, NodePosition>>({});
+  // Only nodes the user explicitly dragged are pinned here; everything else is
+  // re-laid-out fresh on every topology change. Read back from disk at mount so
+  // an arrangement survives closing and reopening the repo, and written again on
+  // every drop.
+  const [restoredPositions] = useState(loadNodePositions);
+  const manualPositionsRef = useRef<Record<string, NodePosition>>(restoredPositions);
   // Cards grow with their content (chips land when a run finishes), so the
   // layout is fed the heights React Flow actually measured rather than one
   // assumed footprint — otherwise a tall lane runs into the one below it.
@@ -219,7 +224,14 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   );
 
   useEffect(() => {
-    const laidOut = layoutGraph(nodes, edges, manualPositionsRef.current, measuredHeightsRef.current);
+    // Only pins for cards actually on the canvas reach the layout: restored
+    // pins name every node the user ever dragged, including ones from a repo
+    // that isn't open, and layoutGraph treats each pin as an obstacle to push
+    // free lanes past — ghosts would shove lanes around nothing.
+    const pinned = Object.fromEntries(
+      nodes.filter((node) => node.id in manualPositionsRef.current).map((node) => [node.id, manualPositionsRef.current[node.id]]),
+    );
+    const laidOut = layoutGraph(nodes, edges, pinned, measuredHeightsRef.current);
     let appearIndex = 0;
     nodes.forEach((node) => {
       if (!(node.id in settleDelaysRef.current)) {
@@ -306,6 +318,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
   const onNodeDragStop = useCallback(
     (event: MouseEvent | TouchEvent, node: Node) => {
       manualPositionsRef.current[node.id] = snapDraggedNode(event, node, true);
+      saveNodePositions(manualPositionsRef.current);
     },
     [snapDraggedNode],
   );
@@ -314,6 +327,7 @@ export function GraphMap({ nodes, edges, selectedNodeId, selectedMissionId, runn
     draggedNodes.forEach((node) => {
       manualPositionsRef.current[node.id] = node.position;
     });
+    saveNodePositions(manualPositionsRef.current);
   }, []);
 
   const onNodeClick = useCallback(
