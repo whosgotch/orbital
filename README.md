@@ -27,7 +27,9 @@ curl -fsSL https://raw.githubusercontent.com/whosgotch/orbital/main/scripts/inst
 
 Or grab a build from [Releases](https://github.com/whosgotch/orbital/releases).
 
-The macOS app is unsigned - on first launch, right-click it and choose **Open**.
+The macOS app is unsigned. The `curl` install above launches normally. If you download
+the `.dmg` instead, macOS will block it — open **System Settings → Privacy & Security**
+and click **Open Anyway**.
 
 ## Notes
 
@@ -35,7 +37,7 @@ Very early. Expect bugs.
 
 macOS and Linux only. No Windows build yet.
 
-Not accepting pull requests yet. Bug reports and issues are welcome.
+Bug reports and issues are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 
